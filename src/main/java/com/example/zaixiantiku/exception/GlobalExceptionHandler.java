@@ -30,7 +30,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(Exception.class)
     public Result<String> handleException(Exception e) {
-        log.error("系统异常：", e);
-        return Result.error("系统繁忙，请稍后再试");
+        log.error("系统异常 [{}]: ", e.getClass().getName(), e);
+        return Result.error("系统繁忙，请稍后再试: " + e.getMessage());
     }
 }
