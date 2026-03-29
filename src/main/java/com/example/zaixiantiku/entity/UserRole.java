@@ -1,4 +1,4 @@
-package com.example.zaixiantiku.model;
+package com.example.zaixiantiku.entity;
 
 import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.TableField;

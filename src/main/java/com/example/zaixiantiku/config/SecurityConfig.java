@@ -1,5 +1,6 @@
 package com.example.zaixiantiku.config;
 
+import com.example.zaixiantiku.security.JwtAuthenticationEntryPoint;
 import com.example.zaixiantiku.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -26,6 +27,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
 
     /**
      * 密码编码器
@@ -64,6 +66,8 @@ public class SecurityConfig {
                         .permitAll() // 放行 Swagger 相关路径
                         .anyRequest().authenticated() // 其他请求需要认证
                 )
+                // 异常处理
+                .exceptionHandling(exception -> exception.authenticationEntryPoint(jwtAuthenticationEntryPoint))
                 // 添加 JWT 过滤器
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

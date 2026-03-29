@@ -1,4 +1,4 @@
-package com.example.zaixiantiku.model;
+package com.example.zaixiantiku.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.AllArgsConstructor;
@@ -9,24 +9,20 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * 权限表
+ * 角色表
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName("permission")
-public class Permission {
+@TableName("role")
+public class Role {
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    private String permissionName;
+    private String roleName;
 
-    private String permissionCode;
-
-    private Long parentId;
-
-    private Integer sortOrder;
+    private String roleCode;
 
     private String description;
 

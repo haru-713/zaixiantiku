@@ -2,7 +2,7 @@ package com.example.zaixiantiku.security;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.example.zaixiantiku.mapper.UserMapper;
-import com.example.zaixiantiku.model.User;
+import com.example.zaixiantiku.entity.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;

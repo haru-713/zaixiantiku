@@ -2,14 +2,17 @@ package com.example.zaixiantiku.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.example.zaixiantiku.dto.LoginDTO;
-import com.example.zaixiantiku.dto.RegisterDTO;
+import com.example.zaixiantiku.pojo.dto.LoginDTO;
+import com.example.zaixiantiku.pojo.dto.PasswordUpdateDTO;
+import com.example.zaixiantiku.pojo.dto.RegisterDTO;
+import com.example.zaixiantiku.pojo.dto.UserUpdateDTO;
+import com.example.zaixiantiku.pojo.vo.UserVO;
 import com.example.zaixiantiku.mapper.RoleMapper;
 import com.example.zaixiantiku.mapper.UserMapper;
 import com.example.zaixiantiku.mapper.UserRoleMapper;
-import com.example.zaixiantiku.model.Role;
-import com.example.zaixiantiku.model.User;
-import com.example.zaixiantiku.model.UserRole;
+import com.example.zaixiantiku.entity.Role;
+import com.example.zaixiantiku.entity.User;
+import com.example.zaixiantiku.entity.UserRole;
 import com.example.zaixiantiku.security.LoginUser;
 import com.example.zaixiantiku.service.UserService;
 import com.example.zaixiantiku.utils.JwtUtils;
@@ -17,6 +20,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +42,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     private final UserRoleMapper userRoleMapper;
     private final AuthenticationManager authenticationManager;
     private final JwtUtils jwtUtils;
+    private final UserMapper userMapper;
 
     @Override
     @Transactional
@@ -132,5 +137,106 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
         result.put("userInfo", userInfo);
         return result;
+    }
+
+    @Override
+    public UserVO getCurrentUserInfo() {
+        // 1. 从 SecurityContext 中获取当前认证信息
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()
+                || "anonymousUser".equals(authentication.getPrincipal())) {
+            throw new RuntimeException("用户未登录");
+        }
+
+        LoginUser loginUser = (LoginUser) authentication.getPrincipal();
+        User user = loginUser.getUser();
+
+        // 2. 封装 VO 返回
+        return UserVO.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .name(user.getName())
+                .phone(user.getPhone())
+                .email(user.getEmail())
+                .avatar(user.getAvatar())
+                .status(user.getStatus())
+                .auditStatus(user.getAuditStatus())
+                .roles(loginUser.getRoleCodes())
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public UserVO updateCurrentUserInfo(UserUpdateDTO userUpdateDTO) {
+        // 1. 获取当前登录用户
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()
+                || "anonymousUser".equals(authentication.getPrincipal())) {
+            throw new RuntimeException("用户未登录");
+        }
+        LoginUser loginUser = (LoginUser) authentication.getPrincipal();
+        User user = loginUser.getUser();
+
+        // 2. 校验手机号和邮箱唯一性 (排除当前用户)
+        if (StringUtils.hasText(userUpdateDTO.getPhone())) {
+            User existingPhone = this.getOne(new LambdaQueryWrapper<User>()
+                    .eq(User::getPhone, userUpdateDTO.getPhone())
+                    .ne(User::getId, user.getId()));
+            if (existingPhone != null) {
+                throw new RuntimeException("手机号已被其他账号使用");
+            }
+            user.setPhone(userUpdateDTO.getPhone());
+        }
+
+        if (StringUtils.hasText(userUpdateDTO.getEmail())) {
+            User existingEmail = this.getOne(new LambdaQueryWrapper<User>()
+                    .eq(User::getEmail, userUpdateDTO.getEmail())
+                    .ne(User::getId, user.getId()));
+            if (existingEmail != null) {
+                throw new RuntimeException("邮箱已被其他账号使用");
+            }
+            user.setEmail(userUpdateDTO.getEmail());
+        }
+
+        // 3. 更新其他字段
+        if (StringUtils.hasText(userUpdateDTO.getName())) {
+            user.setName(userUpdateDTO.getName());
+        }
+        if (StringUtils.hasText(userUpdateDTO.getAvatar())) {
+            user.setAvatar(userUpdateDTO.getAvatar());
+        }
+
+        // 4. 执行更新
+        this.updateById(user);
+
+        // 5. 返回最新的用户信息
+        return getCurrentUserInfo();
+    }
+
+    @Override
+    @Transactional
+    public void updatePassword(PasswordUpdateDTO passwordUpdateDTO) {
+        // 1. 获取当前登录用户
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()
+                || "anonymousUser".equals(authentication.getPrincipal())) {
+            throw new RuntimeException("用户未登录");
+        }
+        LoginUser loginUser = (LoginUser) authentication.getPrincipal();
+        User user = this.getById(loginUser.getUser().getId());
+
+        // 2. 校验旧密码
+        if (!passwordEncoder.matches(passwordUpdateDTO.getOldPassword(), user.getPassword())) {
+            throw new RuntimeException("旧密码错误");
+        }
+
+        // 3. 校验新密码是否与旧密码相同
+        if (passwordEncoder.matches(passwordUpdateDTO.getNewPassword(), user.getPassword())) {
+            throw new RuntimeException("新密码不能与旧密码相同");
+        }
+
+        // 4. 更新新密码
+        user.setPassword(passwordEncoder.encode(passwordUpdateDTO.getNewPassword()));
+        this.updateById(user);
     }
 }

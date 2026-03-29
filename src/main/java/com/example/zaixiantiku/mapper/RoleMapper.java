@@ -1,7 +1,7 @@
 package com.example.zaixiantiku.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.example.zaixiantiku.model.Role;
+import com.example.zaixiantiku.entity.Role;
 import org.apache.ibatis.annotations.Mapper;
 
 /**

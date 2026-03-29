@@ -1,7 +1,7 @@
 package com.example.zaixiantiku.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.example.zaixiantiku.model.User;
+import com.example.zaixiantiku.entity.User;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
 

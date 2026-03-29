@@ -1,23 +1,40 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import Login from '../views/Login.vue'
+import Register from '../views/Register.vue'
+import Home from '../views/Home.vue'
+
+const routes = [
+  {
+    path: '/login',
+    name: 'Login',
+    component: Login
+  },
+  {
+    path: '/register',
+    name: 'Register',
+    component: Register
+  },
+  {
+    path: '/',
+    name: 'Home',
+    component: Home,
+    meta: { requiresAuth: true }
+  }
+]
 
 const router = createRouter({
   history: createWebHistory(),
-  routes: [
-    {
-      path: '/',
-      redirect: '/register'
-    },
-    {
-      path: '/register',
-      name: 'Register',
-      component: () => import('../views/Register.vue')
-    },
-    {
-      path: '/login',
-      name: 'Login',
-      component: () => import('../views/Register.vue') // Temporarily use Register as placeholder
-    }
-  ]
+  routes
+})
+
+// 路由守卫
+router.beforeEach((to, from, next) => {
+  const token = localStorage.getItem('token')
+  if (to.meta.requiresAuth && !token) {
+    next('/login')
+  } else {
+    next()
+  }
 })
 
 export default router

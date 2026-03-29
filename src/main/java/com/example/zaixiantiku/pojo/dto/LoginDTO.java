@@ -1,4 +1,4 @@
-package com.example.zaixiantiku.dto;
+package com.example.zaixiantiku.pojo.dto;
 
 import lombok.Data;
 

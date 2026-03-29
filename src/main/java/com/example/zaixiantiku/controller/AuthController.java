@@ -1,8 +1,8 @@
 package com.example.zaixiantiku.controller;
 
 import com.example.zaixiantiku.common.Result;
-import com.example.zaixiantiku.dto.LoginDTO;
-import com.example.zaixiantiku.dto.RegisterDTO;
+import com.example.zaixiantiku.pojo.dto.LoginDTO;
+import com.example.zaixiantiku.pojo.dto.RegisterDTO;
 import com.example.zaixiantiku.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

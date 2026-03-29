@@ -1,9 +1,12 @@
 package com.example.zaixiantiku.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.example.zaixiantiku.dto.LoginDTO;
-import com.example.zaixiantiku.dto.RegisterDTO;
-import com.example.zaixiantiku.model.User;
+import com.example.zaixiantiku.pojo.dto.LoginDTO;
+import com.example.zaixiantiku.pojo.dto.PasswordUpdateDTO;
+import com.example.zaixiantiku.pojo.dto.RegisterDTO;
+import com.example.zaixiantiku.pojo.dto.UserUpdateDTO;
+import com.example.zaixiantiku.pojo.vo.UserVO;
+import com.example.zaixiantiku.entity.User;
 
 import java.util.Map;
 
@@ -25,4 +28,26 @@ public interface UserService extends IService<User> {
      * @return 包含 token 和 userInfo 的结果集
      */
     Map<String, Object> login(LoginDTO loginDTO);
+
+    /**
+     * 获取当前登录用户信息
+     * 
+     * @return 用户详细信息
+     */
+    UserVO getCurrentUserInfo();
+
+    /**
+     * 修改当前登录用户信息
+     * 
+     * @param userUpdateDTO 修改信息
+     * @return 修改后的用户详细信息
+     */
+    UserVO updateCurrentUserInfo(UserUpdateDTO userUpdateDTO);
+
+    /**
+     * 修改当前登录用户密码
+     * 
+     * @param passwordUpdateDTO 密码修改信息
+     */
+    void updatePassword(PasswordUpdateDTO passwordUpdateDTO);
 }

@@ -1,6 +1,6 @@
 package com.example.zaixiantiku.security;
 
-import com.example.zaixiantiku.model.User;
+import com.example.zaixiantiku.entity.User;
 import lombok.Data;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
