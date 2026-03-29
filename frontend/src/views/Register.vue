@@ -50,7 +50,7 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
-import request from '@/utils/request'
+import axios from 'axios'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -105,7 +105,7 @@ const handleRegister = async () => {
     if (valid) {
       loading.value = true
       try {
-        const response = await request.post('/auth/register', {
+        const response = await axios.post('/api/auth/register', {
           username: registerForm.username,
           password: registerForm.password,
           name: registerForm.name,
@@ -115,10 +115,15 @@ const handleRegister = async () => {
           roleCode: registerForm.roleCode
         })
 
-        ElMessage.success(response.msg || '注册成功！')
-        router.push('/login')
+        if (response.data.code === 1) {
+          ElMessage.success(response.data.msg || '注册成功！')
+          router.push('/login')
+        } else {
+          ElMessage.error(response.data.msg || '注册失败')
+        }
       } catch (error) {
         console.error(error)
+        ElMessage.error('网络错误或服务器异常')
       } finally {
         loading.value = false
       }

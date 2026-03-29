@@ -25,11 +25,6 @@ public class Result<T> {
         return new Result<>(1, "success", data);
     }
 
-    // 自定义成功响应
-    public static <T> Result<T> success(Integer code, String msg, T data) {
-        return new Result<>(code, msg, data);
-    }
-
     // 失败响应
     public static <T> Result<T> error(String msg) {
         return new Result<>(0, msg, null);
