@@ -63,6 +63,19 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
+        <el-table-column label="操作" width="200">
+          <template #default="scope">
+            <el-button :type="scope.row.status === 1 ? 'danger' : 'success'" size="small"
+              @click="handleToggleStatus(scope.row.id, scope.row.status)">
+              {{ scope.row.status === 1 ? '禁用' : '启用' }}
+            </el-button>
+
+            <template v-if="scope.row.roleCodes.includes('STUDENT') && scope.row.auditStatus === 0">
+              <el-button type="success" size="small" @click="handleAudit(scope.row.id, 1)">通过</el-button>
+              <el-button type="warning" size="small" @click="handleAudit(scope.row.id, 2)">拒绝</el-button>
+            </template>
+          </template>
+        </el-table-column>
       </el-table>
 
       <!-- 分页 -->
@@ -78,7 +91,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import request from '@/utils/request'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const loading = ref(false)
 const userList = ref([])
@@ -137,6 +150,61 @@ const auditStatusLabel = (status) => {
 const auditStatusType = (status) => {
   const types = { 0: 'warning', 1: 'success', 2: 'danger' }
   return types[status] || 'info'
+}
+
+const handleAudit = async (userId, auditStatus) => {
+  let reason = ''
+  if (auditStatus === 2) {
+    try {
+      const res = await ElMessageBox.prompt('请输入拒绝原因', '审核拒绝', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        inputPlaceholder: '例如：信息不完整'
+      })
+      reason = res.value || ''
+    } catch {
+      return
+    }
+  } else {
+    reason = '审核通过'
+  }
+
+  loading.value = true
+  try {
+    await request.put(`/admin/users/${userId}/audit`, { auditStatus, reason })
+    ElMessage.success('审核完成')
+    fetchUserList()
+  } catch (e) {
+    console.error('审核失败:', e)
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleToggleStatus = async (userId, currentStatus) => {
+  const nextStatus = currentStatus === 1 ? 0 : 1
+  const actionText = nextStatus === 1 ? '启用' : '禁用'
+
+  try {
+    await ElMessageBox.confirm(`确定要${actionText}该用户吗？`, '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+  } catch {
+    return
+  }
+
+  loading.value = true
+  try {
+    await request.put(`/admin/users/${userId}/status`, { status: nextStatus })
+    ElMessage.success('状态已更新')
+    fetchUserList()
+  } catch (e) {
+    console.error('状态更新失败:', e)
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(() => {

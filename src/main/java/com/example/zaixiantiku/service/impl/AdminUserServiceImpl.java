@@ -4,18 +4,25 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.example.zaixiantiku.entity.User;
 import com.example.zaixiantiku.mapper.UserMapper;
+import com.example.zaixiantiku.pojo.dto.UserAuditDTO;
 import com.example.zaixiantiku.pojo.dto.UserQueryDTO;
+import com.example.zaixiantiku.pojo.dto.UserStatusDTO;
 import com.example.zaixiantiku.pojo.vo.PageResult;
 import com.example.zaixiantiku.pojo.vo.UserAdminVO;
+import com.example.zaixiantiku.security.LoginUser;
 import com.example.zaixiantiku.service.AdminUserService;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.Set;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -96,5 +103,73 @@ public class AdminUserServiceImpl extends ServiceImpl<UserMapper, User> implemen
 
         // 5. 封装结果返回
         return PageResult.of(pageInfo.getTotal(), voList);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void auditStudent(Long userId, UserAuditDTO auditDTO) {
+        if (userId == null) {
+            throw new RuntimeException("userId 不能为空");
+        }
+        if (auditDTO == null || auditDTO.getAuditStatus() == null) {
+            throw new RuntimeException("auditStatus 不能为空");
+        }
+        if (!Objects.equals(auditDTO.getAuditStatus(), 1) && !Objects.equals(auditDTO.getAuditStatus(), 2)) {
+            throw new RuntimeException("auditStatus 参数非法");
+        }
+
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new RuntimeException("用户不存在");
+        }
+
+        List<String> roleCodes = userMapper.findRoleCodesByUserId(userId);
+        if (roleCodes == null || !roleCodes.contains("STUDENT")) {
+            throw new RuntimeException("仅支持审核学生用户");
+        }
+
+        User update = new User();
+        update.setId(userId);
+        update.setAuditStatus(auditDTO.getAuditStatus());
+        int rows = userMapper.updateById(update);
+        if (rows != 1) {
+            throw new RuntimeException("审核失败");
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateUserStatus(Long userId, UserStatusDTO statusDTO) {
+        if (userId == null) {
+            throw new RuntimeException("userId 不能为空");
+        }
+        if (statusDTO == null || statusDTO.getStatus() == null) {
+            throw new RuntimeException("status 不能为空");
+        }
+        if (!Objects.equals(statusDTO.getStatus(), 0) && !Objects.equals(statusDTO.getStatus(), 1)) {
+            throw new RuntimeException("status 参数非法");
+        }
+
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new RuntimeException("用户不存在");
+        }
+
+        if (Objects.equals(statusDTO.getStatus(), 0)) {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication != null && authentication.getPrincipal() instanceof LoginUser loginUser) {
+                if (loginUser.getUser() != null && Objects.equals(loginUser.getUser().getId(), userId)) {
+                    throw new RuntimeException("不能禁用当前登录账号");
+                }
+            }
+        }
+
+        User update = new User();
+        update.setId(userId);
+        update.setStatus(statusDTO.getStatus());
+        int rows = userMapper.updateById(update);
+        if (rows != 1) {
+            throw new RuntimeException("状态更新失败");
+        }
     }
 }

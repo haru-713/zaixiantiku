@@ -2,7 +2,9 @@ package com.example.zaixiantiku.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.example.zaixiantiku.entity.User;
+import com.example.zaixiantiku.pojo.dto.UserAuditDTO;
 import com.example.zaixiantiku.pojo.dto.UserQueryDTO;
+import com.example.zaixiantiku.pojo.dto.UserStatusDTO;
 import com.example.zaixiantiku.pojo.vo.PageResult;
 import com.example.zaixiantiku.pojo.vo.UserAdminVO;
 
@@ -17,4 +19,8 @@ public interface AdminUserService extends IService<User> {
      * @return 分页结果
      */
     PageResult<UserAdminVO> getUserPage(UserQueryDTO queryDTO);
+
+    void auditStudent(Long userId, UserAuditDTO auditDTO);
+
+    void updateUserStatus(Long userId, UserStatusDTO statusDTO);
 }
