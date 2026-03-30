@@ -1,0 +1,24 @@
+package com.example.zaixiantiku.pojo.dto;
+
+import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.Data;
+
+@Data
+@Schema(description = "课程列表查询参数")
+public class CourseQueryDTO {
+
+    @Schema(description = "当前页码", defaultValue = "1")
+    private Integer page = 1;
+
+    @Schema(description = "每页条数", defaultValue = "10")
+    private Integer size = 10;
+
+    @Schema(description = "课程名称模糊搜索")
+    private String keyword;
+
+    @Schema(description = "状态：0-禁用，1-启用")
+    private Integer status;
+
+    @Schema(description = "审核状态：0-待审核，1-通过，2-拒绝")
+    private Integer auditStatus;
+}
