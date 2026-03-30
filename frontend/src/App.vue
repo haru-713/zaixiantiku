@@ -37,11 +37,9 @@
               <el-menu-item index="/exam/statistics">成绩统计</el-menu-item>
             </el-sub-menu>
 
-            <el-sub-menu v-if="isAdmin || isTeacher" index="course">
-              <template #title>课程管理</template>
-              <el-menu-item index="/course/list">课程列表</el-menu-item>
-              <el-menu-item index="/course/create">创建课程</el-menu-item>
-            </el-sub-menu>
+            <el-menu-item v-if="isAdmin || isTeacher" index="/course/list">
+              课程管理
+            </el-menu-item>
 
             <el-sub-menu v-if="isStudent" index="study">
               <template #title>学习管理</template>

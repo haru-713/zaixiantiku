@@ -73,7 +73,6 @@ const handleLogin = async () => {
         router.push('/')
       } catch (error) {
         console.error(error)
-        ElMessage.error(error.response?.data?.msg || '网络错误或服务器异常')
       } finally {
         loading.value = false
       }

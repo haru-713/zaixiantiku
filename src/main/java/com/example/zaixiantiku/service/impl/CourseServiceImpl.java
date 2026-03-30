@@ -232,6 +232,8 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
             throw new RuntimeException("课程不存在");
         }
 
+        requireCourseOwnerOrAdmin(courseId);
+
         Course update = new Course();
         update.setId(courseId);
         if (StringUtils.hasText(updateDTO.getCourseName())) {
@@ -268,6 +270,9 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         if (course == null) {
             throw new RuntimeException("课程不存在");
         }
+
+        requireCourseOwnerOrAdmin(courseId);
+
         int rows = courseMapper.deleteById(courseId);
         if (rows != 1) {
             throw new RuntimeException("删除课程失败");
@@ -341,5 +346,23 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
             throw new RuntimeException("用户未登录");
         }
         return loginUser;
+    }
+
+    private void requireCourseOwnerOrAdmin(Long courseId) {
+        LoginUser loginUser = requireLoginUser();
+        List<String> roleCodes = loginUser.getRoleCodes();
+        if (roleCodes != null && roleCodes.contains("ADMIN")) {
+            return;
+        }
+        if (roleCodes == null || !roleCodes.contains("TEACHER")) {
+            throw new RuntimeException("没有权限操作该课程");
+        }
+        Long teacherId = loginUser.getUser().getId();
+        Long count = courseTeacherMapper.selectCount(new LambdaQueryWrapper<CourseTeacher>()
+                .eq(CourseTeacher::getCourseId, courseId)
+                .eq(CourseTeacher::getTeacherId, teacherId));
+        if (count == null || count <= 0) {
+            throw new RuntimeException("没有权限操作该课程");
+        }
     }
 }

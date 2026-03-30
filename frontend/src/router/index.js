@@ -68,14 +68,8 @@ const routes = [
   {
     path: '/course/list',
     name: 'CourseList',
-    component: ComingSoon,
-    meta: { requiresAuth: true, title: '课程列表', roles: ['ADMIN', 'TEACHER'] }
-  },
-  {
-    path: '/course/create',
-    name: 'CourseCreate',
     component: CourseCreate,
-    meta: { requiresAuth: true, title: '创建课程', roles: ['ADMIN', 'TEACHER'] }
+    meta: { requiresAuth: true, title: '课程管理', roles: ['ADMIN', 'TEACHER'] }
   },
   {
     path: '/profile',
