@@ -45,6 +45,15 @@ public class AdminUserServiceImpl extends ServiceImpl<UserMapper, User> implemen
         // 2. 构建查询条件
         LambdaQueryWrapper<User> queryWrapper = new LambdaQueryWrapper<>();
 
+        boolean forceStudentOnly = false;
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof LoginUser loginUser) {
+            List<String> callerRoles = loginUser.getRoleCodes();
+            if (callerRoles != null && callerRoles.contains("TEACHER") && !callerRoles.contains("ADMIN")) {
+                forceStudentOnly = true;
+            }
+        }
+
         // 模糊搜索：用户名/姓名/手机号
         if (StringUtils.hasText(queryDTO.getKeyword())) {
             queryWrapper.and(w -> w.like(User::getUsername, queryDTO.getKeyword())
@@ -58,6 +67,9 @@ public class AdminUserServiceImpl extends ServiceImpl<UserMapper, User> implemen
         }
 
         String roleCode = StringUtils.hasText(queryDTO.getRoleCode()) ? queryDTO.getRoleCode().trim() : null;
+        if (forceStudentOnly) {
+            roleCode = "STUDENT";
+        }
         if (StringUtils.hasText(roleCode) && !ALLOWED_ROLE_CODES.contains(roleCode)) {
             throw new RuntimeException("roleCode 参数非法");
         }

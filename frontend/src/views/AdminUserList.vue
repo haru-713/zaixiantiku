@@ -65,12 +65,12 @@
         </el-table-column>
         <el-table-column label="操作" width="200">
           <template #default="scope">
-            <el-button :type="scope.row.status === 1 ? 'danger' : 'success'" size="small"
+            <el-button v-if="isAdmin" :type="scope.row.status === 1 ? 'danger' : 'success'" size="small"
               @click="handleToggleStatus(scope.row.id, scope.row.status)">
               {{ scope.row.status === 1 ? '禁用' : '启用' }}
             </el-button>
 
-            <template v-if="scope.row.roleCodes.includes('STUDENT') && scope.row.auditStatus === 0">
+            <template v-if="isAdmin && scope.row.roleCodes.includes('STUDENT') && scope.row.auditStatus === 0">
               <el-button type="success" size="small" @click="handleAudit(scope.row.id, 1)">通过</el-button>
               <el-button type="warning" size="small" @click="handleAudit(scope.row.id, 2)">拒绝</el-button>
             </template>
@@ -89,9 +89,13 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useUserStore } from '@/store/user'
+
+const userStore = useUserStore()
+const isAdmin = computed(() => (userStore.userInfo?.roles || []).includes('ADMIN'))
 
 const loading = ref(false)
 const userList = ref([])
@@ -153,6 +157,9 @@ const auditStatusType = (status) => {
 }
 
 const handleAudit = async (userId, auditStatus) => {
+  if (!isAdmin.value) {
+    return
+  }
   let reason = ''
   if (auditStatus === 2) {
     try {
@@ -182,6 +189,9 @@ const handleAudit = async (userId, auditStatus) => {
 }
 
 const handleToggleStatus = async (userId, currentStatus) => {
+  if (!isAdmin.value) {
+    return
+  }
   const nextStatus = currentStatus === 1 ? 0 : 1
   const actionText = nextStatus === 1 ? '启用' : '禁用'
 

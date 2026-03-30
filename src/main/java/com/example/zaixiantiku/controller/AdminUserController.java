@@ -25,7 +25,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/admin/users")
 @RequiredArgsConstructor
 @Tag(name = "管理员-用户管理", description = "管理员对用户的管理接口")
-@PreAuthorize("hasRole('ADMIN')") // 仅管理员可访问
 public class AdminUserController {
 
     private final AdminUserService adminUserService;
@@ -36,6 +35,7 @@ public class AdminUserController {
      * @return 分页结果
      */
     @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
     @Operation(summary = "用户列表 (分页)", description = "分页查询所有用户信息，支持模糊搜索与角色、状态过滤")
     public Result<PageResult<UserAdminVO>> getUserPage(UserQueryDTO queryDTO) {
         PageResult<UserAdminVO> pageResult = adminUserService.getUserPage(queryDTO);
@@ -43,6 +43,7 @@ public class AdminUserController {
     }
 
     @PutMapping("/{userId}/audit")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "审核学生", description = "管理员审核学生用户：1-通过，2-拒绝")
     public Result<Void> auditStudent(@PathVariable Long userId, @RequestBody UserAuditDTO auditDTO) {
         adminUserService.auditStudent(userId, auditDTO);
@@ -50,6 +51,7 @@ public class AdminUserController {
     }
 
     @PutMapping("/{userId}/status")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "启用/禁用用户", description = "管理员启用/禁用用户：0-禁用，1-启用")
     public Result<Void> updateUserStatus(@PathVariable Long userId, @RequestBody UserStatusDTO statusDTO) {
         adminUserService.updateUserStatus(userId, statusDTO);
