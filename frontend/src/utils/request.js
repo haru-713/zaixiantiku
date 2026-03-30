@@ -34,13 +34,22 @@ service.interceptors.response.use(
     }
   },
   (error) => {
-    if (error.response && error.response.status === 401) {
-      // 登录失效
-      localStorage.removeItem('token')
-      localStorage.removeItem('userInfo')
-      router.push('/login')
+    if (error.response) {
+      const status = error.response.status
+      if (status === 401) {
+        // 登录失效或未登录
+        localStorage.removeItem('token')
+        localStorage.removeItem('userInfo')
+        ElMessage.error('登录已过期，请重新登录')
+        router.push('/login')
+        return Promise.reject(new Error('登录过期'))
+      } else {
+        const msg = error.response.data?.msg || error.message
+        ElMessage.error(msg)
+      }
+    } else {
+      ElMessage.error('网络错误，请稍后再试')
     }
-    ElMessage.error(error.message)
     return Promise.reject(error)
   }
 )

@@ -22,6 +22,7 @@
           </p>
         </div>
         <div class="action-btns" style="margin-top: 20px;">
+          <el-button v-if="userInfo.roles && userInfo.roles.includes('ADMIN')" type="success" @click="router.push('/admin/users')">用户管理</el-button>
           <el-button type="primary" @click="editDialogVisible = true">修改信息</el-button>
           <el-button type="warning" @click="passwordDialogVisible = true">修改密码</el-button>
           <el-button type="danger" @click="handleLogout">退出登录</el-button>
