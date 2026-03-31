@@ -5,6 +5,7 @@ import com.example.zaixiantiku.entity.Course;
 import com.example.zaixiantiku.pojo.dto.CourseCreateDTO;
 import com.example.zaixiantiku.pojo.dto.CourseQueryDTO;
 import com.example.zaixiantiku.pojo.dto.CourseUpdateDTO;
+import com.example.zaixiantiku.pojo.vo.CourseListVO;
 import com.example.zaixiantiku.pojo.vo.PageResult;
 import com.example.zaixiantiku.service.CourseService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -37,10 +38,10 @@ public class CourseController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
-    @Operation(summary = "课程列表 (分页)", description = "管理员查看全部课程；教师查看自己负责的课程")
-    public Result<PageResult<Course>> getCoursePage(CourseQueryDTO queryDTO) {
-        PageResult<Course> pageResult = courseService.getMyCourses(queryDTO);
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','STUDENT')")
+    @Operation(summary = "课程列表 (分页)", description = "支持按课程名/状态/教师/学生过滤，返回课程及教师列表")
+    public Result<PageResult<CourseListVO>> getCoursePage(CourseQueryDTO queryDTO) {
+        PageResult<CourseListVO> pageResult = courseService.getCoursePage(queryDTO);
         return Result.success(pageResult);
     }
 

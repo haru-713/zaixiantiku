@@ -15,7 +15,10 @@ import com.example.zaixiantiku.pojo.dto.CourseStatusDTO;
 import com.example.zaixiantiku.pojo.dto.CourseStudentAddDTO;
 import com.example.zaixiantiku.pojo.dto.CourseUpdateDTO;
 import com.example.zaixiantiku.pojo.vo.CourseAdminVO;
+import com.example.zaixiantiku.pojo.vo.CourseListVO;
+import com.example.zaixiantiku.pojo.vo.CourseTeacherRowVO;
 import com.example.zaixiantiku.pojo.vo.PageResult;
+import com.example.zaixiantiku.pojo.vo.TeacherSimpleVO;
 import com.example.zaixiantiku.security.LoginUser;
 import com.example.zaixiantiku.service.CourseService;
 import com.github.pagehelper.PageHelper;
@@ -28,7 +31,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.StringJoiner;
 import java.util.stream.Collectors;
@@ -85,6 +91,77 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         }
 
         return courseMapper.selectById(course.getId());
+    }
+
+    @Override
+    public PageResult<CourseListVO> getCoursePage(CourseQueryDTO queryDTO) {
+        LoginUser loginUser = requireLoginUser();
+        Long userId = loginUser.getUser().getId();
+        List<String> roles = loginUser.getRoleCodes();
+
+        Integer page = queryDTO == null || queryDTO.getPage() == null || queryDTO.getPage() < 1 ? 1
+                : queryDTO.getPage();
+        Integer size = queryDTO == null || queryDTO.getSize() == null || queryDTO.getSize() < 1 ? 10
+                : queryDTO.getSize();
+        PageHelper.startPage(page, size);
+
+        Long teacherId = queryDTO == null ? null : queryDTO.getTeacherId();
+        Long studentId = queryDTO == null ? null : queryDTO.getStudentId();
+
+        if (roles != null && roles.contains("TEACHER") && (roles.contains("ADMIN") == false)) {
+            teacherId = userId;
+            studentId = null;
+        } else if (roles == null || roles.contains("ADMIN") == false) {
+            if (roles != null && roles.contains("STUDENT")) {
+                studentId = userId;
+                teacherId = null;
+            }
+        }
+
+        LambdaQueryWrapper<Course> qw = buildCourseQueryWrapper(queryDTO);
+        if (teacherId != null) {
+            qw.apply("id IN (SELECT course_id FROM course_teacher WHERE teacher_id = {0})", teacherId);
+        }
+        if (studentId != null) {
+            qw.apply("id IN (SELECT course_id FROM course_student WHERE student_id = {0})", studentId);
+        }
+        qw.orderByAsc(Course::getId);
+
+        List<Course> courses = courseMapper.selectList(qw);
+        PageInfo<Course> pageInfo = new PageInfo<>(courses);
+
+        if (courses == null || courses.isEmpty()) {
+            return PageResult.of(pageInfo.getTotal(), Collections.emptyList());
+        }
+
+        List<Long> courseIds = courses.stream().map(Course::getId).filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        Map<Long, List<TeacherSimpleVO>> teachersByCourseId = new HashMap<>();
+        if (!courseIds.isEmpty()) {
+            List<CourseTeacherRowVO> rows = courseTeacherMapper.findTeachersByCourseIds(courseIds);
+            if (rows != null && !rows.isEmpty()) {
+                Map<Long, List<TeacherSimpleVO>> tmp = rows.stream().filter(r -> r.getCourseId() != null)
+                        .collect(Collectors.groupingBy(
+                                CourseTeacherRowVO::getCourseId,
+                                Collectors.mapping(
+                                        r -> TeacherSimpleVO.builder().id(r.getId()).name(r.getName()).build(),
+                                        Collectors.toList())));
+                teachersByCourseId.putAll(tmp);
+            }
+        }
+
+        List<CourseListVO> list = courses.stream().map(course -> CourseListVO.builder()
+                .id(course.getId())
+                .courseName(course.getCourseName())
+                .description(course.getDescription())
+                .cover(course.getCover())
+                .status(course.getStatus())
+                .teachers(teachersByCourseId.getOrDefault(course.getId(), Collections.emptyList()))
+                .createTime(course.getCreateTime())
+                .updateTime(course.getUpdateTime())
+                .build()).collect(Collectors.toList());
+
+        return PageResult.of(pageInfo.getTotal(), list);
     }
 
     @Override

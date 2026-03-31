@@ -25,6 +25,11 @@
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="courseName" label="课程名称" min-width="160" />
         <el-table-column prop="description" label="课程描述" min-width="200" show-overflow-tooltip />
+        <el-table-column label="教师" min-width="160" show-overflow-tooltip>
+          <template #default="scope">
+            {{ formatTeachers(scope.row.teachers) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="status" label="状态" width="100">
           <template #default="scope">
             <el-tag :type="scope.row.status === 1 ? 'success' : 'danger'">
@@ -119,6 +124,14 @@ const fetchList = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const formatTeachers = (teachers) => {
+  if (!Array.isArray(teachers) || teachers.length === 0) {
+    return '-'
+  }
+  const names = teachers.map((t) => t && t.name).filter((n) => n)
+  return names.length ? names.join(', ') : '-'
 }
 
 const handleQuery = () => {

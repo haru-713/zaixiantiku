@@ -9,11 +9,14 @@ import com.example.zaixiantiku.pojo.dto.CourseStatusDTO;
 import com.example.zaixiantiku.pojo.dto.CourseStudentAddDTO;
 import com.example.zaixiantiku.pojo.dto.CourseUpdateDTO;
 import com.example.zaixiantiku.pojo.vo.CourseAdminVO;
+import com.example.zaixiantiku.pojo.vo.CourseListVO;
 import com.example.zaixiantiku.pojo.vo.PageResult;
 
 public interface CourseService extends IService<Course> {
 
     Course createCourse(CourseCreateDTO createDTO);
+
+    PageResult<CourseListVO> getCoursePage(CourseQueryDTO queryDTO);
 
     PageResult<Course> getMyCourses(CourseQueryDTO queryDTO);
 

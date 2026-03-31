@@ -16,6 +16,12 @@ public class CourseQueryDTO {
     @Schema(description = "课程名称模糊搜索")
     private String keyword;
 
+    @Schema(description = "按教师过滤")
+    private Long teacherId;
+
+    @Schema(description = "按学生过滤")
+    private Long studentId;
+
     @Schema(description = "状态：0-禁用，1-启用")
     private Integer status;
 
