@@ -72,7 +72,19 @@
           <el-input v-model="createForm.description" type="textarea" :rows="4" placeholder="请输入课程描述" />
         </el-form-item>
         <el-form-item label="封面URL">
-          <el-input v-model="createForm.cover" placeholder="http://.../cover.jpg" />
+          <div class="cover-row">
+            <el-input v-model="createForm.cover" disabled />
+            <el-upload
+              :show-file-list="false"
+              :http-request="uploadCreateCover"
+              :before-upload="beforeCoverUpload"
+            >
+              <el-button :loading="createCoverUploading" type="primary">上传封面</el-button>
+            </el-upload>
+          </div>
+          <div v-if="createForm.cover" class="cover-preview">
+            <el-image :src="createForm.cover" style="width: 160px; height: 90px" fit="cover" />
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -92,7 +104,19 @@
           <el-input v-model="editForm.description" type="textarea" :rows="4" placeholder="请输入课程描述" />
         </el-form-item>
         <el-form-item label="封面URL">
-          <el-input v-model="editForm.cover" placeholder="http://.../cover.jpg" />
+          <div class="cover-row">
+            <el-input v-model="editForm.cover" disabled />
+            <el-upload
+              :show-file-list="false"
+              :http-request="uploadEditCover"
+              :before-upload="beforeCoverUpload"
+            >
+              <el-button :loading="editCoverUploading" type="primary">上传封面</el-button>
+            </el-upload>
+          </div>
+          <div v-if="editForm.cover" class="cover-preview">
+            <el-image :src="editForm.cover" style="width: 160px; height: 90px" fit="cover" />
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -117,6 +141,9 @@ const loading = ref(false)
 const userStore = useUserStore()
 const router = useRouter()
 const canManage = computed(() => (userStore.userInfo?.roles || []).some((r) => r === 'ADMIN' || r === 'TEACHER'))
+
+const createCoverUploading = ref(false)
+const editCoverUploading = ref(false)
 
 const list = ref([])
 const total = ref(0)
@@ -297,6 +324,58 @@ const handleDelete = async (row) => {
   }
 }
 
+const beforeCoverUpload = (file) => {
+  const isImage = file.type && file.type.startsWith('image/')
+  if (!isImage) {
+    ElMessage.error('只能上传图片')
+    return false
+  }
+  const isLt5M = file.size / 1024 / 1024 < 5
+  if (!isLt5M) {
+    ElMessage.error('图片大小不能超过 5MB')
+    return false
+  }
+  return true
+}
+
+const uploadCreateCover = async (options) => {
+  const file = options.file
+  const formData = new FormData()
+  formData.append('file', file)
+  createCoverUploading.value = true
+  try {
+    const res = await request.post('/upload/course-cover', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    createForm.cover = res.data
+    options.onSuccess && options.onSuccess(res, file)
+    ElMessage.success('上传成功')
+  } catch (e) {
+    options.onError && options.onError(e)
+  } finally {
+    createCoverUploading.value = false
+  }
+}
+
+const uploadEditCover = async (options) => {
+  const file = options.file
+  const formData = new FormData()
+  formData.append('file', file)
+  editCoverUploading.value = true
+  try {
+    const res = await request.post('/upload/course-cover', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    editForm.cover = res.data
+    options.onSuccess && options.onSuccess(res, file)
+    ElMessage.success('上传成功')
+  } catch (e) {
+    options.onError && options.onError(e)
+  } finally {
+    editCoverUploading.value = false
+  }
+}
+
 onMounted(() => {
   fetchList()
 })
@@ -324,5 +403,16 @@ onMounted(() => {
   margin-top: 16px;
   display: flex;
   justify-content: flex-end;
+}
+
+.cover-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cover-preview {
+  margin-top: 8px;
 }
 </style>

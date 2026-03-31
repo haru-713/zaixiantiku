@@ -27,7 +27,16 @@
         <el-input v-model="form.email" :disabled="!editing" />
       </el-form-item>
       <el-form-item label="头像URL">
-        <el-input v-model="form.avatar" :disabled="!editing" />
+        <div class="avatar-row">
+          <el-input v-model="form.avatar" :disabled="true" />
+          <el-upload v-if="editing" :show-file-list="false" :http-request="uploadAvatar"
+            :before-upload="beforeAvatarUpload">
+            <el-button :loading="uploading" type="primary">上传头像</el-button>
+          </el-upload>
+        </div>
+      </el-form-item>
+      <el-form-item label="头像预览">
+        <el-avatar :size="64" :src="form.avatar" />
       </el-form-item>
     </el-form>
   </el-card>
@@ -42,6 +51,7 @@ import { useUserStore } from '@/store/user'
 const userStore = useUserStore()
 const loading = ref(false)
 const editing = ref(false)
+const uploading = ref(false)
 
 const form = reactive({
   username: '',
@@ -120,6 +130,39 @@ const saveEdit = async () => {
   }
 }
 
+const beforeAvatarUpload = (file) => {
+  const isImage = file.type && file.type.startsWith('image/')
+  if (!isImage) {
+    ElMessage.error('只能上传图片')
+    return false
+  }
+  const isLt2M = file.size / 1024 / 1024 < 2
+  if (!isLt2M) {
+    ElMessage.error('图片大小不能超过 2MB')
+    return false
+  }
+  return true
+}
+
+const uploadAvatar = async (options) => {
+  const file = options.file
+  const formData = new FormData()
+  formData.append('file', file)
+  uploading.value = true
+  try {
+    const res = await request.post('/upload/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    form.avatar = res.data
+    options.onSuccess && options.onSuccess(res, file)
+    ElMessage.success('上传成功')
+  } catch (e) {
+    options.onError && options.onError(e)
+  } finally {
+    uploading.value = false
+  }
+}
+
 onMounted(() => {
   fetchProfile()
 })
@@ -134,6 +177,13 @@ onMounted(() => {
 
 .header-actions {
   display: flex;
+  gap: 8px;
+}
+
+.avatar-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
   gap: 8px;
 }
 </style>

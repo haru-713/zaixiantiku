@@ -21,7 +21,7 @@
         <el-descriptions-item label="创建时间">{{ formatDateTime(detail.createTime) }}</el-descriptions-item>
         <el-descriptions-item label="更新时间">{{ formatDateTime(detail.updateTime) }}</el-descriptions-item>
         <el-descriptions-item label="封面" :span="2">
-          <el-link v-if="detail.cover" :href="detail.cover" target="_blank">{{ detail.cover }}</el-link>
+          <el-image v-if="detail.cover" :src="detail.cover" style="width: 240px; height: 135px" fit="cover" />
           <span v-else>-</span>
         </el-descriptions-item>
         <el-descriptions-item label="课程描述" :span="2">
