@@ -6,17 +6,28 @@ import com.example.zaixiantiku.pojo.dto.CourseAuditDTO;
 import com.example.zaixiantiku.pojo.dto.CourseCreateDTO;
 import com.example.zaixiantiku.pojo.dto.CourseQueryDTO;
 import com.example.zaixiantiku.pojo.dto.CourseStatusDTO;
+import com.example.zaixiantiku.pojo.dto.CourseTeacherAddDTO;
 import com.example.zaixiantiku.pojo.dto.CourseStudentAddDTO;
 import com.example.zaixiantiku.pojo.dto.CourseUpdateDTO;
 import com.example.zaixiantiku.pojo.vo.CourseAdminVO;
+import com.example.zaixiantiku.pojo.vo.CourseDetailVO;
 import com.example.zaixiantiku.pojo.vo.CourseListVO;
 import com.example.zaixiantiku.pojo.vo.PageResult;
+import com.example.zaixiantiku.pojo.vo.TeacherSimpleVO;
 
 public interface CourseService extends IService<Course> {
 
     Course createCourse(CourseCreateDTO createDTO);
 
     PageResult<CourseListVO> getCoursePage(CourseQueryDTO queryDTO);
+
+    CourseDetailVO getCourseDetail(Long courseId);
+
+    PageResult<TeacherSimpleVO> getTeacherCandidates(Long courseId, Integer page, Integer size, String keyword);
+
+    void addTeachers(Long courseId, CourseTeacherAddDTO addDTO);
+
+    void removeTeacher(Long courseId, Long teacherId);
 
     PageResult<Course> getMyCourses(CourseQueryDTO queryDTO);
 

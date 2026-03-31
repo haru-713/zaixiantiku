@@ -30,4 +30,7 @@ public interface CourseTeacherMapper extends BaseMapper<CourseTeacher> {
             "</script>"
     })
     List<CourseTeacherRowVO> findTeachersByCourseIds(@Param("courseIds") List<Long> courseIds);
+
+    @Select("SELECT teacher_id FROM course_teacher WHERE course_id = #{courseId} ORDER BY create_time ASC LIMIT 1")
+    Long findCreatorTeacherIdByCourseId(Long courseId);
 }

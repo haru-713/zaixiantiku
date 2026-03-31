@@ -5,7 +5,7 @@
         <div class="card-header">
           <span>课程列表</span>
           <div class="header-actions">
-            <el-button type="primary" @click="openCreate">创建课程</el-button>
+            <el-button v-if="canManage" type="primary" @click="openCreate">创建课程</el-button>
           </div>
         </div>
       </template>
@@ -37,12 +37,21 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createTime" label="创建时间" width="180" />
-        <el-table-column prop="updateTime" label="更新时间" width="180" />
-        <el-table-column label="操作" width="180">
+        <el-table-column prop="createTime" label="创建时间" width="180">
           <template #default="scope">
-            <el-button type="primary" size="small" @click="openEdit(scope.row)">修改</el-button>
-            <el-button type="danger" size="small" @click="handleDelete(scope.row)">删除</el-button>
+            {{ formatDateTime(scope.row.createTime) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="updateTime" label="更新时间" width="180">
+          <template #default="scope">
+            {{ formatDateTime(scope.row.updateTime) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="220">
+          <template #default="scope">
+            <el-button size="small" @click="openDetail(scope.row)">详情</el-button>
+            <el-button v-if="canManage" type="primary" size="small" @click="openEdit(scope.row)">修改</el-button>
+            <el-button v-if="canManage" type="danger" size="small" @click="handleDelete(scope.row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -97,11 +106,17 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '@/utils/request'
+import { useUserStore } from '@/store/user'
+import { useRouter } from 'vue-router'
 
 const loading = ref(false)
+
+const userStore = useUserStore()
+const router = useRouter()
+const canManage = computed(() => (userStore.userInfo?.roles || []).some((r) => r === 'ADMIN' || r === 'TEACHER'))
 
 const list = ref([])
 const total = ref(0)
@@ -132,6 +147,18 @@ const formatTeachers = (teachers) => {
   }
   const names = teachers.map((t) => t && t.name).filter((n) => n)
   return names.length ? names.join(', ') : '-'
+}
+
+const formatDateTime = (value) => {
+  if (!value) {
+    return '-'
+  }
+  const str = String(value)
+  if (str.includes('T')) {
+    const replaced = str.replace('T', ' ')
+    return replaced.length >= 19 ? replaced.slice(0, 19) : replaced
+  }
+  return str
 }
 
 const handleQuery = () => {
@@ -208,6 +235,13 @@ const openEdit = (row) => {
   editForm.description = row.description || ''
   editForm.cover = row.cover || ''
   editVisible.value = true
+}
+
+const openDetail = (row) => {
+  if (!row || !row.id) {
+    return
+  }
+  router.push(`/course/detail/${row.id}`)
 }
 
 const handleEdit = async () => {

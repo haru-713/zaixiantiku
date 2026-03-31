@@ -6,6 +6,7 @@ import Home from '../views/Home.vue'
 import AdminUserList from '../views/AdminUserList.vue'
 import ComingSoon from '../views/ComingSoon.vue'
 import CourseCreate from '../views/CourseCreate.vue'
+import CourseDetail from '../views/CourseDetail.vue'
 import Profile from '../views/Profile.vue'
 
 const routes = [
@@ -70,6 +71,18 @@ const routes = [
     name: 'CourseList',
     component: CourseCreate,
     meta: { requiresAuth: true, title: '课程管理', roles: ['ADMIN', 'TEACHER'] }
+  },
+  {
+    path: '/course/query',
+    name: 'CourseQuery',
+    component: CourseCreate,
+    meta: { requiresAuth: true, title: '课程查询', roles: ['STUDENT'] }
+  },
+  {
+    path: '/course/detail/:courseId',
+    name: 'CourseDetail',
+    component: CourseDetail,
+    meta: { requiresAuth: true, title: '课程详情', roles: ['ADMIN', 'TEACHER', 'STUDENT'] }
   },
   {
     path: '/profile',
