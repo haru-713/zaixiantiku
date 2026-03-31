@@ -32,7 +32,7 @@
 
       <!-- 数据表格 -->
       <el-table :data="userList" v-loading="loading" style="width: 100%; margin-top: 20px">
-        <el-table-column prop="id" label="ID" width="80" />
+        <el-table-column type="index" label="序号" width="80" :index="indexMethod" />
         <el-table-column label="头像" width="80">
           <template #default="scope">
             <el-avatar :size="40" :src="scope.row.avatar" />
@@ -144,6 +144,10 @@ const handleSizeChange = (val) => {
 const handleCurrentChange = (val) => {
   queryParams.page = val
   fetchUserList()
+}
+
+const indexMethod = (index) => {
+  return (queryParams.page - 1) * queryParams.size + index + 1
 }
 
 const auditStatusLabel = (status) => {

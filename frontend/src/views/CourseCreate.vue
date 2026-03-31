@@ -22,7 +22,7 @@
       </div>
 
       <el-table :data="list" v-loading="loading" style="width: 100%; margin-top: 16px">
-        <el-table-column prop="id" label="ID" width="80" />
+        <el-table-column type="index" label="序号" width="80" :index="indexMethod" />
         <el-table-column prop="courseName" label="课程名称" min-width="160" />
         <el-table-column prop="description" label="课程描述" min-width="200" show-overflow-tooltip />
         <el-table-column label="教师" min-width="160" show-overflow-tooltip>
@@ -139,6 +139,10 @@ const fetchList = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const indexMethod = (index) => {
+  return (query.page - 1) * query.size + index + 1
 }
 
 const formatTeachers = (teachers) => {

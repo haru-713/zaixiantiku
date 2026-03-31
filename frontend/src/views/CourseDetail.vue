@@ -37,7 +37,7 @@
       </div>
 
       <el-table :data="detail.teachers || []" style="width: 100%">
-        <el-table-column prop="id" label="ID" width="120" />
+        <el-table-column type="index" label="序号" width="80" />
         <el-table-column prop="name" label="姓名" />
         <el-table-column v-if="canRemoveTeacherUI" label="操作" width="120">
           <template #default="scope">
@@ -50,9 +50,17 @@
       <el-divider />
 
       <div class="section-title">学生</div>
+      <div v-if="canAddStudentUI" class="teacher-actions">
+        <el-button type="primary" @click="openStudentPicker">选择学生</el-button>
+      </div>
       <el-table :data="detail.students || []" style="width: 100%">
-        <el-table-column prop="id" label="ID" width="120" />
+        <el-table-column type="index" label="序号" width="80" />
         <el-table-column prop="name" label="姓名" />
+        <el-table-column v-if="canRemoveStudentUI" label="操作" width="120">
+          <template #default="scope">
+            <el-button type="danger" size="small" @click="handleRemoveStudent(scope.row.id)">移除</el-button>
+          </template>
+        </el-table-column>
       </el-table>
     </el-card>
 
@@ -67,7 +75,7 @@
       <el-table :data="teacherList" v-loading="teacherLoading" style="width: 100%; margin-top: 12px"
         @selection-change="handleTeacherSelectionChange">
         <el-table-column type="selection" width="55" />
-        <el-table-column prop="id" label="ID" width="120" />
+        <el-table-column type="index" label="序号" width="80" :index="teacherIndexMethod" />
         <el-table-column prop="name" label="姓名" />
       </el-table>
 
@@ -81,6 +89,35 @@
         <span class="dialog-footer">
           <el-button @click="teacherPickerVisible = false">取消</el-button>
           <el-button type="primary" :loading="teacherSaving" @click="confirmAddTeachers">添加</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="studentPickerVisible" title="选择学生" width="720px">
+      <div class="picker-toolbar">
+        <el-input v-model="studentQuery.keyword" placeholder="姓名/用户名/手机号" clearable style="width: 260px"
+          @clear="handleStudentQuery" @keyup.enter="handleStudentQuery" />
+        <el-button type="primary" @click="handleStudentQuery">查询</el-button>
+        <el-button @click="resetStudentQuery">重置</el-button>
+      </div>
+
+      <el-table :data="studentList" v-loading="studentLoading" style="width: 100%; margin-top: 12px"
+        @selection-change="handleStudentSelectionChange">
+        <el-table-column type="selection" width="55" />
+        <el-table-column type="index" label="序号" width="80" :index="studentIndexMethod" />
+        <el-table-column prop="name" label="姓名" />
+      </el-table>
+
+      <div class="pagination-container">
+        <el-pagination :current-page="studentQuery.page" :page-size="studentQuery.size" :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper" :total="studentTotal" @size-change="handleStudentSizeChange"
+          @current-change="handleStudentCurrentChange" />
+      </div>
+
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="studentPickerVisible = false">取消</el-button>
+          <el-button type="primary" :loading="studentSaving" @click="confirmAddStudents">添加</el-button>
         </span>
       </template>
     </el-dialog>
@@ -122,6 +159,8 @@ const detail = ref({
   students: [],
   canAddTeacher: false,
   canRemoveTeacher: false,
+  canAddStudent: false,
+  canRemoveStudent: false,
   createTime: '',
   updateTime: ''
 })
@@ -132,6 +171,11 @@ const localIsAdmin = computed(() => {
 })
 
 const currentUserId = computed(() => userStore.userInfo?.id)
+
+const localCanManageStudents = computed(() => {
+  const roles = userStore.userInfo?.roles || []
+  return roles.includes('ADMIN') || roles.includes('ROLE_ADMIN') || roles.includes('TEACHER') || roles.includes('ROLE_TEACHER')
+})
 
 const canAddTeacherUI = computed(() => {
   if (detail.value.canAddTeacher === true) {
@@ -149,6 +193,26 @@ const canRemoveTeacherUI = computed(() => {
   }
   if (detail.value.canRemoveTeacher == null) {
     return localIsAdmin.value
+  }
+  return false
+})
+
+const canAddStudentUI = computed(() => {
+  if (detail.value.canAddStudent === true) {
+    return true
+  }
+  if (detail.value.canAddStudent == null) {
+    return localCanManageStudents.value
+  }
+  return false
+})
+
+const canRemoveStudentUI = computed(() => {
+  if (detail.value.canRemoveStudent === true) {
+    return true
+  }
+  if (detail.value.canRemoveStudent == null) {
+    return localCanManageStudents.value
   }
   return false
 })
@@ -226,6 +290,99 @@ const openTeacherPicker = () => {
   fetchTeacherCandidates()
 }
 
+const studentSaving = ref(false)
+const studentPickerVisible = ref(false)
+const studentLoading = ref(false)
+const studentTotal = ref(0)
+const studentList = ref([])
+const selectedStudentIds = ref([])
+const studentQuery = reactive({
+  page: 1,
+  size: 10,
+  keyword: ''
+})
+
+const fetchStudentCandidates = async () => {
+  const courseId = route.params.courseId
+  if (!courseId) {
+    return
+  }
+  studentLoading.value = true
+  try {
+    const res = await request.get(`/courses/${courseId}/students/candidates`, { params: studentQuery })
+    studentList.value = res.data.list
+    studentTotal.value = res.data.total
+  } catch (e) {
+    console.error('获取学生候选列表失败:', e)
+  } finally {
+    studentLoading.value = false
+  }
+}
+
+const openStudentPicker = () => {
+  if (!canAddStudentUI.value) {
+    ElMessage.error('没有权限操作')
+    return
+  }
+  studentQuery.page = 1
+  studentQuery.size = 10
+  studentQuery.keyword = ''
+  selectedStudentIds.value = []
+  studentPickerVisible.value = true
+  fetchStudentCandidates()
+}
+
+const handleStudentSelectionChange = (rows) => {
+  selectedStudentIds.value = (rows || []).map((r) => r.id).filter((id) => id)
+}
+
+const handleStudentQuery = () => {
+  studentQuery.page = 1
+  fetchStudentCandidates()
+}
+
+const resetStudentQuery = () => {
+  studentQuery.keyword = ''
+  handleStudentQuery()
+}
+
+const handleStudentSizeChange = (val) => {
+  studentQuery.size = val
+  fetchStudentCandidates()
+}
+
+const handleStudentCurrentChange = (val) => {
+  studentQuery.page = val
+  fetchStudentCandidates()
+}
+
+const studentIndexMethod = (index) => {
+  return (studentQuery.page - 1) * studentQuery.size + index + 1
+}
+
+const confirmAddStudents = async () => {
+  const courseId = route.params.courseId
+  if (!courseId) {
+    return
+  }
+  if (!selectedStudentIds.value || selectedStudentIds.value.length === 0) {
+    ElMessage.warning('请选择学生')
+    return
+  }
+
+  studentSaving.value = true
+  try {
+    await request.post(`/courses/${courseId}/students`, { studentIds: selectedStudentIds.value })
+    ElMessage.success('添加成功')
+    studentPickerVisible.value = false
+    fetchDetail()
+  } catch (e) {
+    console.error('添加学生失败:', e)
+  } finally {
+    studentSaving.value = false
+  }
+}
+
 const handleTeacherSelectionChange = (rows) => {
   selectedTeacherIds.value = (rows || []).map((r) => r.id).filter((id) => id)
 }
@@ -248,6 +405,10 @@ const handleTeacherSizeChange = (val) => {
 const handleTeacherCurrentChange = (val) => {
   teacherQuery.page = val
   fetchTeacherCandidates()
+}
+
+const teacherIndexMethod = (index) => {
+  return (teacherQuery.page - 1) * teacherQuery.size + index + 1
 }
 
 const confirmAddTeachers = async () => {
@@ -297,6 +458,38 @@ const handleRemoveTeacher = async (teacherId) => {
     console.error('移除教师失败:', e)
   } finally {
     teacherSaving.value = false
+  }
+}
+
+const handleRemoveStudent = async (studentId) => {
+  const courseId = route.params.courseId
+  if (!courseId || !studentId) {
+    return
+  }
+  if (!canRemoveStudentUI.value) {
+    ElMessage.error('没有权限操作')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm('确定要移除该学生吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+  } catch {
+    return
+  }
+
+  studentSaving.value = true
+  try {
+    await request.delete(`/courses/${courseId}/students`, { params: { studentId } })
+    ElMessage.success('移除成功')
+    fetchDetail()
+  } catch (e) {
+    console.error('移除学生失败:', e)
+  } finally {
+    studentSaving.value = false
   }
 }
 

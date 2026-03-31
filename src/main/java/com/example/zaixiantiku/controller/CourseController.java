@@ -4,11 +4,13 @@ import com.example.zaixiantiku.common.Result;
 import com.example.zaixiantiku.entity.Course;
 import com.example.zaixiantiku.pojo.dto.CourseCreateDTO;
 import com.example.zaixiantiku.pojo.dto.CourseQueryDTO;
+import com.example.zaixiantiku.pojo.dto.CourseStudentAddDTO;
 import com.example.zaixiantiku.pojo.dto.CourseTeacherAddDTO;
 import com.example.zaixiantiku.pojo.dto.CourseUpdateDTO;
 import com.example.zaixiantiku.pojo.vo.CourseDetailVO;
 import com.example.zaixiantiku.pojo.vo.CourseListVO;
 import com.example.zaixiantiku.pojo.vo.PageResult;
+import com.example.zaixiantiku.pojo.vo.StudentSimpleVO;
 import com.example.zaixiantiku.pojo.vo.TeacherSimpleVO;
 import com.example.zaixiantiku.service.CourseService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -82,6 +84,34 @@ public class CourseController {
     @Operation(summary = "课程教师管理-移除", description = "管理员或课程创建者从课程移除教师")
     public Result<Void> removeTeacher(@PathVariable Long courseId, @RequestParam Long teacherId) {
         courseService.removeTeacher(courseId, teacherId);
+        return Result.success(null);
+    }
+
+    @GetMapping("/{courseId}/students/candidates")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @Operation(summary = "课程学生候选列表 (分页)", description = "用于课程学生管理选择组件，支持分页与关键字搜索")
+    public Result<PageResult<StudentSimpleVO>> getStudentCandidates(
+            @PathVariable Long courseId,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String keyword) {
+        PageResult<StudentSimpleVO> result = courseService.getStudentCandidates(courseId, page, size, keyword);
+        return Result.success(result);
+    }
+
+    @PostMapping("/{courseId}/students")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @Operation(summary = "课程学生管理-添加", description = "课程教师或管理员为课程添加学生")
+    public Result<Void> addStudents(@PathVariable Long courseId, @RequestBody CourseStudentAddDTO addDTO) {
+        courseService.addStudents(courseId, addDTO);
+        return Result.success(null);
+    }
+
+    @DeleteMapping("/{courseId}/students")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @Operation(summary = "课程学生管理-移除", description = "课程教师或管理员从课程移除学生")
+    public Result<Void> removeStudent(@PathVariable Long courseId, @RequestParam Long studentId) {
+        courseService.removeStudent(courseId, studentId);
         return Result.success(null);
     }
 

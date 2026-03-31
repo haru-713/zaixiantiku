@@ -13,6 +13,7 @@ import com.example.zaixiantiku.pojo.vo.CourseAdminVO;
 import com.example.zaixiantiku.pojo.vo.CourseDetailVO;
 import com.example.zaixiantiku.pojo.vo.CourseListVO;
 import com.example.zaixiantiku.pojo.vo.PageResult;
+import com.example.zaixiantiku.pojo.vo.StudentSimpleVO;
 import com.example.zaixiantiku.pojo.vo.TeacherSimpleVO;
 
 public interface CourseService extends IService<Course> {
@@ -28,6 +29,10 @@ public interface CourseService extends IService<Course> {
     void addTeachers(Long courseId, CourseTeacherAddDTO addDTO);
 
     void removeTeacher(Long courseId, Long teacherId);
+
+    PageResult<StudentSimpleVO> getStudentCandidates(Long courseId, Integer page, Integer size, String keyword);
+
+    void removeStudent(Long courseId, Long studentId);
 
     PageResult<Course> getMyCourses(CourseQueryDTO queryDTO);
 

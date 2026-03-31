@@ -40,6 +40,12 @@ public class CourseDetailVO {
     @Schema(description = "是否允许移除教师（管理员、课程创建者）")
     private Boolean canRemoveTeacher;
 
+    @Schema(description = "是否允许添加学生（课程教师、管理员）")
+    private Boolean canAddStudent;
+
+    @Schema(description = "是否允许移除学生（课程教师、管理员）")
+    private Boolean canRemoveStudent;
+
     private LocalDateTime createTime;
 
     private LocalDateTime updateTime;
