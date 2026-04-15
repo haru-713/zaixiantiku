@@ -7,6 +7,8 @@ import AdminUserList from '../views/AdminUserList.vue'
 import ComingSoon from '../views/ComingSoon.vue'
 import CourseCreate from '../views/CourseCreate.vue'
 import CourseDetail from '../views/CourseDetail.vue'
+import QuestionManage from '../views/QuestionManage.vue'
+import KnowledgePointManage from '../views/KnowledgePointManage.vue'
 import Profile from '../views/Profile.vue'
 
 const routes = [
@@ -39,13 +41,13 @@ const routes = [
   {
     path: '/question/manage',
     name: 'QuestionManage',
-    component: ComingSoon,
+    component: QuestionManage,
     meta: { requiresAuth: true, title: '题目管理', roles: ['ADMIN', 'TEACHER'] }
   },
   {
     path: '/question/category',
     name: 'QuestionCategory',
-    component: ComingSoon,
+    component: KnowledgePointManage,
     meta: { requiresAuth: true, title: '题库分类', roles: ['ADMIN', 'TEACHER'] }
   },
   {
@@ -134,13 +136,37 @@ const router = createRouter({
 
 // 路由守卫
 router.beforeEach((to, from, next) => {
-  const token = localStorage.getItem('token')
+  const rawToken = (localStorage.getItem('token') || '').trim()
+  const token = rawToken && rawToken !== 'null' && rawToken !== 'undefined' ? rawToken : ''
   const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}')
   const userRoles = userInfo.roles || []
+
+  const isTokenExpired = (jwt) => {
+    try {
+      const parts = String(jwt).split('.')
+      if (parts.length !== 3) return false
+      const payload = JSON.parse(decodeURIComponent(escape(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))))
+      const exp = payload?.exp
+      if (!exp) return false
+      return Date.now() >= Number(exp) * 1000
+    } catch {
+      return false
+    }
+  }
+
+  const clearAuth = () => {
+    localStorage.removeItem('token')
+    localStorage.removeItem('userInfo')
+  }
+
+  const authed = token && !isTokenExpired(token)
+  if (!authed && token) {
+    clearAuth()
+  }
   
   // 如果是前往需要认证的路由
   if (to.meta.requiresAuth) {
-    if (token) {
+    if (authed) {
       const allowRoles = to.meta.roles
       if (allowRoles && allowRoles.length > 0) {
         const ok = userRoles.some((r) => allowRoles.includes(r))
@@ -155,7 +181,7 @@ router.beforeEach((to, from, next) => {
       // 没有 token，重定向到登录页
       next('/login')
     }
-  } else if ((to.path === '/login' || to.path === '/register') && token) {
+  } else if ((to.path === '/login' || to.path === '/register') && authed) {
     // 已经登录了还去登录/注册页，直接跳回首页
     next('/')
   } else {
