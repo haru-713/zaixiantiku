@@ -34,9 +34,13 @@ import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Random;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -186,46 +190,46 @@ public class PaperServiceImpl implements PaperService {
         validatePaperName(generateDTO.getPaperName(), null, generateDTO.getCourseId());
 
         AutoGenerateRuleDTO rule = generateDTO.getRule();
-        List<PaperQuestionDTO> selectedQuestions = new ArrayList<>();
-        int currentSortOrder = 1;
+        if (rule == null || rule.getTypeDistribution() == null || rule.getTypeDistribution().isEmpty()) {
+            throw new RuntimeException("组卷规则不能为空");
+        }
 
-        if (rule != null && rule.getTypeDistribution() != null) {
-            for (AutoGenerateRuleDTO.TypeDistributionDTO dist : rule.getTypeDistribution()) {
-                LambdaQueryWrapper<Question> qw = new LambdaQueryWrapper<>();
-                qw.eq(Question::getCourseId, generateDTO.getCourseId());
-                qw.eq(Question::getTypeId, dist.getTypeId());
-                qw.eq(Question::getStatus, 2); // 已发布
+        // 1. 获取所有可用题目并按类型分组
+        Map<Integer, List<Question>> pool = new HashMap<>();
+        Map<Long, Set<Long>> questionKnowledgeMap = new HashMap<>(); // questionId -> knowledgeIds
 
-                if (rule.getKnowledgeIds() != null && !rule.getKnowledgeIds().isEmpty()) {
-                    List<Long> questionIdsInKnowledge = questionKnowledgeMapper.selectList(
-                            new LambdaQueryWrapper<QuestionKnowledge>()
-                                    .in(QuestionKnowledge::getKnowledgePointId, rule.getKnowledgeIds()))
-                            .stream().map(QuestionKnowledge::getQuestionId).distinct().collect(Collectors.toList());
+        for (AutoGenerateRuleDTO.TypeDistributionDTO dist : rule.getTypeDistribution()) {
+            LambdaQueryWrapper<Question> qw = new LambdaQueryWrapper<>();
+            qw.eq(Question::getCourseId, generateDTO.getCourseId());
+            qw.eq(Question::getTypeId, dist.getTypeId());
+            qw.eq(Question::getStatus, 2); // 已发布
 
-                    if (questionIdsInKnowledge.isEmpty()) {
-                        continue;
-                    }
-                    qw.in(Question::getId, questionIdsInKnowledge);
-                }
+            // 如果指定了知识点，先粗筛选（这一步是为了缩小搜索范围，GA会在这个范围内精选）
+            // 注意：GA通常在符合基础约束的集合中搜索最优解
+            List<Question> available = questionMapper.selectList(qw);
+            if (available.size() < dist.getCount()) {
+                throw new RuntimeException("题库中题型 [" + dist.getTypeId() + "] 数量不足，需要 " + dist.getCount() + " 题，现有 "
+                        + available.size() + " 题");
+            }
+            pool.put(dist.getTypeId(), available);
 
-                List<Question> availableQuestions = questionMapper.selectList(qw);
-
-                // 难度过滤 (简单逻辑：如果指定了难度比例，则在对应难度中随机选)
-                // 这里为了简化，我们先取所有符合条件的题目，然后根据难度分布随机打乱后选取
-                Collections.shuffle(availableQuestions);
-
-                int count = Math.min(dist.getCount(), availableQuestions.size());
-                for (int i = 0; i < count; i++) {
-                    Question q = availableQuestions.get(i);
-                    PaperQuestionDTO pqDto = new PaperQuestionDTO();
-                    pqDto.setQuestionId(q.getId());
-                    pqDto.setScore(dist.getScorePerQuestion());
-                    pqDto.setSortOrder(currentSortOrder++);
-                    selectedQuestions.add(pqDto);
+            // 预加载知识点映射，用于计算适应度
+            List<Long> qIds = available.stream().map(Question::getId).toList();
+            if (!qIds.isEmpty()) {
+                List<QuestionKnowledge> qks = questionKnowledgeMapper
+                        .selectList(new LambdaQueryWrapper<QuestionKnowledge>()
+                                .in(QuestionKnowledge::getQuestionId, qIds));
+                for (QuestionKnowledge qk : qks) {
+                    questionKnowledgeMap.computeIfAbsent(qk.getQuestionId(), k -> new HashSet<>())
+                            .add(qk.getKnowledgePointId());
                 }
             }
         }
 
+        // 2. 运行遗传算法
+        List<Question> bestQuestions = runGA(generateDTO, pool, questionKnowledgeMap);
+
+        // 3. 持久化
         Paper paper = Paper.builder()
                 .paperName(generateDTO.getPaperName())
                 .courseId(generateDTO.getCourseId())
@@ -236,17 +240,175 @@ public class PaperServiceImpl implements PaperService {
 
         paperMapper.insert(paper);
 
-        for (PaperQuestionDTO q : selectedQuestions) {
+        int sortOrder = 1;
+        for (Question q : bestQuestions) {
+            // 获取该题型在规则中定义的分值
+            Integer score = rule.getTypeDistribution().stream()
+                    .filter(d -> d.getTypeId().equals(q.getTypeId()))
+                    .findFirst().map(AutoGenerateRuleDTO.TypeDistributionDTO::getScorePerQuestion).orElse(0);
+
             PaperQuestion pq = PaperQuestion.builder()
                     .paperId(paper.getId())
-                    .questionId(q.getQuestionId())
-                    .score(q.getScore())
-                    .sortOrder(q.getSortOrder())
+                    .questionId(q.getId())
+                    .score(score)
+                    .sortOrder(sortOrder++)
                     .build();
             paperQuestionMapper.insert(pq);
         }
 
         return toVO(paper);
+    }
+
+    private List<Question> runGA(PaperAutoGenerateDTO dto, Map<Integer, List<Question>> pool,
+            Map<Long, Set<Long>> qkMap) {
+        int populationSize = 30; // 种群大小
+        int maxGenerations = 100; // 最大迭代次数
+        double mutationRate = 0.1; // 变异率
+        Random random = new Random();
+
+        // 初始种群
+        List<List<Question>> population = new ArrayList<>();
+        for (int i = 0; i < populationSize; i++) {
+            population.add(generateRandomIndividual(dto.getRule(), pool));
+        }
+
+        List<Question> bestIndividual = null;
+        double bestFitness = -1;
+
+        for (int gen = 0; gen < maxGenerations; gen++) {
+            // 计算适应度
+            List<Double> fitnessScores = new ArrayList<>();
+            for (List<Question> individual : population) {
+                double f = calculateFitness(individual, dto, qkMap);
+                fitnessScores.add(f);
+                if (f > bestFitness) {
+                    bestFitness = f;
+                    bestIndividual = new ArrayList<>(individual);
+                }
+            }
+
+            // 如果已经找到完美解（适应度为1），提前结束
+            if (bestFitness >= 0.99)
+                break;
+
+            // 选择 (轮盘赌)
+            List<List<Question>> nextGeneration = new ArrayList<>();
+            // 精英保留：保留上一代最好的
+            nextGeneration.add(new ArrayList<>(bestIndividual));
+
+            while (nextGeneration.size() < populationSize) {
+                List<Question> parent1 = select(population, fitnessScores, random);
+                List<Question> parent2 = select(population, fitnessScores, random);
+
+                // 交叉
+                List<Question> child = crossover(parent1, parent2, random);
+
+                // 变异
+                if (random.nextDouble() < mutationRate) {
+                    mutate(child, pool, random);
+                }
+
+                nextGeneration.add(child);
+            }
+            population = nextGeneration;
+        }
+
+        return bestIndividual;
+    }
+
+    private List<Question> generateRandomIndividual(AutoGenerateRuleDTO rule, Map<Integer, List<Question>> pool) {
+        List<Question> individual = new ArrayList<>();
+        for (AutoGenerateRuleDTO.TypeDistributionDTO dist : rule.getTypeDistribution()) {
+            List<Question> available = new ArrayList<>(pool.get(dist.getTypeId()));
+            Collections.shuffle(available);
+            for (int i = 0; i < dist.getCount(); i++) {
+                individual.add(available.get(i));
+            }
+        }
+        return individual;
+    }
+
+    private double calculateFitness(List<Question> individual, PaperAutoGenerateDTO dto, Map<Long, Set<Long>> qkMap) {
+        AutoGenerateRuleDTO rule = dto.getRule();
+
+        // 1. 难度系数偏差 (权重 0.4)
+        double avgDifficulty = individual.stream().mapToInt(Question::getDifficulty).average().orElse(0);
+        // 假设目标平均难度。如果用户没设比例，默认中等难度 2.0
+        double targetDifficulty = 2.0;
+        if (rule.getDifficultyRatio() != null && !rule.getDifficultyRatio().isEmpty()) {
+            targetDifficulty = rule.getDifficultyRatio().entrySet().stream()
+                    .mapToDouble(e -> Integer.parseInt(e.getKey()) * e.getValue()).sum();
+        }
+        double difficultyFitness = 1 - Math.abs(avgDifficulty - targetDifficulty) / 3.0;
+
+        // 2. 知识点覆盖率 (权重 0.6)
+        double knowledgeFitness = 0;
+        if (rule.getKnowledgeIds() != null && !rule.getKnowledgeIds().isEmpty()) {
+            Set<Long> targetIds = new HashSet<>(rule.getKnowledgeIds());
+            Set<Long> coveredIds = new HashSet<>();
+            for (Question q : individual) {
+                Set<Long> qks = qkMap.get(q.getId());
+                if (qks != null) {
+                    for (Long kid : qks) {
+                        if (targetIds.contains(kid))
+                            coveredIds.add(kid);
+                    }
+                }
+            }
+            knowledgeFitness = (double) coveredIds.size() / targetIds.size();
+        } else {
+            knowledgeFitness = 1.0; // 没设要求则视为满分
+        }
+
+        return difficultyFitness * 0.4 + knowledgeFitness * 0.6;
+    }
+
+    private List<Question> select(List<List<Question>> population, List<Double> fitnessScores, Random random) {
+        double totalFitness = fitnessScores.stream().mapToDouble(Double::doubleValue).sum();
+        double slice = random.nextDouble() * totalFitness;
+        double currentSum = 0;
+        for (int i = 0; i < population.size(); i++) {
+            currentSum += fitnessScores.get(i);
+            if (currentSum >= slice)
+                return population.get(i);
+        }
+        return population.get(0);
+    }
+
+    private List<Question> crossover(List<Question> p1, List<Question> p2, Random random) {
+        // 由于有题型数量约束，简单的单点交叉会破坏约束。
+        // 采用按题型分组交叉：随机决定某个题型从父1拿，还是从父2拿
+        List<Question> child = new ArrayList<>();
+        Set<Integer> typeIds = p1.stream().map(Question::getTypeId).collect(Collectors.toSet());
+
+        for (Integer typeId : typeIds) {
+            List<Question> typeP1 = p1.stream().filter(q -> q.getTypeId().equals(typeId)).toList();
+            List<Question> typeP2 = p2.stream().filter(q -> q.getTypeId().equals(typeId)).toList();
+
+            if (random.nextBoolean()) {
+                child.addAll(typeP1);
+            } else {
+                child.addAll(typeP2);
+            }
+        }
+        return child;
+    }
+
+    private void mutate(List<Question> individual, Map<Integer, List<Question>> pool, Random random) {
+        // 随机选一个题型，更换其中一道题
+        if (individual.isEmpty())
+            return;
+        int idx = random.nextInt(individual.size());
+        Question oldQ = individual.get(idx);
+        List<Question> available = pool.get(oldQ.getTypeId());
+
+        // 选一道不在当前个体中的题
+        Set<Long> currentIds = individual.stream().map(Question::getId).collect(Collectors.toSet());
+        List<Question> candidates = available.stream().filter(q -> !currentIds.contains(q.getId())).toList();
+
+        if (!candidates.isEmpty()) {
+            individual.set(idx, candidates.get(random.nextInt(candidates.size())));
+        }
     }
 
     @Override
