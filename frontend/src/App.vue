@@ -25,9 +25,9 @@
             </el-menu-item>
 
             <el-sub-menu v-if="isAdmin || isTeacher" index="qbank">
-              <template #title>题库管理</template>
-              <el-menu-item index="/question/manage">题目管理</el-menu-item>
-              <el-menu-item index="/question/category">题库分类</el-menu-item>
+              <template #title>知识点管理</template>
+              <el-menu-item index="/question/manage">试题管理</el-menu-item>
+              <el-menu-item index="/question/category">知识点管理</el-menu-item>
             </el-sub-menu>
 
             <el-sub-menu v-if="isAdmin || isTeacher" index="exam">

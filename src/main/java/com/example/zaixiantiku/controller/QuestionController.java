@@ -29,14 +29,14 @@ import java.util.List;
 @RestController
 @RequestMapping("/questions")
 @RequiredArgsConstructor
-@Tag(name = "题目管理", description = "题目创建/修改/删除/分页/详情/导入/导出")
+@Tag(name = "试题管理", description = "试题创建/修改/删除/分页/详情/导入/导出")
 public class QuestionController {
 
     private final QuestionService questionService;
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
-    @Operation(summary = "创建题目")
+    @Operation(summary = "创建试题")
     public Result<QuestionDetailVO> createQuestion(@RequestBody QuestionSaveDTO saveDTO) {
         QuestionDetailVO vo = questionService.createQuestion(saveDTO);
         return Result.success(vo);
@@ -44,15 +44,16 @@ public class QuestionController {
 
     @PutMapping("/{questionId}")
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
-    @Operation(summary = "修改题目")
-    public Result<QuestionDetailVO> updateQuestion(@PathVariable Long questionId, @RequestBody QuestionSaveDTO saveDTO) {
+    @Operation(summary = "修改试题")
+    public Result<QuestionDetailVO> updateQuestion(@PathVariable Long questionId,
+            @RequestBody QuestionSaveDTO saveDTO) {
         QuestionDetailVO vo = questionService.updateQuestion(questionId, saveDTO);
         return Result.success(vo);
     }
 
     @DeleteMapping("/{questionId}")
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
-    @Operation(summary = "删除题目")
+    @Operation(summary = "删除试题")
     public Result<Void> deleteQuestion(@PathVariable Long questionId) {
         questionService.deleteQuestion(questionId);
         return Result.success(1, "删除成功", null);
@@ -60,7 +61,7 @@ public class QuestionController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
-    @Operation(summary = "查询题目列表 (分页)")
+    @Operation(summary = "查询试题列表 (分页)")
     public Result<PageResult<QuestionListVO>> getQuestionPage(QuestionQueryDTO queryDTO) {
         PageResult<QuestionListVO> pageResult = questionService.getQuestionPage(queryDTO);
         return Result.success(pageResult);
@@ -68,7 +69,7 @@ public class QuestionController {
 
     @GetMapping("/{questionId}")
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
-    @Operation(summary = "获取题目详情")
+    @Operation(summary = "获取试题详情")
     public Result<QuestionDetailVO> getQuestionDetail(@PathVariable Long questionId) {
         QuestionDetailVO vo = questionService.getQuestionDetail(questionId);
         return Result.success(vo);
@@ -76,8 +77,9 @@ public class QuestionController {
 
     @PostMapping("/import")
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
-    @Operation(summary = "批量导入题目")
-    public Result<ImportResultVO> importQuestions(@RequestParam("file") MultipartFile file, @RequestParam("courseId") Long courseId) {
+    @Operation(summary = "批量导入试题")
+    public Result<ImportResultVO> importQuestions(@RequestParam("file") MultipartFile file,
+            @RequestParam("courseId") Long courseId) {
         ImportResultVO res = questionService.importQuestions(file, courseId);
         String msg = String.format("导入成功，共导入%d道题", res.getSuccessCount());
         return Result.success(1, msg, res);
@@ -85,14 +87,14 @@ public class QuestionController {
 
     @GetMapping("/export")
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
-    @Operation(summary = "批量导出题目")
+    @Operation(summary = "批量导出试题")
     public void exportQuestions(QuestionQueryDTO queryDTO, HttpServletResponse response) {
         questionService.exportQuestions(queryDTO, response);
     }
 
     @DeleteMapping("/batch")
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
-    @Operation(summary = "批量删除题目")
+    @Operation(summary = "批量删除试题")
     public Result<Void> batchDelete(@RequestBody List<Long> ids) {
         questionService.batchDeleteQuestions(ids);
         return Result.success(1, "批量删除成功", null);
@@ -100,10 +102,10 @@ public class QuestionController {
 
     @PutMapping("/batch/knowledge")
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
-    @Operation(summary = "批量修改题目知识点")
-    public Result<Void> batchUpdateKnowledge(@RequestParam("ids") List<Long> ids, @RequestBody List<Long> knowledgeIds) {
+    @Operation(summary = "批量修改试题知识点")
+    public Result<Void> batchUpdateKnowledge(@RequestParam("ids") List<Long> ids,
+            @RequestBody List<Long> knowledgeIds) {
         questionService.batchUpdateKnowledge(ids, knowledgeIds);
         return Result.success(1, "批量修改知识点成功", null);
     }
 }
-

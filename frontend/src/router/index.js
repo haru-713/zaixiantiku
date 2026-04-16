@@ -42,13 +42,13 @@ const routes = [
     path: '/question/manage',
     name: 'QuestionManage',
     component: QuestionManage,
-    meta: { requiresAuth: true, title: '题目管理', roles: ['ADMIN', 'TEACHER'] }
+    meta: { requiresAuth: true, title: '试题管理', roles: ['ADMIN', 'TEACHER'] }
   },
   {
     path: '/question/category',
     name: 'QuestionCategory',
     component: KnowledgePointManage,
-    meta: { requiresAuth: true, title: '题库分类', roles: ['ADMIN', 'TEACHER'] }
+    meta: { requiresAuth: true, title: '知识点管理', roles: ['ADMIN', 'TEACHER'] }
   },
   {
     path: '/exam/paper',

@@ -17,14 +17,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/admin/questions")
 @RequiredArgsConstructor
-@Tag(name = "题目审核 (管理员)", description = "管理员对题目进行发布或禁用")
+@Tag(name = "试题审核 (管理员)", description = "管理员对试题进行发布或禁用")
 public class AdminQuestionController {
 
     private final QuestionService questionService;
 
     @PutMapping("/{questionId}/audit")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "题目审核")
+    @Operation(summary = "试题审核")
     public Result<Void> auditQuestion(@PathVariable Long questionId, @RequestBody QuestionAuditDTO auditDTO) {
         questionService.auditQuestion(questionId, auditDTO);
         return Result.success(1, "审核完成", null);
@@ -32,7 +32,7 @@ public class AdminQuestionController {
 
     @PutMapping("/batch/audit")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "批量审核题目")
+    @Operation(summary = "批量审核试题")
     public Result<Void> batchAudit(@RequestBody QuestionBatchAuditDTO batchAuditDTO) {
         QuestionAuditDTO auditDTO = new QuestionAuditDTO();
         auditDTO.setStatus(batchAuditDTO.getStatus());
