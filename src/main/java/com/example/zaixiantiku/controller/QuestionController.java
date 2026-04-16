@@ -24,6 +24,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/questions")
 @RequiredArgsConstructor
@@ -86,6 +88,22 @@ public class QuestionController {
     @Operation(summary = "批量导出题目")
     public void exportQuestions(QuestionQueryDTO queryDTO, HttpServletResponse response) {
         questionService.exportQuestions(queryDTO, response);
+    }
+
+    @DeleteMapping("/batch")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @Operation(summary = "批量删除题目")
+    public Result<Void> batchDelete(@RequestBody List<Long> ids) {
+        questionService.batchDeleteQuestions(ids);
+        return Result.success(1, "批量删除成功", null);
+    }
+
+    @PutMapping("/batch/knowledge")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @Operation(summary = "批量修改题目知识点")
+    public Result<Void> batchUpdateKnowledge(@RequestParam("ids") List<Long> ids, @RequestBody List<Long> knowledgeIds) {
+        questionService.batchUpdateKnowledge(ids, knowledgeIds);
+        return Result.success(1, "批量修改知识点成功", null);
     }
 }
 

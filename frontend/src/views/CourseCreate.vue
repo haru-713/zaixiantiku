@@ -51,7 +51,8 @@
           <template #default="scope">
             <el-button size="small" @click="openDetail(scope.row)">详情</el-button>
             <el-button v-if="canManage" type="primary" size="small" @click="openEdit(scope.row)">修改</el-button>
-            <el-button v-if="canManage" type="danger" size="small" @click="handleDelete(scope.row)">删除</el-button>
+            <el-button v-if="isAdmin" type="danger" size="small" @click="handleDelete(scope.row)">删除</el-button>
+            <el-button v-else-if="isTeacher" type="warning" size="small" @click="handleExit(scope.row)">退出</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -140,7 +141,9 @@ const loading = ref(false)
 
 const userStore = useUserStore()
 const router = useRouter()
-const canManage = computed(() => (userStore.userInfo?.roles || []).some((r) => r === 'ADMIN' || r === 'TEACHER'))
+const isAdmin = computed(() => (userStore.userInfo?.roles || []).includes('ADMIN'))
+const isTeacher = computed(() => (userStore.userInfo?.roles || []).includes('TEACHER'))
+const canManage = computed(() => isAdmin.value || isTeacher.value)
 
 const createCoverUploading = ref(false)
 const editCoverUploading = ref(false)
@@ -303,10 +306,10 @@ const handleEdit = async () => {
 
 const handleDelete = async (row) => {
   try {
-    await ElMessageBox.confirm(`确定要删除课程【${row.courseName}】吗？`, '提示', {
-      confirmButtonText: '确定',
+    await ElMessageBox.confirm(`确定要删除课程【${row.courseName}】吗？删除前请确保该课程下已无任何教师、学生、题目和知识点。`, '警告', {
+      confirmButtonText: '确定删除',
       cancelButtonText: '取消',
-      type: 'warning'
+      type: 'error'
     })
   } catch {
     return
@@ -319,6 +322,30 @@ const handleDelete = async (row) => {
     fetchList()
   } catch (e) {
     console.error('删除课程失败:', e)
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleExit = async (row) => {
+  try {
+    await ElMessageBox.confirm(`确定要不再教授课程【${row.courseName}】并退出吗？`, '提示', {
+      confirmButtonText: '确定退出',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+  } catch {
+    return
+  }
+
+  loading.value = true
+  try {
+    // 使用通用的移除教师接口，传入当前教师自己的 ID 实现退出
+    await request.delete(`/courses/${row.id}/teachers`, { params: { teacherId: userStore.userInfo.id } })
+    ElMessage.success('已退出该课程')
+    fetchList()
+  } catch (e) {
+    console.error('退出课程失败:', e)
   } finally {
     loading.value = false
   }

@@ -199,14 +199,25 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
         List<Question> list = questionMapper.selectList(qw);
         PageInfo<Question> pageInfo = new PageInfo<>(list);
 
-        List<QuestionListVO> voList = list.stream().map(q -> QuestionListVO.builder()
-                .id(q.getId())
-                .content(q.getContent())
-                .typeId(q.getTypeId())
-                .difficulty(q.getDifficulty())
-                .status(q.getStatus())
-                .createTime(q.getCreateTime())
-                .build()).collect(Collectors.toList());
+        List<QuestionListVO> voList = list.stream().map(q -> {
+            List<Long> kIds = questionKnowledgeMapper.selectList(new LambdaQueryWrapper<QuestionKnowledge>()
+                            .eq(QuestionKnowledge::getQuestionId, q.getId()))
+                    .stream()
+                    .map(QuestionKnowledge::getKnowledgePointId)
+                    .toList();
+            List<String> kNames = kIds.isEmpty() ? Collections.emptyList() :
+                    knowledgePointMapper.selectBatchIds(kIds).stream().map(KnowledgePoint::getName).toList();
+
+            return QuestionListVO.builder()
+                    .id(q.getId())
+                    .content(q.getContent())
+                    .typeId(q.getTypeId())
+                    .difficulty(q.getDifficulty())
+                    .status(q.getStatus())
+                    .knowledgeNames(kNames)
+                    .createTime(q.getCreateTime())
+                    .build();
+        }).collect(Collectors.toList());
 
         return PageResult.of(pageInfo.getTotal(), voList);
     }
@@ -300,13 +311,25 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
                     }
                 }
 
-                if (StringUtils.hasText(dto.getKnowledgeIds())) {
-                    List<Long> kIds = Arrays.stream(dto.getKnowledgeIds().split("[,，]"))
+                if (StringUtils.hasText(dto.getKnowledgeNames())) {
+                    List<String> names = Arrays.stream(dto.getKnowledgeNames().split("[,，]"))
                             .map(String::trim)
                             .filter(StringUtils::hasText)
-                            .map(Long::valueOf)
                             .collect(Collectors.toList());
-                    saveDTO.setKnowledgeIds(kIds);
+                    if (!names.isEmpty()) {
+                        List<Long> kIds = new ArrayList<>();
+                        for (String name : names) {
+                            LambdaQueryWrapper<KnowledgePoint> kpQw = new LambdaQueryWrapper<>();
+                            kpQw.eq(KnowledgePoint::getCourseId, courseId);
+                            kpQw.eq(KnowledgePoint::getName, name);
+                            KnowledgePoint kp = knowledgePointMapper.selectOne(kpQw);
+                            if (kp == null) {
+                                throw new RuntimeException("知识点 [" + name + "] 不存在，请先创建");
+                            }
+                            kIds.add(kp.getId());
+                        }
+                        saveDTO.setKnowledgeIds(kIds);
+                    }
                 }
 
                 createQuestion(saveDTO);
@@ -382,7 +405,9 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
                     .map(QuestionKnowledge::getKnowledgePointId)
                     .toList();
             if (!kIds.isEmpty()) {
-                dto.setKnowledgeIds(kIds.stream().map(String::valueOf).collect(Collectors.joining(",")));
+                List<String> names = knowledgePointMapper.selectBatchIds(kIds).stream().map(KnowledgePoint::getName)
+                        .toList();
+                dto.setKnowledgeNames(String.join(",", names));
             }
             return dto;
         }).toList();
@@ -438,6 +463,52 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
         int rows = questionMapper.updateById(update);
         if (rows != 1) {
             throw new RuntimeException("审核失败");
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void batchDeleteQuestions(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return;
+        }
+        for (Long id : ids) {
+            deleteQuestion(id);
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void batchAuditQuestions(List<Long> ids, QuestionAuditDTO auditDTO) {
+        if (ids == null || ids.isEmpty()) {
+            return;
+        }
+        for (Long id : ids) {
+            auditQuestion(id, auditDTO);
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void batchUpdateKnowledge(List<Long> ids, List<Long> knowledgeIds) {
+        if (ids == null || ids.isEmpty() || knowledgeIds == null) {
+            return;
+        }
+
+        LoginUser loginUser = requireLoginUser();
+
+        for (Long id : ids) {
+            Question q = questionMapper.selectById(id);
+            if (q == null)
+                continue;
+
+            requireQuestionOwnerOrAdmin(loginUser, q);
+
+            // 清除旧的
+            questionKnowledgeMapper
+                    .delete(new LambdaQueryWrapper<QuestionKnowledge>().eq(QuestionKnowledge::getQuestionId, id));
+            // 保存新的
+            saveKnowledgeMappings(id, knowledgeIds, q.getCourseId());
         }
     }
 

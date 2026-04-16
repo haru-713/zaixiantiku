@@ -2,6 +2,7 @@ package com.example.zaixiantiku.controller;
 
 import com.example.zaixiantiku.common.Result;
 import com.example.zaixiantiku.pojo.dto.QuestionAuditDTO;
+import com.example.zaixiantiku.pojo.dto.QuestionBatchAuditDTO;
 import com.example.zaixiantiku.service.QuestionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -27,5 +28,16 @@ public class AdminQuestionController {
     public Result<Void> auditQuestion(@PathVariable Long questionId, @RequestBody QuestionAuditDTO auditDTO) {
         questionService.auditQuestion(questionId, auditDTO);
         return Result.success(1, "审核完成", null);
+    }
+
+    @PutMapping("/batch/audit")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "批量审核题目")
+    public Result<Void> batchAudit(@RequestBody QuestionBatchAuditDTO batchAuditDTO) {
+        QuestionAuditDTO auditDTO = new QuestionAuditDTO();
+        auditDTO.setStatus(batchAuditDTO.getStatus());
+        auditDTO.setReason(batchAuditDTO.getReason());
+        questionService.batchAuditQuestions(batchAuditDTO.getIds(), auditDTO);
+        return Result.success(1, "批量审核完成", null);
     }
 }

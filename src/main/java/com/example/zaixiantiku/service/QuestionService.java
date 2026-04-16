@@ -10,6 +10,8 @@ import com.example.zaixiantiku.pojo.vo.QuestionListVO;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 public interface QuestionService {
 
     QuestionDetailVO createQuestion(QuestionSaveDTO saveDTO);
@@ -27,5 +29,11 @@ public interface QuestionService {
     void exportQuestions(QuestionQueryDTO queryDTO, HttpServletResponse response);
 
     void auditQuestion(Long questionId, QuestionAuditDTO auditDTO);
+
+    void batchDeleteQuestions(List<Long> ids);
+
+    void batchAuditQuestions(List<Long> ids, QuestionAuditDTO auditDTO);
+
+    void batchUpdateKnowledge(List<Long> ids, List<Long> knowledgeIds);
 }
 

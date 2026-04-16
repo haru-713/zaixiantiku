@@ -23,6 +23,6 @@ public class QuestionImportDTO {
     @ExcelProperty("解析")
     private String analysis;
 
-    @ExcelProperty("知识点ID(多个逗号隔开)")
-    private String knowledgeIds;
+    @ExcelProperty("知识点名称(多个逗号隔开)")
+    private String knowledgeNames;
 }

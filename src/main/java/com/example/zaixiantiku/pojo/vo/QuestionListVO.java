@@ -25,6 +25,8 @@ public class QuestionListVO {
 
     private Integer status;
 
+    private java.util.List<String> knowledgeNames;
+
     private LocalDateTime createTime;
 }
 

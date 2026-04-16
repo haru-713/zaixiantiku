@@ -233,11 +233,16 @@ const canRemoveTeacherRow = (teacherId) => {
   if (!canRemoveTeacherUI.value) {
     return false
   }
+  // 管理员允许移除所有教师
+  if (localIsAdmin.value) {
+    return true
+  }
   const teachers = detail.value.teachers || []
+  // 非管理员至少保留一名教师，且不能移除自己
   if (teachers.length <= 1) {
     return false
   }
-  if (!localIsAdmin.value && currentUserId.value && teacherId === currentUserId.value) {
+  if (currentUserId.value && teacherId === currentUserId.value) {
     return false
   }
   return true

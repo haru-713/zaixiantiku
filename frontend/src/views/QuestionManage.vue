@@ -13,40 +13,58 @@
       </template>
 
       <div class="search-bar">
-        <el-input v-model="query.keyword" placeholder="题目内容" clearable style="width: 240px; margin-right: 10px"
-          @clear="handleQuery" @keyup.enter="handleQuery" />
         <el-select v-model="query.courseId" filterable remote clearable :remote-method="fetchCourseOptions"
-          :loading="courseLoading" placeholder="课程" style="width: 220px; margin-right: 10px"
+          :loading="courseLoading" placeholder="请选择课程（必选）" style="width: 240px; margin-right: 10px"
           @change="handleCourseQueryChange">
           <el-option v-for="c in courseOptions" :key="c.id" :label="c.courseName" :value="c.id" />
         </el-select>
-        <el-select v-model="query.typeId" placeholder="题型" clearable style="width: 160px; margin-right: 10px">
+        <el-input v-model="query.keyword" placeholder="题目内容关键字" clearable :disabled="!query.courseId"
+          style="width: 240px; margin-right: 10px" @clear="handleQuery" @keyup.enter="handleQuery" />
+        <el-select v-model="query.typeId" placeholder="题型" clearable :disabled="!query.courseId"
+          style="width: 140px; margin-right: 10px">
           <el-option v-for="t in questionTypeOptions" :key="t.id" :label="t.typeName" :value="t.id" />
         </el-select>
-        <el-select v-model="query.difficulty" placeholder="难度" clearable style="width: 120px; margin-right: 10px">
+        <el-select v-model="query.difficulty" placeholder="难度" clearable :disabled="!query.courseId"
+          style="width: 120px; margin-right: 10px">
           <el-option label="简单" :value="1" />
           <el-option label="中等" :value="2" />
           <el-option label="困难" :value="3" />
         </el-select>
-        <el-select v-model="query.knowledgeId" filterable clearable :disabled="!query.courseId"
-          :loading="knowledgeLoading" placeholder="知识点" style="width: 220px; margin-right: 10px"
-          @visible-change="handleKnowledgeDropdown">
-          <el-option v-for="k in knowledgeOptions" :key="k.id" :label="k.name" :value="k.id" />
-        </el-select>
-        <el-select v-model="query.status" placeholder="状态" clearable style="width: 120px; margin-right: 10px">
+        <el-tree-select v-model="query.knowledgeId" :data="knowledgeTree" :props="{ label: 'name', children: 'children' }"
+          node-key="id" placeholder="知识点" clearable :disabled="!query.courseId" style="width: 220px; margin-right: 10px"
+          check-strictly />
+        <el-select v-model="query.status" placeholder="状态" clearable :disabled="!query.courseId"
+          style="width: 120px; margin-right: 10px">
           <el-option label="草稿" :value="0" />
           <el-option label="待审核" :value="1" />
           <el-option label="已发布" :value="2" />
           <el-option label="禁用" :value="3" />
         </el-select>
-        <el-button type="primary" @click="handleQuery">查询</el-button>
+        <el-button type="primary" :disabled="!query.courseId" @click="handleQuery">查询</el-button>
         <el-button @click="resetQuery">重置</el-button>
       </div>
 
-      <el-table :data="list" v-loading="loading" style="width: 100%; margin-top: 16px">
-        <el-table-column type="index" label="序号" width="80" :index="indexMethod" />
-        <el-table-column prop="content" label="题目内容" min-width="320" show-overflow-tooltip />
-        <el-table-column prop="typeId" label="题型" width="140">
+      <div class="batch-actions" v-if="selectedIds.length > 0">
+        <span class="selected-count">已选 {{ selectedIds.length }} 项</span>
+        <el-button-group>
+          <el-button size="small" type="primary" @click="openBatchKnowledge">修改知识点</el-button>
+          <el-button size="small" type="warning" v-if="isAdmin" @click="openBatchAudit">批量审核</el-button>
+          <el-button size="small" type="danger" @click="handleBatchDelete">批量删除</el-button>
+        </el-button-group>
+      </div>
+
+      <el-table :data="list" v-loading="loading" style="width: 100%; margin-top: 16px" @selection-change="handleSelectionChange">
+        <el-table-column type="selection" width="55" />
+        <el-table-column type="index" label="序号" width="60" :index="indexMethod" />
+        <el-table-column prop="content" label="题目内容" min-width="280" show-overflow-tooltip />
+        <el-table-column label="知识点" min-width="180">
+          <template #default="scope">
+            <el-tag v-for="name in scope.row.knowledgeNames" :key="name" size="small" style="margin-right: 4px; margin-bottom: 4px">
+              {{ name }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="typeId" label="题型" width="120">
           <template #default="scope">
             {{ typeName(scope.row.typeId) }}
           </template>
@@ -242,6 +260,45 @@
         <el-button type="primary" :loading="auditing" @click="doAudit">提交审核</el-button>
       </template>
     </el-dialog>
+
+    <!-- 批量修改知识点对话框 -->
+    <el-dialog v-model="batchKnowledgeVisible" title="批量修改知识点" width="520px">
+      <el-form label-width="100px">
+        <el-form-item label="已选题目">
+          <span>{{ selectedIds.length }} 道</span>
+        </el-form-item>
+        <el-form-item label="知识点">
+          <el-tree-select v-model="batchKnowledgeIds" :data="knowledgeTree" :props="{ label: 'name', children: 'children' }"
+            node-key="id" placeholder="选择知识点" multiple collapse-tags collapse-tags-tooltip check-strictly style="width: 100%" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="batchKnowledgeVisible = false">取消</el-button>
+        <el-button type="primary" :loading="batchSaving" @click="doBatchUpdateKnowledge">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 批量审核对话框 -->
+    <el-dialog v-model="batchAuditVisible" title="批量审核题目" width="480px">
+      <el-form label-width="80px">
+        <el-form-item label="已选题目">
+          <span>{{ selectedIds.length }} 道</span>
+        </el-form-item>
+        <el-form-item label="审核结果">
+          <el-radio-group v-model="batchAuditForm.status">
+            <el-radio :label="2">通过并发布</el-radio>
+            <el-radio :label="3">拒绝/禁用</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="审核原因">
+          <el-input v-model="batchAuditForm.reason" type="textarea" :rows="3" placeholder="请输入原因" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="batchAuditVisible = false">取消</el-button>
+        <el-button type="primary" :loading="batchSaving" @click="doBatchAudit">提交审核</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -276,6 +333,17 @@ const detailVisible = ref(false)
 const detail = ref(null)
 const editingId = ref(null)
 
+// 批量操作
+const selectedIds = ref([])
+const batchSaving = ref(false)
+const batchKnowledgeVisible = ref(false)
+const batchKnowledgeIds = ref([])
+const batchAuditVisible = ref(false)
+const batchAuditForm = reactive({
+  status: 2,
+  reason: '内容合格'
+})
+
 // 导入相关
 const importVisible = ref(false)
 const importing = ref(false)
@@ -294,6 +362,7 @@ const auditForm = reactive({
 const questionTypeOptions = ref([])
 const courseOptions = ref([])
 const knowledgeOptions = ref([])
+const knowledgeTree = ref([])
 const courseLoading = ref(false)
 const knowledgeLoading = ref(false)
 
@@ -453,12 +522,17 @@ const fetchCourseOptions = async (keyword) => {
 const fetchKnowledgeOptions = async (courseId, keyword) => {
   if (!courseId) {
     knowledgeOptions.value = []
+    knowledgeTree.value = []
     return
   }
   knowledgeLoading.value = true
   try {
     const res = await request.get('/knowledge-points', { params: { courseId, keyword: keyword || '' } })
     knowledgeOptions.value = res.data || []
+
+    // 获取树结构
+    const treeRes = await request.get(`/courses/${courseId}/knowledge-points`)
+    knowledgeTree.value = treeRes.data || []
   } catch (e) {
     console.error('获取知识点失败:', e)
   } finally {
@@ -492,6 +566,8 @@ const resetQuery = () => {
   query.knowledgeId = null
   query.status = null
   knowledgeOptions.value = []
+  knowledgeTree.value = []
+  selectedIds.value = []
   handleQuery()
 }
 
@@ -746,6 +822,82 @@ const doAudit = async () => {
   }
 }
 
+// 批量操作方法
+const handleSelectionChange = (selection) => {
+  selectedIds.value = selection.map(item => item.id)
+}
+
+const openBatchKnowledge = () => {
+  batchKnowledgeIds.value = []
+  batchKnowledgeVisible.value = true
+}
+
+const doBatchUpdateKnowledge = async () => {
+  if (batchKnowledgeIds.value.length === 0) {
+    ElMessage.warning('请选择知识点')
+    return
+  }
+  batchSaving.value = true
+  try {
+    await request.put('/questions/batch/knowledge', batchKnowledgeIds.value, {
+      params: { ids: selectedIds.value.join(',') }
+    })
+    ElMessage.success('批量修改知识点成功')
+    batchKnowledgeVisible.value = false
+    fetchList()
+  } catch (e) {
+    console.error('批量修改知识点失败:', e)
+  } finally {
+    batchSaving.value = false
+  }
+}
+
+const openBatchAudit = () => {
+  batchAuditForm.status = 2
+  batchAuditForm.reason = '内容合格'
+  batchAuditVisible.value = true
+}
+
+const doBatchAudit = async () => {
+  batchSaving.value = true
+  try {
+    await request.put('/admin/questions/batch/audit', {
+      ids: selectedIds.value,
+      status: batchAuditForm.status,
+      reason: batchAuditForm.reason
+    })
+    ElMessage.success('批量审核完成')
+    batchAuditVisible.value = false
+    fetchList()
+  } catch (e) {
+    console.error('批量审核失败:', e)
+  } finally {
+    batchSaving.value = false
+  }
+}
+
+const handleBatchDelete = async () => {
+  try {
+    await ElMessageBox.confirm(`确定要批量删除选中的 ${selectedIds.value.length} 道题目吗？`, '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+  } catch {
+    return
+  }
+  batchSaving.value = true
+  try {
+    await request.delete('/questions/batch', { data: selectedIds.value })
+    ElMessage.success('批量删除成功')
+    fetchList()
+  } catch (e) {
+    console.error('批量删除失败:', e)
+  } finally {
+    batchSaving.value = false
+  }
+}
+
 const handleCourseQueryChange = () => {
   query.knowledgeId = null
   knowledgeOptions.value = []
@@ -795,6 +947,22 @@ onMounted(() => {
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.batch-actions {
+  margin-top: 16px;
+  padding: 8px 16px;
+  background-color: var(--el-color-primary-light-9);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.selected-count {
+  font-size: 14px;
+  color: var(--el-color-primary);
+  font-weight: bold;
 }
 
 .pagination-container {

@@ -30,6 +30,7 @@ import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -52,6 +53,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     private final CourseTeacherMapper courseTeacherMapper;
     private final CourseStudentMapper courseStudentMapper;
     private final UserMapper userMapper;
+    private final JdbcTemplate jdbcTemplate;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -497,10 +499,56 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
 
         requireCourseOwnerOrAdmin(courseId);
 
+        // 1. 检查教师关联
+        Long teacherCount = courseTeacherMapper
+                .selectCount(new LambdaQueryWrapper<CourseTeacher>().eq(CourseTeacher::getCourseId, courseId));
+        if (teacherCount != null && teacherCount > 0) {
+            throw new RuntimeException("该课程下有关联的任课教师，请先移除所有教师后再删除课程");
+        }
+
+        // 2. 检查学生关联
+        Long studentCount = courseStudentMapper
+                .selectCount(new LambdaQueryWrapper<CourseStudent>().eq(CourseStudent::getCourseId, courseId));
+        if (studentCount != null && studentCount > 0) {
+            throw new RuntimeException("该课程下有关联的选课学生，请先清退学生后再删除课程");
+        }
+
+        // 3. 检查知识点
+        Integer kpCount = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM knowledge_point WHERE course_id = ?",
+                Integer.class, courseId);
+        if (kpCount != null && kpCount > 0) {
+            throw new RuntimeException("该课程下有关联的知识点，请先删除知识点后再删除课程");
+        }
+
+        // 4. 检查题目
+        Integer questionCount = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM question WHERE course_id = ?",
+                Integer.class, courseId);
+        if (questionCount != null && questionCount > 0) {
+            throw new RuntimeException("该课程下有关联的题目，请先清空题目后再删除课程");
+        }
+
+        // 5. 检查试卷
+        if (existsTable("exam_paper")) {
+            Integer paperCount = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM exam_paper WHERE course_id = ?",
+                    Integer.class, courseId);
+            if (paperCount != null && paperCount > 0) {
+                throw new RuntimeException("该课程下有关联的试卷，请先删除试卷后再删除课程");
+            }
+        }
+
+        // 6. 删除课程
         int rows = courseMapper.deleteById(courseId);
         if (rows != 1) {
             throw new RuntimeException("删除课程失败");
         }
+    }
+
+    private boolean existsTable(String tableName) {
+        Integer c = jdbcTemplate.queryForObject(
+                "SELECT COUNT(1) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?",
+                Integer.class,
+                tableName);
+        return c != null && c > 0;
     }
 
     @Override
@@ -567,25 +615,34 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
             throw new RuntimeException("课程不存在");
         }
 
-        requireAdminOrCourseCreator(courseId);
-
         LoginUser loginUser = requireLoginUser();
-        if (!isAdmin(loginUser) && loginUser.getUser() != null && teacherId.equals(loginUser.getUser().getId())) {
-            throw new RuntimeException("不能移除自己");
+
+        // 1. 如果是管理员，允许移除任何教师（包括最后一名）
+        if (isAdmin(loginUser)) {
+            courseTeacherMapper.delete(new LambdaQueryWrapper<CourseTeacher>()
+                    .eq(CourseTeacher::getCourseId, courseId)
+                    .eq(CourseTeacher::getTeacherId, teacherId));
+            return;
         }
 
+        // 2. 如果是普通教师
+        requireCourseOwnerOrAdmin(courseId);
+
+        // 校验：普通教师只能移除自己（即退出课程）
+        if (!teacherId.equals(loginUser.getUser().getId())) {
+            throw new RuntimeException("普通教师仅能退出自己教授的课程，无法移除其他教师");
+        }
+
+        // 校验：唯一教师限制
         Long teacherCount = courseTeacherMapper.selectCount(new LambdaQueryWrapper<CourseTeacher>()
                 .eq(CourseTeacher::getCourseId, courseId));
         if (teacherCount != null && teacherCount <= 1) {
-            throw new RuntimeException("课程至少需要1名教师");
+            throw new RuntimeException("您是该课程的唯一任课教师。若要不再教授该课程，请联系管理员，或在清空所有关联数据后由管理员删除该课程。");
         }
 
-        int rows = courseTeacherMapper.delete(new LambdaQueryWrapper<CourseTeacher>()
+        courseTeacherMapper.delete(new LambdaQueryWrapper<CourseTeacher>()
                 .eq(CourseTeacher::getCourseId, courseId)
                 .eq(CourseTeacher::getTeacherId, teacherId));
-        if (rows <= 0) {
-            throw new RuntimeException("该教师未分配到此课程");
-        }
     }
 
     private static LambdaQueryWrapper<Course> buildCourseQueryWrapper(CourseQueryDTO queryDTO) {
