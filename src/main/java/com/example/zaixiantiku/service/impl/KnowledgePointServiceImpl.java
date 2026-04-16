@@ -283,6 +283,15 @@ public class KnowledgePointServiceImpl implements KnowledgePointService {
             throw new RuntimeException("知识点已被题目引用，禁止删除");
         }
 
+        // 检查是否有子知识点
+        Integer childCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(1) FROM knowledge_point WHERE parent_id = ?",
+                Integer.class,
+                kpId);
+        if (childCount != null && childCount > 0) {
+            throw new RuntimeException("该知识点下有关联的子知识点，无法删除");
+        }
+
         int rows = knowledgePointMapper.deleteById(kpId);
         if (rows != 1) {
             throw new RuntimeException("删除失败");

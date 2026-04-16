@@ -95,18 +95,19 @@
         <el-divider />
 
         <div class="detail-actions">
-          <el-button :disabled="!detail?.id" @click="moveUp">上移</el-button>
-          <el-button :disabled="!detail?.id" @click="moveDown">下移</el-button>
-          <el-button v-if="detailCourseId" @click="fetchDetailTree">刷新树</el-button>
+          <el-button :disabled="!detail?.id || saving" @click="moveUp">上移</el-button>
+          <el-button :disabled="!detail?.id || saving" @click="moveDown">下移</el-button>
+          <el-button v-if="detailCourseId" :disabled="saving" @click="fetchDetailTree">刷新树</el-button>
         </div>
 
-        <div v-loading="treeLoading" class="tree-container">
+        <div v-loading="treeLoading || saving" class="tree-container" :class="{ 'is-saving': saving }">
           <el-empty v-if="!detailCourseId" description="无课程信息" />
           <el-empty v-else-if="treeData.length === 0" description="暂无知识点" />
-          <el-tree v-else class="readonly-tree" :data="treeData" node-key="id" default-expand-all
-            :expand-on-click-node="false" :highlight-current="true" :current-node-key="detail?.id">
+          <el-tree v-else ref="treeRef" class="readonly-tree" :data="treeData" node-key="id" default-expand-all
+            :expand-on-click-node="false" :highlight-current="true" :current-node-key="detail?.id"
+            @node-click="handleTreeNodeClick">
             <template #default="{ data }">
-              <span>{{ (data.orderNo || '') + ' ' + data.name }}</span>
+              <span :class="{ 'is-current-label': data.id === detail?.id }">{{ (data.orderNo || '') + ' ' + data.name }}</span>
             </template>
           </el-tree>
         </div>
@@ -302,6 +303,9 @@ const submitForm = async () => {
 const handleDelete = async (kpId) => {
   if (!kpId) return
 
+  // 1. 先进行一次前端基础检查（如果有 treeData 也可以检查子节点，但这里主要针对列表）
+  // 实际上由于树在 Drawer 里面，主列表的操作更直接，我们直接调用后端检查
+  
   try {
     await ElMessageBox.confirm('确定删除该知识点吗？', '提示', {
       confirmButtonText: '确定',
@@ -318,6 +322,7 @@ const handleDelete = async (kpId) => {
     ElMessage.success('删除成功')
     fetchList()
   } catch (e) {
+    // 错误信息已经在 request.js 中通过 ElMessage.error 提示
     console.error('删除知识点失败:', e)
   } finally {
     saving.value = false
@@ -331,6 +336,8 @@ const detailCourseId = ref(null)
 const detailCourseName = ref('')
 const treeLoading = ref(false)
 const treeData = ref([])
+
+const treeRef = ref(null)
 
 const annotateOrder = (nodes) => {
   const walk = (arr, prefix = '') => {
@@ -382,8 +389,38 @@ const openDetail = async (row) => {
   }
 }
 
+const handleTreeNodeClick = (data) => {
+  // 如果点击的不是当前详情查看的知识点，强制重置选中状态到当前知识点
+  if (data.id !== detail.value?.id) {
+    if (treeRef.value) {
+      treeRef.value.setCurrentKey(detail.value?.id)
+    }
+    ElMessage.info('排序操作期间，仅允许查看当前选中的知识点')
+  }
+}
+
+const findNodeAndSiblings = (nodes, targetId) => {
+  for (let i = 0; i < nodes.length; i++) {
+    if (nodes[i].id === targetId) {
+      return { siblings: nodes, index: i }
+    }
+    if (nodes[i].children && nodes[i].children.length > 0) {
+      const res = findNodeAndSiblings(nodes[i].children, targetId)
+      if (res) return res
+    }
+  }
+  return null
+}
+
 const moveUp = async () => {
   if (!detail.value?.id) return
+
+  const info = findNodeAndSiblings(treeData.value, detail.value.id)
+  if (info && info.index === 0) {
+    ElMessage.warning('当前知识点已处于同层级最上方，无法上移')
+    return
+  }
+
   saving.value = true
   try {
     const res = await request.post(`/knowledge-points/${detail.value.id}/move`, null, { params: { direction: 'UP' } })
@@ -393,7 +430,7 @@ const moveUp = async () => {
       fetchList()
       fetchDetailTree()
     } else {
-      ElMessage.warning(res.msg || '已是最顶部，无法上移')
+      ElMessage.warning(res.msg || '已处于最上方，无法上移')
     }
   } catch (e) {
     console.error('上移失败:', e)
@@ -404,6 +441,13 @@ const moveUp = async () => {
 
 const moveDown = async () => {
   if (!detail.value?.id) return
+
+  const info = findNodeAndSiblings(treeData.value, detail.value.id)
+  if (info && info.index === info.siblings.length - 1) {
+    ElMessage.warning('当前知识点已处于同层级最下方，无法下移')
+    return
+  }
+
   saving.value = true
   try {
     const res = await request.post(`/knowledge-points/${detail.value.id}/move`, null, { params: { direction: 'DOWN' } })
@@ -413,7 +457,7 @@ const moveDown = async () => {
       fetchList()
       fetchDetailTree()
     } else {
-      ElMessage.warning(res.msg || '已是最底部，无法下移')
+      ElMessage.warning(res.msg || '已处于最下方，无法下移')
     }
   } catch (e) {
     console.error('下移失败:', e)
@@ -469,7 +513,23 @@ onMounted(() => {
   justify-content: flex-end;
 }
 
-.readonly-tree :deep(.el-tree-node__content) {
-  pointer-events: none;
+.readonly-tree {
+  pointer-events: none !important;
+}
+
+.readonly-tree :deep(.el-tree-node.is-current > .el-tree-node__content) {
+  background-color: var(--el-color-primary-light-9) !important;
+  color: var(--el-color-primary);
+  font-weight: bold;
+}
+
+/* 当正在保存/移动时，禁用整个树的交互 */
+.tree-container.is-saving :deep(.el-tree-node__content) {
+  pointer-events: none !important;
+}
+
+.is-current-label {
+  color: var(--el-color-primary);
+  font-weight: bold;
 }
 </style>

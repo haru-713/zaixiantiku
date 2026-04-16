@@ -3,12 +3,14 @@ package com.example.zaixiantiku.controller;
 import com.example.zaixiantiku.common.Result;
 import com.example.zaixiantiku.pojo.dto.QuestionQueryDTO;
 import com.example.zaixiantiku.pojo.dto.QuestionSaveDTO;
+import com.example.zaixiantiku.pojo.vo.ImportResultVO;
 import com.example.zaixiantiku.pojo.vo.PageResult;
 import com.example.zaixiantiku.pojo.vo.QuestionDetailVO;
 import com.example.zaixiantiku.pojo.vo.QuestionListVO;
 import com.example.zaixiantiku.service.QuestionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -18,12 +20,14 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/questions")
 @RequiredArgsConstructor
-@Tag(name = "题目管理", description = "题目创建/修改/删除/分页/详情")
+@Tag(name = "题目管理", description = "题目创建/修改/删除/分页/详情/导入/导出")
 public class QuestionController {
 
     private final QuestionService questionService;
@@ -66,6 +70,22 @@ public class QuestionController {
     public Result<QuestionDetailVO> getQuestionDetail(@PathVariable Long questionId) {
         QuestionDetailVO vo = questionService.getQuestionDetail(questionId);
         return Result.success(vo);
+    }
+
+    @PostMapping("/import")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @Operation(summary = "批量导入题目")
+    public Result<ImportResultVO> importQuestions(@RequestParam("file") MultipartFile file, @RequestParam("courseId") Long courseId) {
+        ImportResultVO res = questionService.importQuestions(file, courseId);
+        String msg = String.format("导入成功，共导入%d道题", res.getSuccessCount());
+        return Result.success(1, msg, res);
+    }
+
+    @GetMapping("/export")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @Operation(summary = "批量导出题目")
+    public void exportQuestions(QuestionQueryDTO queryDTO, HttpServletResponse response) {
+        questionService.exportQuestions(queryDTO, response);
     }
 }
 

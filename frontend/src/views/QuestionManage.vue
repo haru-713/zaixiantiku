@@ -5,6 +5,8 @@
         <div class="card-header">
           <span>题目管理</span>
           <div class="header-actions">
+            <el-button @click="openImport">导入</el-button>
+            <el-button @click="handleExport">导出</el-button>
             <el-button type="primary" @click="openCreate">创建题目</el-button>
           </div>
         </div>
@@ -64,9 +66,10 @@
             {{ formatDateTime(scope.row.createTime) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="240">
+        <el-table-column label="操作" width="280">
           <template #default="scope">
             <el-button size="small" @click="openDetail(scope.row)">详情</el-button>
+            <el-button v-if="isAdmin" type="warning" size="small" @click="openAudit(scope.row)">审核</el-button>
             <el-button type="primary" size="small" @click="openEdit(scope.row)">修改</el-button>
             <el-button type="danger" size="small" @click="handleDelete(scope.row)">删除</el-button>
           </template>
@@ -187,13 +190,70 @@
         </el-descriptions-item>
       </el-descriptions>
     </el-drawer>
+
+    <!-- 导入对话框 -->
+    <el-dialog v-model="importVisible" title="批量导入题目" width="520px">
+      <el-form label-width="100px">
+        <el-form-item label="所属课程" required>
+          <el-select v-model="importCourseId" filterable remote clearable :remote-method="fetchCourseOptions"
+            :loading="courseLoading" placeholder="请选择课程" style="width: 100%">
+            <el-option v-for="c in courseOptions" :key="c.id" :label="c.courseName" :value="c.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="Excel文件" required>
+          <el-upload class="upload-area" drag action="#" :auto-upload="false" :on-change="handleFileChange"
+            :on-remove="handleFileRemove" :file-list="fileList" :limit="1" accept=".xlsx, .xls">
+            <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+            <div class="el-upload__text">
+              将文件拖到此处，或<em>点击上传</em>
+            </div>
+            <template #tip>
+              <div class="el-upload__tip">
+                请先选择课程，再上传对应的题目 Excel 文件。
+              </div>
+            </template>
+          </el-upload>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="importVisible = false">取消</el-button>
+        <el-button type="primary" :loading="importing" @click="doImport">开始导入</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 审核对话框 -->
+    <el-dialog v-model="auditVisible" title="题目审核" width="480px">
+      <el-form :model="auditForm" label-width="80px">
+        <el-form-item label="题目ID">
+          <span>{{ auditForm.questionId }}</span>
+        </el-form-item>
+        <el-form-item label="审核结果">
+          <el-radio-group v-model="auditForm.status">
+            <el-radio :label="2">通过并发布</el-radio>
+            <el-radio :label="3">拒绝/禁用</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="审核原因">
+          <el-input v-model="auditForm.reason" type="textarea" :rows="3" placeholder="请输入审核原因" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="auditVisible = false">取消</el-button>
+        <el-button type="primary" :loading="auditing" @click="doAudit">提交审核</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { UploadFilled } from '@element-plus/icons-vue'
 import request from '@/utils/request'
+import { useUserStore } from '@/store/user'
+
+const userStore = useUserStore()
+const isAdmin = computed(() => (userStore.userInfo?.roles || []).includes('ADMIN'))
 
 const loading = ref(false)
 const saving = ref(false)
@@ -215,6 +275,21 @@ const formVisible = ref(false)
 const detailVisible = ref(false)
 const detail = ref(null)
 const editingId = ref(null)
+
+// 导入相关
+const importVisible = ref(false)
+const importing = ref(false)
+const importCourseId = ref(null)
+const fileList = ref([])
+
+// 审核相关
+const auditVisible = ref(false)
+const auditing = ref(false)
+const auditForm = reactive({
+  questionId: null,
+  status: 2,
+  reason: ''
+})
 
 const questionTypeOptions = ref([])
 const courseOptions = ref([])
@@ -581,6 +656,93 @@ const openDetail = async (row) => {
     console.error('获取题目详情失败:', e)
   } finally {
     saving.value = false
+  }
+}
+
+// 导入导出方法
+const openImport = () => {
+  importCourseId.value = query.courseId
+  fileList.value = []
+  importVisible.value = true
+}
+
+const handleFileChange = (file) => {
+  fileList.value = [file]
+}
+
+const handleFileRemove = () => {
+  fileList.value = []
+}
+
+const doImport = async () => {
+  if (!importCourseId.value) {
+    ElMessage.warning('请选择课程')
+    return
+  }
+  if (fileList.value.length === 0) {
+    ElMessage.warning('请选择要导入的 Excel 文件')
+    return
+  }
+
+  const formData = new FormData()
+  formData.append('file', fileList.value[0].raw)
+  formData.append('courseId', importCourseId.value)
+
+  importing.value = true
+  try {
+    const res = await request.post('/questions/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    ElMessage.success(res.msg || '导入成功')
+    importVisible.value = false
+    fetchList()
+  } catch (e) {
+    console.error('导入失败:', e)
+  } finally {
+    importing.value = false
+  }
+}
+
+const handleExport = async () => {
+  try {
+    const res = await request.get('/questions/export', {
+      params: query,
+      responseType: 'blob'
+    })
+    const url = window.URL.createObjectURL(new Blob([res]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', '题目导出_' + new Date().getTime() + '.xlsx')
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  } catch (e) {
+    console.error('导出失败:', e)
+  }
+}
+
+// 审核方法
+const openAudit = (row) => {
+  auditForm.questionId = row.id
+  auditForm.status = 2
+  auditForm.reason = '内容合格'
+  auditVisible.value = true
+}
+
+const doAudit = async () => {
+  auditing.value = true
+  try {
+    await request.put(`/admin/questions/${auditForm.questionId}/audit`, {
+      status: auditForm.status,
+      reason: auditForm.reason
+    })
+    ElMessage.success('审核完成')
+    auditVisible.value = false
+    fetchList()
+  } catch (e) {
+    console.error('审核失败:', e)
+  } finally {
+    auditing.value = false
   }
 }
 

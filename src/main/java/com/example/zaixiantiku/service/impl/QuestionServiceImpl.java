@@ -1,5 +1,6 @@
 package com.example.zaixiantiku.service.impl;
 
+import com.alibaba.excel.EasyExcel;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.example.zaixiantiku.entity.Course;
 import com.example.zaixiantiku.entity.CourseTeacher;
@@ -13,8 +14,11 @@ import com.example.zaixiantiku.mapper.KnowledgePointMapper;
 import com.example.zaixiantiku.mapper.QuestionKnowledgeMapper;
 import com.example.zaixiantiku.mapper.QuestionMapper;
 import com.example.zaixiantiku.mapper.QuestionTypeMapper;
+import com.example.zaixiantiku.pojo.dto.QuestionAuditDTO;
+import com.example.zaixiantiku.pojo.dto.QuestionImportDTO;
 import com.example.zaixiantiku.pojo.dto.QuestionQueryDTO;
 import com.example.zaixiantiku.pojo.dto.QuestionSaveDTO;
+import com.example.zaixiantiku.pojo.vo.ImportResultVO;
 import com.example.zaixiantiku.pojo.vo.PageResult;
 import com.example.zaixiantiku.pojo.vo.QuestionDetailVO;
 import com.example.zaixiantiku.pojo.vo.QuestionListVO;
@@ -23,6 +27,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -31,7 +36,10 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -114,7 +122,8 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
             throw new RuntimeException("题目修改失败");
         }
 
-        questionKnowledgeMapper.delete(new LambdaQueryWrapper<QuestionKnowledge>().eq(QuestionKnowledge::getQuestionId, questionId));
+        questionKnowledgeMapper
+                .delete(new LambdaQueryWrapper<QuestionKnowledge>().eq(QuestionKnowledge::getQuestionId, questionId));
         saveKnowledgeMappings(questionId, saveDTO.getKnowledgeIds(), saveDTO.getCourseId());
         return getQuestionDetail(questionId);
     }
@@ -143,8 +152,10 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
 
     @Override
     public PageResult<QuestionListVO> getQuestionPage(QuestionQueryDTO queryDTO) {
-        Integer page = queryDTO == null || queryDTO.getPage() == null || queryDTO.getPage() < 1 ? 1 : queryDTO.getPage();
-        Integer size = queryDTO == null || queryDTO.getSize() == null || queryDTO.getSize() < 1 ? 10 : queryDTO.getSize();
+        Integer page = queryDTO == null || queryDTO.getPage() == null || queryDTO.getPage() < 1 ? 1
+                : queryDTO.getPage();
+        Integer size = queryDTO == null || queryDTO.getSize() == null || queryDTO.getSize() < 1 ? 10
+                : queryDTO.getSize();
         PageHelper.startPage(page, size);
 
         LambdaQueryWrapper<Question> qw = new LambdaQueryWrapper<>();
@@ -173,7 +184,7 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
 
         if (queryDTO != null && queryDTO.getKnowledgeId() != null) {
             List<Long> ids = questionKnowledgeMapper.selectList(new LambdaQueryWrapper<QuestionKnowledge>()
-                            .eq(QuestionKnowledge::getKnowledgePointId, queryDTO.getKnowledgeId()))
+                    .eq(QuestionKnowledge::getKnowledgePointId, queryDTO.getKnowledgeId()))
                     .stream()
                     .map(QuestionKnowledge::getQuestionId)
                     .distinct()
@@ -217,7 +228,7 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
         }
 
         List<Long> knowledgeIds = questionKnowledgeMapper.selectList(new LambdaQueryWrapper<QuestionKnowledge>()
-                        .eq(QuestionKnowledge::getQuestionId, questionId))
+                .eq(QuestionKnowledge::getQuestionId, questionId))
                 .stream()
                 .map(QuestionKnowledge::getKnowledgePointId)
                 .distinct()
@@ -238,6 +249,196 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
                 .createTime(question.getCreateTime())
                 .updateTime(question.getUpdateTime())
                 .build();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public ImportResultVO importQuestions(MultipartFile file, Long courseId) {
+        if (file == null || file.isEmpty()) {
+            throw new RuntimeException("文件不能为空");
+        }
+        if (courseId == null) {
+            throw new RuntimeException("courseId 不能为空");
+        }
+
+        LoginUser loginUser = requireLoginUser();
+        requireTeacherOfCourseOrAdmin(loginUser, courseId);
+
+        List<QuestionImportDTO> list;
+        try {
+            list = EasyExcel.read(file.getInputStream()).head(QuestionImportDTO.class).sheet().doReadSync();
+        } catch (Exception e) {
+            throw new RuntimeException("读取 Excel 失败: " + e.getMessage());
+        }
+
+        if (list == null || list.isEmpty()) {
+            return ImportResultVO.builder().successCount(0).failCount(0).errors(Collections.singletonList("Excel 为空"))
+                    .build();
+        }
+
+        int success = 0;
+        int fail = 0;
+        List<String> errors = new ArrayList<>();
+
+        for (int i = 0; i < list.size(); i++) {
+            QuestionImportDTO dto = list.get(i);
+            try {
+                QuestionSaveDTO saveDTO = new QuestionSaveDTO();
+                saveDTO.setCourseId(courseId);
+                saveDTO.setTypeId(dto.getTypeId());
+                saveDTO.setContent(dto.getContent());
+                saveDTO.setDifficulty(dto.getDifficulty());
+                saveDTO.setAnswer(dto.getAnswer());
+                saveDTO.setAnalysis(dto.getAnalysis());
+
+                if (StringUtils.hasText(dto.getOptions())) {
+                    try {
+                        saveDTO.setOptions(objectMapper.readValue(dto.getOptions(), new TypeReference<List<String>>() {
+                        }));
+                    } catch (Exception e) {
+                        throw new RuntimeException("选项 JSON 格式错误");
+                    }
+                }
+
+                if (StringUtils.hasText(dto.getKnowledgeIds())) {
+                    List<Long> kIds = Arrays.stream(dto.getKnowledgeIds().split("[,，]"))
+                            .map(String::trim)
+                            .filter(StringUtils::hasText)
+                            .map(Long::valueOf)
+                            .collect(Collectors.toList());
+                    saveDTO.setKnowledgeIds(kIds);
+                }
+
+                createQuestion(saveDTO);
+                success++;
+            } catch (Exception e) {
+                fail++;
+                errors.add("第 " + (i + 2) + " 行: " + e.getMessage());
+            }
+        }
+
+        return ImportResultVO.builder()
+                .successCount(success)
+                .failCount(fail)
+                .errors(errors)
+                .build();
+    }
+
+    @Override
+    public void exportQuestions(QuestionQueryDTO queryDTO, HttpServletResponse response) {
+        LambdaQueryWrapper<Question> qw = new LambdaQueryWrapper<>();
+        if (queryDTO != null) {
+            if (queryDTO.getCourseId() != null) {
+                qw.eq(Question::getCourseId, queryDTO.getCourseId());
+            }
+            if (queryDTO.getTypeId() != null) {
+                qw.eq(Question::getTypeId, queryDTO.getTypeId());
+            }
+            if (queryDTO.getDifficulty() != null) {
+                qw.eq(Question::getDifficulty, queryDTO.getDifficulty());
+            }
+            if (queryDTO.getStatus() != null) {
+                qw.eq(Question::getStatus, queryDTO.getStatus());
+            }
+            if (StringUtils.hasText(queryDTO.getKeyword())) {
+                qw.like(Question::getContent, queryDTO.getKeyword());
+            }
+        }
+
+        LoginUser loginUser = requireLoginUser();
+        if (!isAdmin(loginUser)) {
+            qw.eq(Question::getCreateBy, loginUser.getUser().getId());
+        }
+
+        if (queryDTO != null && queryDTO.getKnowledgeId() != null) {
+            List<Long> ids = questionKnowledgeMapper.selectList(new LambdaQueryWrapper<QuestionKnowledge>()
+                    .eq(QuestionKnowledge::getKnowledgePointId, queryDTO.getKnowledgeId()))
+                    .stream()
+                    .map(QuestionKnowledge::getQuestionId)
+                    .distinct()
+                    .toList();
+            if (ids.isEmpty()) {
+                writeEmptyExcel(response);
+                return;
+            }
+            qw.in(Question::getId, ids);
+        }
+
+        qw.orderByDesc(Question::getId);
+        List<Question> list = questionMapper.selectList(qw);
+
+        List<QuestionImportDTO> exportList = list.stream().map(q -> {
+            QuestionImportDTO dto = new QuestionImportDTO();
+            dto.setTypeId(q.getTypeId());
+            dto.setContent(q.getContent());
+            dto.setDifficulty(q.getDifficulty());
+            dto.setOptions(q.getOptions());
+            dto.setAnswer(q.getAnswer());
+            dto.setAnalysis(q.getAnalysis());
+
+            List<Long> kIds = questionKnowledgeMapper.selectList(new LambdaQueryWrapper<QuestionKnowledge>()
+                    .eq(QuestionKnowledge::getQuestionId, q.getId()))
+                    .stream()
+                    .map(QuestionKnowledge::getKnowledgePointId)
+                    .toList();
+            if (!kIds.isEmpty()) {
+                dto.setKnowledgeIds(kIds.stream().map(String::valueOf).collect(Collectors.joining(",")));
+            }
+            return dto;
+        }).toList();
+
+        try {
+            response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            response.setCharacterEncoding("utf-8");
+            String fileName = java.net.URLEncoder.encode("题目列表", "UTF-8").replaceAll("\\+", "%20");
+            response.setHeader("Content-disposition", "attachment;filename*=utf-8''" + fileName + ".xlsx");
+            EasyExcel.write(response.getOutputStream(), QuestionImportDTO.class).sheet("题目").doWrite(exportList);
+        } catch (Exception e) {
+            throw new RuntimeException("导出 Excel 失败: " + e.getMessage());
+        }
+    }
+
+    private void writeEmptyExcel(HttpServletResponse response) {
+        try {
+            response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            response.setCharacterEncoding("utf-8");
+            String fileName = java.net.URLEncoder.encode("题目列表", "UTF-8").replaceAll("\\+", "%20");
+            response.setHeader("Content-disposition", "attachment;filename*=utf-8''" + fileName + ".xlsx");
+            EasyExcel.write(response.getOutputStream(), QuestionImportDTO.class).sheet("题目")
+                    .doWrite(Collections.emptyList());
+        } catch (Exception e) {
+            // ignore
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void auditQuestion(Long questionId, QuestionAuditDTO auditDTO) {
+        if (questionId == null) {
+            throw new RuntimeException("questionId 不能为空");
+        }
+        if (auditDTO == null || auditDTO.getStatus() == null) {
+            throw new RuntimeException("审核状态不能为空");
+        }
+
+        Question existing = questionMapper.selectById(questionId);
+        if (existing == null) {
+            throw new RuntimeException("题目不存在");
+        }
+
+        LoginUser loginUser = requireLoginUser();
+        if (!isAdmin(loginUser)) {
+            throw new RuntimeException("仅管理员有权审核题目");
+        }
+
+        Question update = new Question();
+        update.setId(questionId);
+        update.setStatus(auditDTO.getStatus());
+
+        int rows = questionMapper.updateById(update);
+        if (rows != 1) {
+            throw new RuntimeException("审核失败");
+        }
     }
 
     private void validateSaveDTO(QuestionSaveDTO saveDTO) {
@@ -332,7 +533,8 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
             return null;
         }
         try {
-            return objectMapper.readValue(json, new TypeReference<List<String>>() {});
+            return objectMapper.readValue(json, new TypeReference<List<String>>() {
+            });
         } catch (Exception e) {
             return null;
         }
@@ -391,13 +593,15 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
 
     private void ensureNotReferencedByPaper(Long questionId) {
         if (existsTable("paper_question")) {
-            Integer c = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM paper_question WHERE question_id = ?", Integer.class, questionId);
+            Integer c = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM paper_question WHERE question_id = ?",
+                    Integer.class, questionId);
             if (c != null && c > 0) {
                 throw new RuntimeException("题目已被试卷引用，禁止删除");
             }
         }
         if (existsTable("exam_paper_question")) {
-            Integer c = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM exam_paper_question WHERE question_id = ?", Integer.class, questionId);
+            Integer c = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM exam_paper_question WHERE question_id = ?",
+                    Integer.class, questionId);
             if (c != null && c > 0) {
                 throw new RuntimeException("题目已被试卷引用，禁止删除");
             }
@@ -408,9 +612,7 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
         Integer c = jdbcTemplate.queryForObject(
                 "SELECT COUNT(1) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?",
                 Integer.class,
-                tableName
-        );
+                tableName);
         return c != null && c > 0;
     }
 }
-
