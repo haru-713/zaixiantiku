@@ -309,19 +309,24 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
                 // 1. 数据准备与校验
                 Long finalCourseId = null;
                 if (StringUtils.hasText(dto.getCourseId())) {
-                    try {
-                        finalCourseId = Long.valueOf(dto.getCourseId().trim());
-                    } catch (NumberFormatException e) {
-                        if (i == 0)
-                            continue;
-                        throw new RuntimeException("课程ID格式错误");
+                    String courseStr = dto.getCourseId().trim();
+                    if (courseStr.matches("\\d+")) {
+                        finalCourseId = Long.valueOf(courseStr);
+                    } else {
+                        // 按课程名称查找
+                        LambdaQueryWrapper<Course> courseQw = new LambdaQueryWrapper<>();
+                        courseQw.eq(Course::getCourseName, courseStr);
+                        List<Course> courses = courseMapper.selectList(courseQw);
+                        if (!courses.isEmpty()) {
+                            finalCourseId = courses.get(0).getId();
+                        }
                     }
                 }
 
                 if (finalCourseId == null)
                     finalCourseId = courseId;
                 if (finalCourseId == null)
-                    throw new RuntimeException("缺少课程ID");
+                    throw new RuntimeException("缺少课程或课程ID格式错误");
 
                 requireTeacherOfCourseOrAdmin(loginUser, finalCourseId);
 
@@ -329,12 +334,40 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
                 saveDTO.setCourseId(finalCourseId);
 
                 if (!StringUtils.hasText(dto.getTypeId()))
-                    throw new RuntimeException("题型ID不能为空");
-                saveDTO.setTypeId(Integer.valueOf(dto.getTypeId().trim()));
+                    throw new RuntimeException("题型ID/名称不能为空");
+
+                String typeStr = dto.getTypeId().trim();
+                Integer typeId = null;
+                if (typeStr.matches("\\d+")) {
+                    typeId = Integer.valueOf(typeStr);
+                } else {
+                    // 按名称查找
+                    LambdaQueryWrapper<QuestionType> typeQw = new LambdaQueryWrapper<>();
+                    typeQw.eq(QuestionType::getTypeName, typeStr);
+                    QuestionType qt = questionTypeMapper.selectOne(typeQw);
+                    if (qt != null) {
+                        typeId = qt.getId();
+                    }
+                }
+                if (typeId == null) {
+                    throw new RuntimeException("题型 [" + typeStr + "] 不存在");
+                }
+                saveDTO.setTypeId(typeId);
                 saveDTO.setContent(dto.getContent());
 
                 if (StringUtils.hasText(dto.getDifficulty())) {
-                    saveDTO.setDifficulty(Integer.valueOf(dto.getDifficulty().trim()));
+                    String diffStr = dto.getDifficulty().trim();
+                    if (diffStr.matches("\\d+")) {
+                        saveDTO.setDifficulty(Integer.valueOf(diffStr));
+                    } else if (diffStr.contains("简单")) {
+                        saveDTO.setDifficulty(1);
+                    } else if (diffStr.contains("中等")) {
+                        saveDTO.setDifficulty(2);
+                    } else if (diffStr.contains("困难")) {
+                        saveDTO.setDifficulty(3);
+                    } else {
+                        saveDTO.setDifficulty(1);
+                    }
                 } else {
                     saveDTO.setDifficulty(1);
                 }
@@ -508,10 +541,32 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
 
         List<QuestionImportDTO> exportList = list.stream().map(q -> {
             QuestionImportDTO dto = new QuestionImportDTO();
-            dto.setCourseId(q.getCourseId() != null ? String.valueOf(q.getCourseId()) : "");
-            dto.setTypeId(q.getTypeId() != null ? String.valueOf(q.getTypeId()) : "");
+
+            // 导出课程名称
+            Course course = courseMapper.selectById(q.getCourseId());
+            dto.setCourseId(course != null ? course.getCourseName()
+                    : (q.getCourseId() != null ? String.valueOf(q.getCourseId()) : ""));
+
+            // 导出题型名称
+            QuestionType qt = questionTypeMapper.selectById(q.getTypeId());
+            dto.setTypeId(qt != null ? qt.getTypeName() : (q.getTypeId() != null ? String.valueOf(q.getTypeId()) : ""));
+
             dto.setContent(q.getContent());
-            dto.setDifficulty(q.getDifficulty() != null ? String.valueOf(q.getDifficulty()) : "");
+
+            // 导出难度名称
+            String diffStr = "";
+            if (q.getDifficulty() != null) {
+                if (q.getDifficulty() == 1)
+                    diffStr = "简单";
+                else if (q.getDifficulty() == 2)
+                    diffStr = "中等";
+                else if (q.getDifficulty() == 3)
+                    diffStr = "困难";
+                else
+                    diffStr = String.valueOf(q.getDifficulty());
+            }
+            dto.setDifficulty(diffStr);
+
             dto.setOptions(q.getOptions());
             dto.setAnswer(q.getAnswer());
             dto.setAnalysis(q.getAnalysis());
@@ -522,9 +577,11 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
                     .map(QuestionKnowledge::getKnowledgePointId)
                     .toList();
             if (!kIds.isEmpty()) {
-                List<String> names = knowledgePointMapper.selectBatchIds(kIds).stream().map(KnowledgePoint::getName)
-                        .toList();
-                dto.setKnowledgeNames(String.join(";", names));
+                List<String> pathStrings = new ArrayList<>();
+                for (Long kId : kIds) {
+                    pathStrings.add(getKnowledgeFullPath(kId));
+                }
+                dto.setKnowledgeNames(String.join(";", pathStrings));
             }
             return dto;
         }).toList();
@@ -538,6 +595,21 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
         } catch (Exception e) {
             throw new RuntimeException("导出 Excel 失败: " + e.getMessage());
         }
+    }
+
+    private String getKnowledgeFullPath(Long id) {
+        if (id == null)
+            return "";
+        List<String> path = new ArrayList<>();
+        KnowledgePoint kp = knowledgePointMapper.selectById(id);
+        while (kp != null) {
+            path.add(0, kp.getName());
+            if (kp.getParentId() == null || kp.getParentId() == 0L) {
+                break;
+            }
+            kp = knowledgePointMapper.selectById(kp.getParentId());
+        }
+        return String.join(",", path);
     }
 
     private void writeEmptyExcel(HttpServletResponse response) {

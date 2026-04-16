@@ -9,6 +9,7 @@ import CourseCreate from '../views/CourseCreate.vue'
 import CourseDetail from '../views/CourseDetail.vue'
 import QuestionManage from '../views/QuestionManage.vue'
 import KnowledgePointManage from '../views/KnowledgePointManage.vue'
+import PaperManage from '../views/PaperManage.vue'
 import Profile from '../views/Profile.vue'
 
 const routes = [
@@ -53,7 +54,7 @@ const routes = [
   {
     path: '/exam/paper',
     name: 'ExamPaper',
-    component: ComingSoon,
+    component: PaperManage,
     meta: { requiresAuth: true, title: '试卷管理', roles: ['ADMIN', 'TEACHER'] }
   },
   {
@@ -163,7 +164,7 @@ router.beforeEach((to, from, next) => {
   if (!authed && token) {
     clearAuth()
   }
-  
+
   // 如果是前往需要认证的路由
   if (to.meta.requiresAuth) {
     if (authed) {

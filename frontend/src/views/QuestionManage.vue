@@ -19,7 +19,7 @@
           <el-option v-for="c in courseOptions" :key="c.id" :label="c.courseName" :value="c.id" />
         </el-select>
         <el-input v-model="query.keyword" placeholder="试题内容关键字" clearable :disabled="!query.courseId"
-          style="width: 240px; margin-right: 10px" @clear="handleQuery" @keyup.enter="handleQuery" />
+          style="width: 240px; margin-right: 10px" @keyup.enter="handleQuery" />
         <el-select v-model="query.typeId" placeholder="题型" clearable :disabled="!query.courseId"
           style="width: 140px; margin-right: 10px">
           <el-option v-for="t in questionTypeOptions" :key="t.id" :label="t.typeName" :value="t.id" />
@@ -790,17 +790,22 @@ const doImport = async () => {
 
 const handleExport = async () => {
   try {
+    const exportParams = { ...query }
+    delete exportParams.page
+    delete exportParams.size
+
     const res = await request.get('/questions/export', {
-      params: query,
+      params: exportParams,
       responseType: 'blob'
     })
-    const url = window.URL.createObjectURL(new Blob([res]))
+    const url = window.URL.createObjectURL(res)
     const link = document.createElement('a')
     link.href = url
-    link.setAttribute('download', '题目导出_' + new Date().getTime() + '.xlsx')
+    link.setAttribute('download', '试题导出_' + new Date().getTime() + '.xlsx')
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
   } catch (e) {
     console.error('导出失败:', e)
   }

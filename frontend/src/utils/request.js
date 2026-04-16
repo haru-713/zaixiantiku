@@ -24,6 +24,11 @@ service.interceptors.request.use(
 // 响应拦截器
 service.interceptors.response.use(
   (response) => {
+    // 如果是文件流响应，直接返回 response.data
+    if (response.config.responseType === 'blob' || response.config.responseType === 'arraybuffer') {
+      return response.data
+    }
+
     const res = response.data
     // 如果 code 为 200，说明成功
     if (res.code === 200 || res.code === 1) {
