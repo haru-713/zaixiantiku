@@ -3,11 +3,11 @@
     <el-card>
       <template #header>
         <div class="card-header">
-          <span>题目管理</span>
+          <span>试题管理</span>
           <div class="header-actions">
             <el-button @click="openImport">导入</el-button>
             <el-button @click="handleExport">导出</el-button>
-            <el-button type="primary" @click="openCreate">创建题目</el-button>
+            <el-button type="primary" @click="openCreate">创建试题</el-button>
           </div>
         </div>
       </template>
@@ -18,7 +18,7 @@
           @change="handleCourseQueryChange">
           <el-option v-for="c in courseOptions" :key="c.id" :label="c.courseName" :value="c.id" />
         </el-select>
-        <el-input v-model="query.keyword" placeholder="题目内容关键字" clearable :disabled="!query.courseId"
+        <el-input v-model="query.keyword" placeholder="试题内容关键字" clearable :disabled="!query.courseId"
           style="width: 240px; margin-right: 10px" @clear="handleQuery" @keyup.enter="handleQuery" />
         <el-select v-model="query.typeId" placeholder="题型" clearable :disabled="!query.courseId"
           style="width: 140px; margin-right: 10px">
@@ -56,7 +56,7 @@
       <el-table :data="list" v-loading="loading" style="width: 100%; margin-top: 16px" @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" />
         <el-table-column type="index" label="序号" width="60" :index="indexMethod" />
-        <el-table-column prop="content" label="题目内容" min-width="280" show-overflow-tooltip />
+        <el-table-column prop="content" label="试题内容" min-width="280" show-overflow-tooltip />
         <el-table-column label="知识点" min-width="180">
           <template #default="scope">
             <el-tag v-for="name in scope.row.knowledgeNames" :key="name" size="small" style="margin-right: 4px; margin-bottom: 4px">
@@ -101,7 +101,7 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="formVisible" :title="editingId ? '修改题目' : '创建题目'" width="840px">
+    <el-dialog v-model="formVisible" :title="editingId ? '修改试题' : '创建试题'" width="840px">
       <el-form :model="form" label-width="90px">
         <el-form-item label="课程">
           <el-select v-model="form.courseId" filterable remote clearable :remote-method="fetchCourseOptions"
@@ -124,8 +124,8 @@
           </el-select>
         </el-form-item>
 
-        <el-form-item label="题目内容">
-          <el-input v-model="form.content" type="textarea" :rows="4" placeholder="请输入题目内容" />
+        <el-form-item label="试题内容">
+          <el-input v-model="form.content" type="textarea" :rows="4" placeholder="请输入试题内容" />
         </el-form-item>
 
         <el-form-item v-if="showOptions" label="选项">
@@ -184,7 +184,7 @@
       </template>
     </el-dialog>
 
-    <el-drawer v-model="detailVisible" title="题目详情" size="50%">
+    <el-drawer v-model="detailVisible" title="试题详情" size="50%">
       <el-descriptions :column="2" border v-if="detail">
         <el-descriptions-item label="ID">{{ detail.id }}</el-descriptions-item>
         <el-descriptions-item label="课程ID">{{ detail.courseId }}</el-descriptions-item>
@@ -194,7 +194,7 @@
         <el-descriptions-item label="创建人">{{ detail.createBy }}</el-descriptions-item>
         <el-descriptions-item label="创建时间">{{ formatDateTime(detail.createTime) }}</el-descriptions-item>
         <el-descriptions-item label="更新时间">{{ formatDateTime(detail.updateTime) }}</el-descriptions-item>
-        <el-descriptions-item label="题目内容" :span="2">{{ detail.content }}</el-descriptions-item>
+        <el-descriptions-item label="试题内容" :span="2">{{ detail.content }}</el-descriptions-item>
         <el-descriptions-item label="选项" :span="2">
           <div v-if="detail.options && detail.options.length">
             <div v-for="(op, idx) in detail.options" :key="idx">{{ op }}</div>
@@ -210,7 +210,7 @@
     </el-drawer>
 
     <!-- 导入对话框 -->
-    <el-dialog v-model="importVisible" title="批量导入题目" width="520px">
+    <el-dialog v-model="importVisible" title="批量导入试题" width="520px">
       <el-form label-width="100px">
         <el-form-item label="所属课程" required>
           <el-select v-model="importCourseId" filterable remote clearable :remote-method="fetchCourseOptions"
@@ -227,7 +227,7 @@
             </div>
             <template #tip>
               <div class="el-upload__tip">
-                请先选择课程，再上传对应的题目 Excel 文件。
+                请先选择课程，再上传对应的试题 Excel 文件。
               </div>
             </template>
           </el-upload>
@@ -240,9 +240,9 @@
     </el-dialog>
 
     <!-- 审核对话框 -->
-    <el-dialog v-model="auditVisible" title="题目审核" width="480px">
+    <el-dialog v-model="auditVisible" title="试题审核" width="480px">
       <el-form :model="auditForm" label-width="80px">
-        <el-form-item label="题目ID">
+        <el-form-item label="试题ID">
           <span>{{ auditForm.questionId }}</span>
         </el-form-item>
         <el-form-item label="审核结果">
@@ -264,7 +264,7 @@
     <!-- 批量修改知识点对话框 -->
     <el-dialog v-model="batchKnowledgeVisible" title="批量修改知识点" width="520px">
       <el-form label-width="100px">
-        <el-form-item label="已选题目">
+        <el-form-item label="已选试题">
           <span>{{ selectedIds.length }} 道</span>
         </el-form-item>
         <el-form-item label="知识点">
@@ -279,9 +279,9 @@
     </el-dialog>
 
     <!-- 批量审核对话框 -->
-    <el-dialog v-model="batchAuditVisible" title="批量审核题目" width="480px">
+    <el-dialog v-model="batchAuditVisible" title="批量审核试题" width="480px">
       <el-form label-width="80px">
-        <el-form-item label="已选题目">
+        <el-form-item label="已选试题">
           <span>{{ selectedIds.length }} 道</span>
         </el-form-item>
         <el-form-item label="审核结果">
@@ -769,7 +769,16 @@ const doImport = async () => {
     const res = await request.post('/questions/import', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
-    ElMessage.success(res.msg || '导入成功')
+    const result = res.data
+    if (result.failCount > 0) {
+      const errorMsg = result.errors.slice(0, 5).join('<br/>') + (result.errors.length > 5 ? '<br/>...' : '')
+      ElMessageBox.alert(`导入完成：成功 ${result.successCount} 道，失败 ${result.failCount} 道。<br/><br/><strong>部分失败原因：</strong><br/>${errorMsg}`, '导入结果', {
+        dangerouslyUseHTMLString: true,
+        type: result.successCount > 0 ? 'warning' : 'error'
+      })
+    } else {
+      ElMessage.success(res.msg || `成功导入 ${result.successCount} 道题目`)
+    }
     importVisible.value = false
     fetchList()
   } catch (e) {

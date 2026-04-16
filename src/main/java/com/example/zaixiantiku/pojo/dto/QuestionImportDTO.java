@@ -5,24 +5,27 @@ import lombok.Data;
 
 @Data
 public class QuestionImportDTO {
+    @ExcelProperty("课程ID")
+    private String courseId;
+
     @ExcelProperty("题型ID")
-    private Integer typeId;
+    private String typeId;
 
     @ExcelProperty("题目内容")
     private String content;
 
-    @ExcelProperty("难度(1-简单,2-中等,3-困难)")
-    private Integer difficulty;
+    @ExcelProperty("难度")
+    private String difficulty;
 
-    @ExcelProperty("选项(JSON格式)")
+    @ExcelProperty("选项")
     private String options;
 
-    @ExcelProperty("标准答案")
+    @ExcelProperty("答案")
     private String answer;
 
     @ExcelProperty("解析")
     private String analysis;
 
-    @ExcelProperty("知识点名称(多个逗号隔开)")
+    @ExcelProperty("知识点名称")
     private String knowledgeNames;
 }

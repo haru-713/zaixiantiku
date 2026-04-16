@@ -201,12 +201,12 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
 
         List<QuestionListVO> voList = list.stream().map(q -> {
             List<Long> kIds = questionKnowledgeMapper.selectList(new LambdaQueryWrapper<QuestionKnowledge>()
-                            .eq(QuestionKnowledge::getQuestionId, q.getId()))
+                    .eq(QuestionKnowledge::getQuestionId, q.getId()))
                     .stream()
                     .map(QuestionKnowledge::getKnowledgePointId)
                     .toList();
-            List<String> kNames = kIds.isEmpty() ? Collections.emptyList() :
-                    knowledgePointMapper.selectBatchIds(kIds).stream().map(KnowledgePoint::getName).toList();
+            List<String> kNames = kIds.isEmpty() ? Collections.emptyList()
+                    : knowledgePointMapper.selectBatchIds(kIds).stream().map(KnowledgePoint::getName).toList();
 
             return QuestionListVO.builder()
                     .id(q.getId())
@@ -263,27 +263,28 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public ImportResultVO importQuestions(MultipartFile file, Long courseId) {
         if (file == null || file.isEmpty()) {
             throw new RuntimeException("文件不能为空");
         }
-        if (courseId == null) {
-            throw new RuntimeException("courseId 不能为空");
-        }
-
+        // 如果外部没传 courseId，我们稍后尝试从 DTO 中取
         LoginUser loginUser = requireLoginUser();
-        requireTeacherOfCourseOrAdmin(loginUser, courseId);
 
         List<QuestionImportDTO> list;
         try {
-            list = EasyExcel.read(file.getInputStream()).head(QuestionImportDTO.class).sheet().doReadSync();
+            list = EasyExcel.read(file.getInputStream())
+                    .head(QuestionImportDTO.class)
+                    .sheet()
+                    .doReadSync();
         } catch (Exception e) {
-            throw new RuntimeException("读取 Excel 失败: " + e.getMessage());
+            throw new RuntimeException("文件解析失败，请确保上传的是标准的 Excel 或 CSV 文件");
         }
 
         if (list == null || list.isEmpty()) {
-            return ImportResultVO.builder().successCount(0).failCount(0).errors(Collections.singletonList("Excel 为空"))
+            return ImportResultVO.builder()
+                    .successCount(0)
+                    .failCount(1)
+                    .errors(Collections.singletonList("未在文件中检测到有效数据行"))
                     .build();
         }
 
@@ -293,58 +294,173 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
 
         for (int i = 0; i < list.size(); i++) {
             QuestionImportDTO dto = list.get(i);
+            // 简单空行过滤：如果内容和答案都为空，跳过
+            if (dto == null || (!StringUtils.hasText(dto.getContent()) && !StringUtils.hasText(dto.getAnswer()))) {
+                continue;
+            }
+
+            // 跳过表头行（如果 course_id 包含非数字字符）
+            if (i == 0 && StringUtils.hasText(dto.getCourseId()) && !dto.getCourseId().trim().matches("\\d+")) {
+                continue;
+            }
+
+            // 使用编程式事务处理单行导入，确保每一行都能即时落库
             try {
+                // 1. 数据准备与校验
+                Long finalCourseId = null;
+                if (StringUtils.hasText(dto.getCourseId())) {
+                    try {
+                        finalCourseId = Long.valueOf(dto.getCourseId().trim());
+                    } catch (NumberFormatException e) {
+                        if (i == 0)
+                            continue;
+                        throw new RuntimeException("课程ID格式错误");
+                    }
+                }
+
+                if (finalCourseId == null)
+                    finalCourseId = courseId;
+                if (finalCourseId == null)
+                    throw new RuntimeException("缺少课程ID");
+
+                requireTeacherOfCourseOrAdmin(loginUser, finalCourseId);
+
                 QuestionSaveDTO saveDTO = new QuestionSaveDTO();
-                saveDTO.setCourseId(courseId);
-                saveDTO.setTypeId(dto.getTypeId());
+                saveDTO.setCourseId(finalCourseId);
+
+                if (!StringUtils.hasText(dto.getTypeId()))
+                    throw new RuntimeException("题型ID不能为空");
+                saveDTO.setTypeId(Integer.valueOf(dto.getTypeId().trim()));
                 saveDTO.setContent(dto.getContent());
-                saveDTO.setDifficulty(dto.getDifficulty());
+
+                if (StringUtils.hasText(dto.getDifficulty())) {
+                    saveDTO.setDifficulty(Integer.valueOf(dto.getDifficulty().trim()));
+                } else {
+                    saveDTO.setDifficulty(1);
+                }
+
                 saveDTO.setAnswer(dto.getAnswer());
                 saveDTO.setAnalysis(dto.getAnalysis());
 
                 if (StringUtils.hasText(dto.getOptions())) {
                     try {
-                        saveDTO.setOptions(objectMapper.readValue(dto.getOptions(), new TypeReference<List<String>>() {
-                        }));
+                        String optStr = dto.getOptions().trim();
+                        if (optStr.startsWith("[") && optStr.endsWith("]")) {
+                            saveDTO.setOptions(objectMapper.readValue(optStr, new TypeReference<List<String>>() {
+                            }));
+                        } else {
+                            saveDTO.setOptions(Arrays.asList(optStr.split("[,，]")));
+                        }
                     } catch (Exception e) {
-                        throw new RuntimeException("选项 JSON 格式错误");
+                        throw new RuntimeException("选项格式解析失败");
                     }
                 }
 
                 if (StringUtils.hasText(dto.getKnowledgeNames())) {
-                    List<String> names = Arrays.stream(dto.getKnowledgeNames().split("[,，]"))
+                    // 支持多个知识点，用分号或中文分号分隔
+                    List<String> items = Arrays.stream(dto.getKnowledgeNames().split("[;；]"))
                             .map(String::trim)
                             .filter(StringUtils::hasText)
                             .collect(Collectors.toList());
-                    if (!names.isEmpty()) {
+
+                    if (!items.isEmpty()) {
                         List<Long> kIds = new ArrayList<>();
-                        for (String name : names) {
-                            LambdaQueryWrapper<KnowledgePoint> kpQw = new LambdaQueryWrapper<>();
-                            kpQw.eq(KnowledgePoint::getCourseId, courseId);
-                            kpQw.eq(KnowledgePoint::getName, name);
-                            KnowledgePoint kp = knowledgePointMapper.selectOne(kpQw);
-                            if (kp == null) {
-                                throw new RuntimeException("知识点 [" + name + "] 不存在，请先创建");
+                        for (String item : items) {
+                            // 支持多级知识点，用逗号分隔
+                            List<String> path = Arrays.stream(item.split("[,，]"))
+                                    .map(String::trim)
+                                    .filter(StringUtils::hasText)
+                                    .collect(Collectors.toList());
+
+                            if (path.isEmpty())
+                                continue;
+
+                            if (path.size() == 1) {
+                                // 单个知识点名称，需在课程下唯一
+                                String name = path.get(0);
+                                LambdaQueryWrapper<KnowledgePoint> kpQw = new LambdaQueryWrapper<>();
+                                kpQw.eq(KnowledgePoint::getCourseId, finalCourseId);
+                                kpQw.eq(KnowledgePoint::getName, name);
+                                List<KnowledgePoint> kps = knowledgePointMapper.selectList(kpQw);
+                                if (kps.isEmpty()) {
+                                    throw new RuntimeException("知识点 [" + name + "] 不存在");
+                                }
+                                if (kps.size() > 1) {
+                                    throw new RuntimeException("知识点 [" + name + "] 在课程下不唯一，请指定父级知识点（如：父级,子级）");
+                                }
+                                kIds.add(kps.get(0).getId());
+                            } else {
+                                // 多级知识点路径，按层级查找
+                                Long currentParentId = 0L; // 假设顶级父ID为0
+                                for (int j = 0; j < path.size(); j++) {
+                                    String partName = path.get(j);
+                                    LambdaQueryWrapper<KnowledgePoint> kpQw = new LambdaQueryWrapper<>();
+                                    kpQw.eq(KnowledgePoint::getCourseId, finalCourseId);
+                                    kpQw.eq(KnowledgePoint::getName, partName);
+                                    if (currentParentId == 0L) {
+                                        kpQw.and(w -> w.isNull(KnowledgePoint::getParentId).or()
+                                                .eq(KnowledgePoint::getParentId, 0L));
+                                    } else {
+                                        kpQw.eq(KnowledgePoint::getParentId, currentParentId);
+                                    }
+
+                                    KnowledgePoint kp = knowledgePointMapper.selectOne(kpQw);
+                                    if (kp == null) {
+                                        throw new RuntimeException("多级知识点路径中 [" + partName + "] 不存在（所属父级ID: "
+                                                + (currentParentId == 0L ? "无" : currentParentId) + "）");
+                                    }
+                                    currentParentId = kp.getId();
+                                }
+                                kIds.add(currentParentId);
                             }
-                            kIds.add(kp.getId());
                         }
                         saveDTO.setKnowledgeIds(kIds);
                     }
                 }
 
-                createQuestion(saveDTO);
+                // 2. 插入数据库（这里调用 doCreateQuestion）
+                doCreateQuestion(saveDTO, loginUser.getUser().getId());
                 success++;
             } catch (Exception e) {
                 fail++;
-                errors.add("第 " + (i + 2) + " 行: " + e.getMessage());
+                String errorMsg = e.getMessage();
+                if (e instanceof DuplicateKeyException)
+                    errorMsg = "题目内容重复";
+                errors.add("第 " + (i + 2) + " 行: " + errorMsg);
             }
         }
 
         return ImportResultVO.builder()
                 .successCount(success)
-                .failCount(fail)
-                .errors(errors)
+                .failCount(fail > 0 || (success == 0 && list.size() > 0) ? Math.max(fail, 1) : 0)
+                .errors(success == 0 && fail == 0 ? Collections.singletonList("所有行均被跳过，请检查第一列是否为正确的课程ID") : errors)
                 .build();
+    }
+
+    /**
+     * 内部保存方法，用于导入等场景
+     */
+    private void doCreateQuestion(QuestionSaveDTO saveDTO, Long creatorId) {
+        validateSaveDTO(saveDTO);
+
+        Question question = Question.builder()
+                .courseId(saveDTO.getCourseId())
+                .typeId(saveDTO.getTypeId())
+                .content(saveDTO.getContent())
+                .difficulty(saveDTO.getDifficulty())
+                .options(toOptionsJson(saveDTO.getOptions()))
+                .answer(saveDTO.getAnswer())
+                .analysis(saveDTO.getAnalysis())
+                .status(2) // 默认已发布
+                .createBy(creatorId)
+                .build();
+
+        int rows = questionMapper.insert(question);
+        if (rows != 1) {
+            throw new RuntimeException("数据库写入失败");
+        }
+
+        saveKnowledgeMappings(question.getId(), saveDTO.getKnowledgeIds(), saveDTO.getCourseId());
     }
 
     @Override
@@ -392,9 +508,10 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
 
         List<QuestionImportDTO> exportList = list.stream().map(q -> {
             QuestionImportDTO dto = new QuestionImportDTO();
-            dto.setTypeId(q.getTypeId());
+            dto.setCourseId(q.getCourseId() != null ? String.valueOf(q.getCourseId()) : "");
+            dto.setTypeId(q.getTypeId() != null ? String.valueOf(q.getTypeId()) : "");
             dto.setContent(q.getContent());
-            dto.setDifficulty(q.getDifficulty());
+            dto.setDifficulty(q.getDifficulty() != null ? String.valueOf(q.getDifficulty()) : "");
             dto.setOptions(q.getOptions());
             dto.setAnswer(q.getAnswer());
             dto.setAnalysis(q.getAnalysis());
@@ -407,7 +524,7 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
             if (!kIds.isEmpty()) {
                 List<String> names = knowledgePointMapper.selectBatchIds(kIds).stream().map(KnowledgePoint::getName)
                         .toList();
-                dto.setKnowledgeNames(String.join(",", names));
+                dto.setKnowledgeNames(String.join(";", names));
             }
             return dto;
         }).toList();
