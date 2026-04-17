@@ -2,17 +2,17 @@ package com.example.zaixiantiku.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.example.zaixiantiku.entity.Role;
+import com.example.zaixiantiku.entity.StudentClass;
+import com.example.zaixiantiku.entity.User;
+import com.example.zaixiantiku.entity.UserRole;
+import com.example.zaixiantiku.mapper.*;
 import com.example.zaixiantiku.pojo.dto.LoginDTO;
 import com.example.zaixiantiku.pojo.dto.PasswordUpdateDTO;
 import com.example.zaixiantiku.pojo.dto.RegisterDTO;
 import com.example.zaixiantiku.pojo.dto.UserUpdateDTO;
+import com.example.zaixiantiku.pojo.vo.ClassVO;
 import com.example.zaixiantiku.pojo.vo.UserVO;
-import com.example.zaixiantiku.mapper.RoleMapper;
-import com.example.zaixiantiku.mapper.UserMapper;
-import com.example.zaixiantiku.mapper.UserRoleMapper;
-import com.example.zaixiantiku.entity.Role;
-import com.example.zaixiantiku.entity.User;
-import com.example.zaixiantiku.entity.UserRole;
 import com.example.zaixiantiku.security.LoginUser;
 import com.example.zaixiantiku.service.UserService;
 import com.example.zaixiantiku.utils.JwtUtils;
@@ -26,9 +26,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 用户业务逻辑实现类
@@ -42,7 +44,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     private final UserRoleMapper userRoleMapper;
     private final AuthenticationManager authenticationManager;
     private final JwtUtils jwtUtils;
-    private final UserMapper userMapper;
+    private final StudentClassMapper studentClassMapper;
+    private final ClassMapper classMapper;
 
     @Override
     @Transactional
@@ -151,6 +154,23 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         LoginUser loginUser = (LoginUser) authentication.getPrincipal();
         User user = loginUser.getUser();
 
+        // 获取学生的班级列表
+        List<ClassVO> classVOList = new ArrayList<>();
+        if (loginUser.getRoleCodes().contains("STUDENT")) {
+            List<Long> classIds = studentClassMapper.selectList(new LambdaQueryWrapper<StudentClass>()
+                    .eq(StudentClass::getStudentId, user.getId()))
+                    .stream().map(StudentClass::getClassId).collect(Collectors.toList());
+            if (!classIds.isEmpty()) {
+                classVOList = classMapper.selectBatchIds(classIds).stream().map(c -> ClassVO.builder()
+                        .id(c.getId())
+                        .className(c.getClassName())
+                        .grade(c.getGrade())
+                        .teacherId(c.getTeacherId())
+                        .createTime(c.getCreateTime())
+                        .build()).collect(Collectors.toList());
+            }
+        }
+
         // 2. 封装 VO 返回
         return UserVO.builder()
                 .id(user.getId())
@@ -162,6 +182,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                 .status(user.getStatus())
                 .auditStatus(user.getAuditStatus())
                 .roles(loginUser.getRoleCodes())
+                .classes(classVOList)
                 .build();
     }
 

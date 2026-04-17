@@ -187,18 +187,18 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         LoginUser loginUser = requireLoginUser();
         requireCourseMemberOrAdmin(courseId);
 
-        List<TeacherSimpleVO> teachers = Collections.emptyList();
-        if (isAdmin(loginUser) || isCourseTeacher(loginUser, courseId)) {
-            List<CourseTeacherRowVO> teacherRows = courseTeacherMapper.findTeachersByCourseIds(List.of(courseId));
-            teachers = teacherRows == null ? Collections.emptyList()
-                    : teacherRows.stream()
-                            .map(r -> TeacherSimpleVO.builder().id(r.getId()).name(r.getName()).build())
-                            .collect(Collectors.toList());
-        }
+        List<CourseTeacherRowVO> teacherRows = courseTeacherMapper.findTeachersByCourseIds(List.of(courseId));
+        List<TeacherSimpleVO> teachers = teacherRows == null ? Collections.emptyList()
+                : teacherRows.stream()
+                        .map(r -> TeacherSimpleVO.builder().id(r.getId()).name(r.getName()).build())
+                        .collect(Collectors.toList());
 
-        List<StudentSimpleVO> students = courseStudentMapper.findStudentsByCourseId(courseId);
-        if (students == null) {
-            students = Collections.emptyList();
+        List<StudentSimpleVO> students = Collections.emptyList();
+        if (isAdmin(loginUser) || isCourseTeacher(loginUser, courseId)) {
+            students = courseStudentMapper.findStudentsByCourseId(courseId);
+            if (students == null) {
+                students = Collections.emptyList();
+            }
         }
 
         boolean canAddTeacher = isAdmin(loginUser);

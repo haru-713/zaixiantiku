@@ -2,11 +2,13 @@ package com.example.zaixiantiku.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.example.zaixiantiku.entity.StudentClass;
 import com.example.zaixiantiku.entity.User;
-import com.example.zaixiantiku.mapper.UserMapper;
+import com.example.zaixiantiku.mapper.*;
 import com.example.zaixiantiku.pojo.dto.UserAuditDTO;
 import com.example.zaixiantiku.pojo.dto.UserQueryDTO;
 import com.example.zaixiantiku.pojo.dto.UserStatusDTO;
+import com.example.zaixiantiku.pojo.vo.ClassVO;
 import com.example.zaixiantiku.pojo.vo.PageResult;
 import com.example.zaixiantiku.pojo.vo.UserAdminVO;
 import com.example.zaixiantiku.security.LoginUser;
@@ -20,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
 import java.util.Set;
 import java.util.List;
 import java.util.Objects;
@@ -33,6 +36,8 @@ import java.util.stream.Collectors;
 public class AdminUserServiceImpl extends ServiceImpl<UserMapper, User> implements AdminUserService {
 
     private final UserMapper userMapper;
+    private final StudentClassMapper studentClassMapper;
+    private final ClassMapper classMapper;
     private static final Set<String> ALLOWED_ROLE_CODES = Set.of("STUDENT", "TEACHER", "ADMIN");
 
     @Override
@@ -100,6 +105,24 @@ public class AdminUserServiceImpl extends ServiceImpl<UserMapper, User> implemen
         // 4. 转换 VO 并注入角色信息
         List<UserAdminVO> voList = userList.stream().map(user -> {
             List<String> roleCodes = userMapper.findRoleCodesByUserId(user.getId());
+
+            // 获取学生的班级列表
+            List<ClassVO> classVOList = new ArrayList<>();
+            if (roleCodes.contains("STUDENT")) {
+                List<Long> classIds = studentClassMapper.selectList(new LambdaQueryWrapper<StudentClass>()
+                        .eq(StudentClass::getStudentId, user.getId()))
+                        .stream().map(StudentClass::getClassId).collect(Collectors.toList());
+                if (!classIds.isEmpty()) {
+                    classVOList = classMapper.selectBatchIds(classIds).stream().map(c -> ClassVO.builder()
+                            .id(c.getId())
+                            .className(c.getClassName())
+                            .grade(c.getGrade())
+                            .teacherId(c.getTeacherId())
+                            .createTime(c.getCreateTime())
+                            .build()).collect(Collectors.toList());
+                }
+            }
+
             return UserAdminVO.builder()
                     .id(user.getId())
                     .username(user.getUsername())
@@ -110,6 +133,7 @@ public class AdminUserServiceImpl extends ServiceImpl<UserMapper, User> implemen
                     .status(user.getStatus())
                     .auditStatus(user.getAuditStatus())
                     .roleCodes(roleCodes)
+                    .classes(classVOList)
                     .build();
         }).collect(Collectors.toList());
 

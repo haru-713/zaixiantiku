@@ -2,6 +2,19 @@ import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import router from '@/router'
 
+let messageInstance = null
+const showErrorMessage = (msg) => {
+  if (messageInstance) {
+    messageInstance.close()
+  }
+  messageInstance = ElMessage.error({
+    message: msg,
+    onClose: () => {
+      messageInstance = null
+    }
+  })
+}
+
 const service = axios.create({
   baseURL: '/api',
   timeout: 5000
@@ -34,7 +47,7 @@ service.interceptors.response.use(
     if (res.code === 200 || res.code === 1) {
       return res
     } else {
-      ElMessage.error(res.msg || 'Error')
+      showErrorMessage(res.msg || 'Error')
       return Promise.reject(new Error(res.msg || 'Error'))
     }
   },
@@ -45,15 +58,15 @@ service.interceptors.response.use(
         // 登录失效或未登录
         localStorage.removeItem('token')
         localStorage.removeItem('userInfo')
-        ElMessage.error('登录已过期，请重新登录')
+        showErrorMessage('登录已过期，请重新登录')
         router.push('/login')
         return Promise.reject(new Error('登录过期'))
       } else {
         const msg = error.response.data?.msg || error.message
-        ElMessage.error(msg)
+        showErrorMessage(msg)
       }
     } else {
-      ElMessage.error('网络错误，请稍后再试')
+      showErrorMessage('网络错误，请稍后再试')
     }
     return Promise.reject(error)
   }

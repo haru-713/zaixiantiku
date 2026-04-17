@@ -11,7 +11,6 @@
       </template>
 
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="ID">{{ detail.id }}</el-descriptions-item>
         <el-descriptions-item label="课程名称">{{ detail.courseName }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="detail.status === 1 ? 'success' : 'danger'">
@@ -21,7 +20,15 @@
         <el-descriptions-item label="创建时间">{{ formatDateTime(detail.createTime) }}</el-descriptions-item>
         <el-descriptions-item label="更新时间">{{ formatDateTime(detail.updateTime) }}</el-descriptions-item>
         <el-descriptions-item label="封面" :span="2">
-          <el-image v-if="detail.cover" :src="detail.cover" style="width: 240px; height: 135px" fit="cover" />
+          <el-image v-if="detail.cover" :src="detail.cover" style="width: 240px; height: 135px" fit="cover">
+            <template #error>
+              <div class="image-slot">
+                <el-icon>
+                  <Picture />
+                </el-icon>
+              </div>
+            </template>
+          </el-image>
           <span v-else>-</span>
         </el-descriptions-item>
         <el-descriptions-item label="课程描述" :span="2">
@@ -47,21 +54,22 @@
         </el-table-column>
       </el-table>
 
-      <el-divider />
-
-      <div class="section-title">学生</div>
-      <div v-if="canAddStudentUI" class="teacher-actions">
-        <el-button type="primary" @click="openStudentPicker">选择学生</el-button>
-      </div>
-      <el-table :data="detail.students || []" style="width: 100%">
-        <el-table-column type="index" label="序号" width="80" />
-        <el-table-column prop="name" label="姓名" />
-        <el-table-column v-if="canRemoveStudentUI" label="操作" width="120">
-          <template #default="scope">
-            <el-button type="danger" size="small" @click="handleRemoveStudent(scope.row.id)">移除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <template v-if="localCanManageStudents">
+        <el-divider />
+        <div class="section-title">学生</div>
+        <div v-if="canAddStudentUI" class="teacher-actions">
+          <el-button type="primary" @click="openStudentPicker">选择学生</el-button>
+        </div>
+        <el-table :data="detail.students || []" style="width: 100%">
+          <el-table-column type="index" label="序号" width="80" />
+          <el-table-column prop="name" label="姓名" />
+          <el-table-column v-if="canRemoveStudentUI" label="操作" width="120">
+            <template #default="scope">
+              <el-button type="danger" size="small" @click="handleRemoveStudent(scope.row.id)">移除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </template>
     </el-card>
 
     <el-dialog v-model="teacherPickerVisible" title="选择教师" width="720px">
@@ -129,6 +137,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Picture } from '@element-plus/icons-vue'
 import { useUserStore } from '@/store/user'
 
 const route = useRoute()
@@ -526,6 +535,17 @@ onMounted(() => {
 .header-actions {
   display: flex;
   gap: 8px;
+}
+
+.image-slot {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  background: #f5f7fa;
+  color: #909399;
+  font-size: 30px;
 }
 
 .section-title {

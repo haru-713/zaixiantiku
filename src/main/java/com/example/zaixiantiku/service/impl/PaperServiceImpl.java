@@ -1,13 +1,11 @@
 package com.example.zaixiantiku.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.example.zaixiantiku.entity.Course;
 import com.example.zaixiantiku.entity.CourseTeacher;
 import com.example.zaixiantiku.entity.Paper;
 import com.example.zaixiantiku.entity.PaperQuestion;
 import com.example.zaixiantiku.entity.Question;
 import com.example.zaixiantiku.entity.QuestionKnowledge;
-import com.example.zaixiantiku.mapper.CourseMapper;
 import com.example.zaixiantiku.mapper.CourseTeacherMapper;
 import com.example.zaixiantiku.mapper.PaperMapper;
 import com.example.zaixiantiku.mapper.PaperQuestionMapper;
@@ -38,7 +36,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -51,7 +48,6 @@ public class PaperServiceImpl implements PaperService {
     private final PaperQuestionMapper paperQuestionMapper;
     private final QuestionMapper questionMapper;
     private final QuestionKnowledgeMapper questionKnowledgeMapper;
-    private final CourseMapper courseMapper;
     private final CourseTeacherMapper courseTeacherMapper;
     private final JdbcTemplate jdbcTemplate;
 

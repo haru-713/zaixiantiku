@@ -64,3 +64,28 @@ CREATE TABLE `permission` (
   KEY `idx_parent_id` (`parent_id`),
   CONSTRAINT `fk_permission_parent` FOREIGN KEY (`parent_id`) REFERENCES `permission` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='权限表';
+
+-- 5. 班级表
+DROP TABLE IF EXISTS `class`;
+CREATE TABLE `class` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `class_name` VARCHAR(100) NOT NULL COMMENT '班级名称',
+  `grade` VARCHAR(50) DEFAULT NULL COMMENT '年级',
+  `teacher_id` BIGINT DEFAULT NULL COMMENT '班主任ID',
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_teacher_id` (`teacher_id`),
+  CONSTRAINT `fk_class_teacher` FOREIGN KEY (`teacher_id`) REFERENCES `user` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='班级表';
+
+-- 6. 学生班级关联表
+DROP TABLE IF EXISTS `student_class`;
+CREATE TABLE `student_class` (
+  `student_id` BIGINT NOT NULL COMMENT '学生ID',
+  `class_id` BIGINT NOT NULL COMMENT '班级ID',
+  `join_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '加入时间',
+  PRIMARY KEY (`student_id`, `class_id`),
+  KEY `idx_class_id` (`class_id`),
+  CONSTRAINT `fk_sc_student` FOREIGN KEY (`student_id`) REFERENCES `user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_sc_class` FOREIGN KEY (`class_id`) REFERENCES `class` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='学生班级关联表';

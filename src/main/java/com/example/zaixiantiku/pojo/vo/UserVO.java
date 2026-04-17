@@ -24,4 +24,5 @@ public class UserVO {
     private Integer status;
     private Integer auditStatus;
     private List<String> roles;
+    private List<ClassVO> classes;
 }

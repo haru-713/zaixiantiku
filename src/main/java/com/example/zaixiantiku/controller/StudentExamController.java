@@ -1,0 +1,61 @@
+package com.example.zaixiantiku.controller;
+
+import com.example.zaixiantiku.common.Result;
+import com.example.zaixiantiku.pojo.dto.ExamSubmitDTO;
+import com.example.zaixiantiku.pojo.vo.ExamEnterVO;
+import com.example.zaixiantiku.pojo.vo.ExamVO;
+import com.example.zaixiantiku.pojo.vo.PageResult;
+import com.example.zaixiantiku.pojo.vo.StudentExamRecordVO;
+import com.example.zaixiantiku.service.StudentExamService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
+
+/**
+ * 学生考试端控制器
+ */
+@RestController
+@RequiredArgsConstructor
+@Tag(name = "学生考试", description = "学生参加考试相关接口")
+public class StudentExamController {
+
+    private final StudentExamService studentExamService;
+
+    @GetMapping("/student/exams")
+    @PreAuthorize("hasRole('STUDENT')")
+    @Operation(summary = "学生：获取可参加的考试")
+    public Result<PageResult<ExamVO>> getStudentExams(@RequestParam(required = false) Long courseId) {
+        PageResult<ExamVO> res = studentExamService.getStudentExams(courseId);
+        return Result.success(res);
+    }
+
+    @GetMapping("/exams/{examId}/enter")
+    @PreAuthorize("hasRole('STUDENT')")
+    @Operation(summary = "进入考试（获取试卷）")
+    public Result<ExamEnterVO> enterExam(@PathVariable Long examId) {
+        ExamEnterVO vo = studentExamService.enterExam(examId);
+        return Result.success(vo);
+    }
+
+    @PostMapping("/exams/{examId}/submit")
+    @PreAuthorize("hasRole('STUDENT')")
+    @Operation(summary = "提交试卷")
+    public Result<Map<String, Object>> submitExam(@PathVariable Long examId, @RequestBody ExamSubmitDTO submitDTO) {
+        Map<String, Object> data = studentExamService.submitExam(examId, submitDTO);
+        return Result.success(1, "提交成功", data);
+    }
+
+    @GetMapping("/student/exam-records")
+    @PreAuthorize("hasRole('STUDENT')")
+    @Operation(summary = "学生：考试记录列表")
+    public Result<PageResult<StudentExamRecordVO>> getStudentExamRecords(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer size) {
+        PageResult<StudentExamRecordVO> res = studentExamService.getStudentExamRecords(page, size);
+        return Result.success(res);
+    }
+}

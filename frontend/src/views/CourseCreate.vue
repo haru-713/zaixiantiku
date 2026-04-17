@@ -23,6 +23,22 @@
 
       <el-table :data="list" v-loading="loading" style="width: 100%; margin-top: 16px">
         <el-table-column type="index" label="序号" width="80" :index="indexMethod" />
+        <el-table-column label="封面" width="120">
+          <template #default="scope">
+            <el-image v-if="scope.row.cover" :src="scope.row.cover"
+              style="width: 80px; height: 45px; border-radius: 4px" fit="cover" :preview-src-list="[scope.row.cover]"
+              preview-teleported>
+              <template #error>
+                <div class="image-slot">
+                  <el-icon>
+                    <Picture />
+                  </el-icon>
+                </div>
+              </template>
+            </el-image>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="courseName" label="课程名称" min-width="160" />
         <el-table-column prop="description" label="课程描述" min-width="200" show-overflow-tooltip />
         <el-table-column label="教师" min-width="160" show-overflow-tooltip>
@@ -75,11 +91,7 @@
         <el-form-item label="封面URL">
           <div class="cover-row">
             <el-input v-model="createForm.cover" disabled />
-            <el-upload
-              :show-file-list="false"
-              :http-request="uploadCreateCover"
-              :before-upload="beforeCoverUpload"
-            >
+            <el-upload :show-file-list="false" :http-request="uploadCreateCover" :before-upload="beforeCoverUpload">
               <el-button :loading="createCoverUploading" type="primary">上传封面</el-button>
             </el-upload>
           </div>
@@ -107,11 +119,7 @@
         <el-form-item label="封面URL">
           <div class="cover-row">
             <el-input v-model="editForm.cover" disabled />
-            <el-upload
-              :show-file-list="false"
-              :http-request="uploadEditCover"
-              :before-upload="beforeCoverUpload"
-            >
+            <el-upload :show-file-list="false" :http-request="uploadEditCover" :before-upload="beforeCoverUpload">
               <el-button :loading="editCoverUploading" type="primary">上传封面</el-button>
             </el-upload>
           </div>
@@ -136,6 +144,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '@/utils/request'
 import { useUserStore } from '@/store/user'
 import { useRouter } from 'vue-router'
+import { Picture } from '@element-plus/icons-vue'
 
 const loading = ref(false)
 
@@ -427,19 +436,30 @@ onMounted(() => {
 }
 
 .pagination-container {
-  margin-top: 16px;
+  margin-top: 20px;
   display: flex;
   justify-content: flex-end;
 }
 
-.cover-row {
-  width: 100%;
+.image-slot {
   display: flex;
+  justify-content: center;
   align-items: center;
-  gap: 8px;
+  width: 100%;
+  height: 100%;
+  background: #f5f7fa;
+  color: #909399;
+  font-size: 20px;
+}
+</style>
+.cover-row {
+width: 100%;
+display: flex;
+align-items: center;
+gap: 8px;
 }
 
 .cover-preview {
-  margin-top: 8px;
+margin-top: 8px;
 }
 </style>

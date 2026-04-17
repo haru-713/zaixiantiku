@@ -44,4 +44,7 @@ public class UserAdminVO {
 
     @Schema(description = "角色编码列表")
     private List<String> roleCodes;
+
+    @Schema(description = "所属班级列表")
+    private List<ClassVO> classes;
 }

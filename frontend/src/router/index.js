@@ -10,7 +10,12 @@ import CourseDetail from '../views/CourseDetail.vue'
 import QuestionManage from '../views/QuestionManage.vue'
 import KnowledgePointManage from '../views/KnowledgePointManage.vue'
 import PaperManage from '../views/PaperManage.vue'
+import ExamSchedule from '../views/ExamSchedule.vue'
 import Profile from '../views/Profile.vue'
+import MyExams from '../views/MyExams.vue'
+import ExamRoom from '../views/ExamRoom.vue'
+import StudyRecord from '../views/StudyRecord.vue'
+import ExamRecord from '../views/ExamRecord.vue'
 
 const routes = [
   {
@@ -60,7 +65,7 @@ const routes = [
   {
     path: '/exam/schedule',
     name: 'ExamSchedule',
-    component: ComingSoon,
+    component: ExamSchedule,
     meta: { requiresAuth: true, title: '考试安排', roles: ['ADMIN', 'TEACHER'] }
   },
   {
@@ -102,14 +107,26 @@ const routes = [
   {
     path: '/study/exam',
     name: 'MyExam',
-    component: ComingSoon,
+    component: MyExams,
     meta: { requiresAuth: true, title: '我的考试', roles: ['STUDENT'] }
+  },
+  {
+    path: '/study/exam/:examId',
+    name: 'ExamRoom',
+    component: ExamRoom,
+    meta: { requiresAuth: true, title: '正在考试', roles: ['STUDENT'] }
   },
   {
     path: '/study/record',
     name: 'StudyRecord',
-    component: ComingSoon,
-    meta: { requiresAuth: true, title: '学习记录', roles: ['STUDENT'] }
+    component: StudyRecord,
+    meta: { requiresAuth: true, title: '练习记录', roles: ['STUDENT'] }
+  },
+  {
+    path: '/study/exam-record',
+    name: 'ExamRecord',
+    component: ExamRecord,
+    meta: { requiresAuth: true, title: '考试记录', roles: ['STUDENT'] }
   },
   {
     path: '/system/roles',
@@ -165,15 +182,34 @@ router.beforeEach((to, from, next) => {
     clearAuth()
   }
 
+  // 定义根据角色跳转的函数
+  const getHomePath = (roles) => {
+    if (roles.includes('ADMIN')) return '/system/users'
+    if (roles.includes('TEACHER')) return '/question/manage'
+    if (roles.includes('STUDENT')) return '/course/query'
+    return '/'
+  }
+
   // 如果是前往需要认证的路由
   if (to.meta.requiresAuth) {
     if (authed) {
+      // 如果访问根路径 /，根据角色跳转
+      if (to.path === '/') {
+        const homePath = getHomePath(userRoles)
+        if (homePath !== '/') {
+          next(homePath)
+        } else {
+          next()
+        }
+        return
+      }
+
       const allowRoles = to.meta.roles
       if (allowRoles && allowRoles.length > 0) {
         const ok = userRoles.some((r) => allowRoles.includes(r))
         if (!ok) {
           ElMessage.error('没有权限访问该页面')
-          next('/')
+          next(getHomePath(userRoles))
           return
         }
       }
@@ -184,7 +220,7 @@ router.beforeEach((to, from, next) => {
     }
   } else if ((to.path === '/login' || to.path === '/register') && authed) {
     // 已经登录了还去登录/注册页，直接跳回首页
-    next('/')
+    next(getHomePath(userRoles))
   } else {
     next()
   }

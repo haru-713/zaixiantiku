@@ -106,7 +106,7 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 
-const isAuthPage = computed(() => route.path === '/login' || route.path === '/register')
+const isAuthPage = computed(() => route.path === '/login' || route.path === '/register' || route.name === 'ExamRoom')
 const roles = computed(() => userStore.userInfo?.roles || [])
 const isAdmin = computed(() => roles.value.includes('ADMIN'))
 const isTeacher = computed(() => roles.value.includes('TEACHER'))
