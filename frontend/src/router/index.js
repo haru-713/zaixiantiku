@@ -27,6 +27,7 @@ import AdminAnalysis from '../views/AdminAnalysis.vue'
 import PracticeReport from '../views/PracticeReport.vue'
 import ShareList from '../views/ShareList.vue'
 import ShareDetail from '../views/ShareDetail.vue'
+import AnnouncementManage from '../views/AnnouncementManage.vue'
 
 const routes = [
   {
@@ -194,6 +195,12 @@ const routes = [
     meta: { requiresAuth: true, title: '分享详情' }
   },
   {
+    path: '/system/announcements',
+    name: 'AnnouncementManage',
+    component: AnnouncementManage,
+    meta: { requiresAuth: true, title: '公告管理', roles: ['ADMIN'] }
+  },
+  {
     path: '/system/roles',
     name: 'RolePermission',
     component: ComingSoon,
@@ -247,25 +254,17 @@ router.beforeEach((to, from, next) => {
     clearAuth()
   }
 
-  // 定义根据角色跳转的函数
+  // 定义根据角色跳转的默认路径
   const getHomePath = (roles) => {
-    if (roles.includes('ADMIN')) return '/system/users'
-    if (roles.includes('TEACHER')) return '/question/manage'
-    if (roles.includes('STUDENT')) return '/course/query'
     return '/'
   }
 
   // 如果是前往需要认证的路由
   if (to.meta.requiresAuth) {
     if (authed) {
-      // 如果访问根路径 /，根据角色跳转
+      // 允许所有人访问根路径 / (Home 页面)
       if (to.path === '/') {
-        const homePath = getHomePath(userRoles)
-        if (homePath !== '/') {
-          next(homePath)
-        } else {
-          next()
-        }
+        next()
         return
       }
 

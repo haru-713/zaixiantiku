@@ -1,6 +1,7 @@
 package com.example.zaixiantiku.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.example.zaixiantiku.entity.Comment;
 import com.example.zaixiantiku.entity.Share;
 import com.example.zaixiantiku.entity.User;
@@ -39,11 +40,11 @@ public class ShareServiceImpl implements ShareService {
     @Transactional
     public Share saveShare(ShareSaveDTO shareDTO) {
         LoginUser loginUser = getLoginUser();
-        
+
         // 如果是管理员，直接发布(1)，否则待审核(0)
         boolean isAdmin = loginUser.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
-        
+
         Share share = Share.builder()
                 .userId(loginUser.getUser().getId())
                 .title(shareDTO.getTitle())
@@ -239,14 +240,14 @@ public class ShareServiceImpl implements ShareService {
         Share share = shareMapper.selectById(shareId);
         if (share == null)
             throw new RuntimeException("分享不存在");
-        
+
         if (isTop == 1) {
-            // 实现唯一置顶：先取消所有现有的置顶
-            Share updateOld = new Share();
-            updateOld.setIsTop(0);
-            shareMapper.update(updateOld, new LambdaQueryWrapper<Share>().eq(Share::getIsTop, 1));
+            // 强制清除所有现有的分享置顶
+            shareMapper.update(null, new LambdaUpdateWrapper<Share>()
+                    .set(Share::getIsTop, 0)
+                    .eq(Share::getIsTop, 1));
         }
-        
+
         share.setIsTop(isTop);
         shareMapper.updateById(share);
     }
@@ -257,16 +258,15 @@ public class ShareServiceImpl implements ShareService {
         Comment comment = commentMapper.selectById(commentId);
         if (comment == null)
             throw new RuntimeException("评论不存在");
-            
+
         if (isTop == 1) {
-            // 实现该分享下评论的唯一置顶：先取消该分享下所有现有的置顶评论
-            Comment updateOld = new Comment();
-            updateOld.setIsTop(0);
-            commentMapper.update(updateOld, new LambdaQueryWrapper<Comment>()
+            // 强制清除该分享下所有现有的评论置顶
+            commentMapper.update(null, new LambdaUpdateWrapper<Comment>()
+                    .set(Comment::getIsTop, 0)
                     .eq(Comment::getShareId, comment.getShareId())
                     .eq(Comment::getIsTop, 1));
         }
-        
+
         comment.setIsTop(isTop);
         commentMapper.updateById(comment);
     }

@@ -68,6 +68,7 @@
             <el-sub-menu v-if="isAdmin || isTeacher" index="system">
               <template #title>系统管理</template>
               <el-menu-item index="/system/users">用户管理</el-menu-item>
+              <el-menu-item v-if="isAdmin" index="/system/announcements">公告管理</el-menu-item>
               <el-menu-item index="/shares">交流分享</el-menu-item>
               <el-menu-item v-if="isAdmin" index="/system/roles">角色权限</el-menu-item>
               <el-menu-item v-if="isAdmin" index="/system/settings">系统设置</el-menu-item>
