@@ -1,5 +1,6 @@
 package com.example.zaixiantiku.controller;
 
+import com.example.zaixiantiku.common.annotation.OperationLog;
 import com.example.zaixiantiku.common.Result;
 import com.example.zaixiantiku.pojo.dto.QuestionQueryDTO;
 import com.example.zaixiantiku.pojo.dto.QuestionSaveDTO;
@@ -36,6 +37,7 @@ public class QuestionController {
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @OperationLog(module = "试题管理", operation = "创建试题")
     @Operation(summary = "创建试题")
     public Result<QuestionDetailVO> createQuestion(@RequestBody QuestionSaveDTO saveDTO) {
         QuestionDetailVO vo = questionService.createQuestion(saveDTO);
@@ -44,6 +46,7 @@ public class QuestionController {
 
     @PutMapping("/{questionId}")
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @OperationLog(module = "试题管理", operation = "修改试题")
     @Operation(summary = "修改试题")
     public Result<QuestionDetailVO> updateQuestion(@PathVariable Long questionId,
             @RequestBody QuestionSaveDTO saveDTO) {
@@ -53,6 +56,7 @@ public class QuestionController {
 
     @DeleteMapping("/{questionId}")
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @OperationLog(module = "试题管理", operation = "删除试题")
     @Operation(summary = "删除试题")
     public Result<Void> deleteQuestion(@PathVariable Long questionId) {
         questionService.deleteQuestion(questionId);
@@ -77,6 +81,7 @@ public class QuestionController {
 
     @PostMapping("/import")
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @OperationLog(module = "试题管理", operation = "批量导入试题")
     @Operation(summary = "批量导入试题")
     public Result<ImportResultVO> importQuestions(@RequestParam("file") MultipartFile file,
             @RequestParam("courseId") Long courseId) {
@@ -87,6 +92,7 @@ public class QuestionController {
 
     @GetMapping("/export")
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @OperationLog(module = "试题管理", operation = "批量导出试题")
     @Operation(summary = "批量导出试题")
     public void exportQuestions(QuestionQueryDTO queryDTO, HttpServletResponse response) {
         questionService.exportQuestions(queryDTO, response);
@@ -94,6 +100,7 @@ public class QuestionController {
 
     @DeleteMapping("/batch")
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @OperationLog(module = "试题管理", operation = "批量删除试题")
     @Operation(summary = "批量删除试题")
     public Result<Void> batchDelete(@RequestBody List<Long> ids) {
         questionService.batchDeleteQuestions(ids);
@@ -102,6 +109,7 @@ public class QuestionController {
 
     @PutMapping("/batch/knowledge")
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @OperationLog(module = "试题管理", operation = "批量修改试题知识点")
     @Operation(summary = "批量修改试题知识点")
     public Result<Void> batchUpdateKnowledge(@RequestParam("ids") List<Long> ids,
             @RequestBody List<Long> knowledgeIds) {

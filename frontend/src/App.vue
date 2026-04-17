@@ -38,7 +38,7 @@
             </el-sub-menu>
 
             <el-sub-menu v-if="isAdmin || isTeacher" index="analysis">
-              <template #title>成绩分析</template>
+              <template #title>成绩中心</template>
               <el-menu-item index="/exam/marking">阅卷管理</el-menu-item>
               <el-menu-item index="/teacher/analysis">班级分析</el-menu-item>
               <el-menu-item index="/exam/statistics">成绩统计</el-menu-item>
@@ -59,7 +59,7 @@
             </el-sub-menu>
 
             <el-sub-menu v-if="isStudent" index="records">
-              <template #title>数据与记录</template>
+              <template #title>数据统计</template>
               <el-menu-item index="/study/analysis">学习报告</el-menu-item>
               <el-menu-item index="/study/record">练习记录</el-menu-item>
               <el-menu-item index="/study/exam-record">考试记录</el-menu-item>
@@ -69,9 +69,8 @@
               <template #title>系统管理</template>
               <el-menu-item index="/system/users">用户管理</el-menu-item>
               <el-menu-item v-if="isAdmin" index="/system/announcements">公告管理</el-menu-item>
+              <el-menu-item v-if="isAdmin" index="/admin/logs">操作日志</el-menu-item>
               <el-menu-item index="/shares">交流分享</el-menu-item>
-              <el-menu-item v-if="isAdmin" index="/system/roles">角色权限</el-menu-item>
-              <el-menu-item v-if="isAdmin" index="/system/settings">系统设置</el-menu-item>
             </el-sub-menu>
           </el-menu>
         </el-aside>

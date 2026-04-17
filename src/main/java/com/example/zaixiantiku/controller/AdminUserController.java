@@ -1,5 +1,6 @@
 package com.example.zaixiantiku.controller;
 
+import com.example.zaixiantiku.common.annotation.OperationLog;
 import com.example.zaixiantiku.common.Result;
 import com.example.zaixiantiku.pojo.dto.UserAuditDTO;
 import com.example.zaixiantiku.pojo.dto.UserQueryDTO;
@@ -44,6 +45,7 @@ public class AdminUserController {
 
     @PutMapping("/{userId}/audit")
     @PreAuthorize("hasRole('ADMIN')")
+    @OperationLog(module = "用户管理", operation = "审核学生")
     @Operation(summary = "审核学生", description = "管理员审核学生用户：1-通过，2-拒绝")
     public Result<Void> auditStudent(@PathVariable Long userId, @RequestBody UserAuditDTO auditDTO) {
         adminUserService.auditStudent(userId, auditDTO);
@@ -52,6 +54,7 @@ public class AdminUserController {
 
     @PutMapping("/{userId}/status")
     @PreAuthorize("hasRole('ADMIN')")
+    @OperationLog(module = "用户管理", operation = "修改用户状态")
     @Operation(summary = "启用/禁用用户", description = "管理员启用/禁用用户：0-禁用，1-启用")
     public Result<Void> updateUserStatus(@PathVariable Long userId, @RequestBody UserStatusDTO statusDTO) {
         adminUserService.updateUserStatus(userId, statusDTO);

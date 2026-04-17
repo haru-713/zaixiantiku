@@ -201,16 +201,10 @@ const routes = [
     meta: { requiresAuth: true, title: '公告管理', roles: ['ADMIN'] }
   },
   {
-    path: '/system/roles',
-    name: 'RolePermission',
-    component: ComingSoon,
-    meta: { requiresAuth: true, title: '角色权限', roles: ['ADMIN'] }
-  },
-  {
-    path: '/system/settings',
-    name: 'SystemSettings',
-    component: ComingSoon,
-    meta: { requiresAuth: true, title: '系统设置', roles: ['ADMIN'] }
+    path: '/admin/logs',
+    name: 'LogManage',
+    component: () => import('../views/LogManage.vue'),
+    meta: { requiresAuth: true, title: '操作日志', roles: ['ADMIN'] }
   },
   // 捕获所有未定义的路由并重定向到首页
   {

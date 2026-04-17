@@ -89,3 +89,19 @@ CREATE TABLE `student_class` (
   CONSTRAINT `fk_sc_student` FOREIGN KEY (`student_id`) REFERENCES `user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_sc_class` FOREIGN KEY (`class_id`) REFERENCES `class` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='学生班级关联表';
+
+-- 26. 操作日志表 
+DROP TABLE IF EXISTS `log`; 
+CREATE TABLE `log` ( 
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID', 
+  `user_id` BIGINT DEFAULT NULL COMMENT '操作用户ID（可为NULL）', 
+  `operation` VARCHAR(100) NOT NULL COMMENT '操作描述', 
+  `module` VARCHAR(50) DEFAULT NULL COMMENT '操作模块', 
+  `params` TEXT COMMENT '请求参数', 
+  `ip` VARCHAR(50) DEFAULT NULL COMMENT 'IP地址', 
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '操作时间', 
+  PRIMARY KEY (`id`), 
+  KEY `idx_user_id` (`user_id`), 
+  KEY `idx_module` (`module`), 
+  KEY `idx_create_time` (`create_time`) 
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='操作日志表';

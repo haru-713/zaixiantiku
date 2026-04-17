@@ -67,10 +67,10 @@ public class AnalysisController {
     }
 
     /**
-     * 全校成绩分析概览 (管理员)
+     * 全校成绩分析概览 (教师/管理员)
      */
     @GetMapping("/admin/analysis/global")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
     public Result<GlobalAnalysisVO> getGlobalAnalysis() {
         return Result.success(analysisService.getGlobalAnalysis());
     }

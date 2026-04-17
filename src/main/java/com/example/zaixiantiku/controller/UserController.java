@@ -1,5 +1,6 @@
 package com.example.zaixiantiku.controller;
 
+import com.example.zaixiantiku.common.annotation.OperationLog;
 import com.example.zaixiantiku.common.Result;
 import com.example.zaixiantiku.pojo.dto.PasswordUpdateDTO;
 import com.example.zaixiantiku.pojo.dto.UserUpdateDTO;
@@ -38,6 +39,7 @@ public class UserController {
      * @return Result
      */
     @PutMapping("/me")
+    @OperationLog(module = "个人中心", operation = "修改个人信息")
     @Operation(summary = "修改个人信息", description = "修改当前登录用户的个人信息")
     public Result<UserVO> updateCurrentUser(@RequestBody UserUpdateDTO userUpdateDTO) {
         UserVO userVO = userService.updateCurrentUserInfo(userUpdateDTO);
@@ -50,6 +52,7 @@ public class UserController {
      * @return Result
      */
     @PutMapping("/me/password")
+    @OperationLog(module = "个人中心", operation = "修改密码")
     @Operation(summary = "修改密码", description = "修改当前登录用户的登录密码")
     public Result<String> updatePassword(@RequestBody PasswordUpdateDTO passwordUpdateDTO) {
         userService.updatePassword(passwordUpdateDTO);

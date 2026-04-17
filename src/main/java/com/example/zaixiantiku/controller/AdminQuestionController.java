@@ -1,5 +1,6 @@
 package com.example.zaixiantiku.controller;
 
+import com.example.zaixiantiku.common.annotation.OperationLog;
 import com.example.zaixiantiku.common.Result;
 import com.example.zaixiantiku.pojo.dto.QuestionAuditDTO;
 import com.example.zaixiantiku.pojo.dto.QuestionBatchAuditDTO;
@@ -24,6 +25,7 @@ public class AdminQuestionController {
 
     @PutMapping("/{questionId}/audit")
     @PreAuthorize("hasRole('ADMIN')")
+    @OperationLog(module = "试题管理", operation = "试题审核")
     @Operation(summary = "试题审核")
     public Result<Void> auditQuestion(@PathVariable Long questionId, @RequestBody QuestionAuditDTO auditDTO) {
         questionService.auditQuestion(questionId, auditDTO);
@@ -32,6 +34,7 @@ public class AdminQuestionController {
 
     @PutMapping("/batch/audit")
     @PreAuthorize("hasRole('ADMIN')")
+    @OperationLog(module = "试题管理", operation = "批量审核试题")
     @Operation(summary = "批量审核试题")
     public Result<Void> batchAudit(@RequestBody QuestionBatchAuditDTO batchAuditDTO) {
         QuestionAuditDTO auditDTO = new QuestionAuditDTO();

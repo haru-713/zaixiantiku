@@ -1,5 +1,6 @@
 package com.example.zaixiantiku.controller;
 
+import com.example.zaixiantiku.common.annotation.OperationLog;
 import com.example.zaixiantiku.common.Result;
 import com.example.zaixiantiku.entity.Announcement;
 import com.example.zaixiantiku.pojo.vo.PageResult;
@@ -24,6 +25,7 @@ public class AnnouncementController {
     @Operation(summary = "发布公告")
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
+    @OperationLog(module = "公告管理", operation = "发布公告")
     public Result<Announcement> saveAnnouncement(@RequestBody Announcement announcement) {
         return Result.success(announcementService.saveAnnouncement(announcement));
     }
@@ -31,6 +33,7 @@ public class AnnouncementController {
     @Operation(summary = "修改公告")
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
+    @OperationLog(module = "公告管理", operation = "修改公告")
     public Result<Announcement> updateAnnouncement(@PathVariable Long id, @RequestBody Announcement announcement) {
         return Result.success(announcementService.updateAnnouncement(id, announcement));
     }
@@ -38,6 +41,7 @@ public class AnnouncementController {
     @Operation(summary = "删除公告")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
+    @OperationLog(module = "公告管理", operation = "删除公告")
     public Result<Void> deleteAnnouncement(@PathVariable Long id) {
         announcementService.deleteAnnouncement(id);
         return Result.success();

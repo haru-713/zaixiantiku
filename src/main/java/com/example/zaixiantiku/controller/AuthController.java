@@ -1,5 +1,6 @@
 package com.example.zaixiantiku.controller;
 
+import com.example.zaixiantiku.common.annotation.OperationLog;
 import com.example.zaixiantiku.common.Result;
 import com.example.zaixiantiku.pojo.dto.LoginDTO;
 import com.example.zaixiantiku.pojo.dto.RegisterDTO;
@@ -34,6 +35,7 @@ public class AuthController {
      * @return Result 包含 token 和 userInfo
      */
     @PostMapping("/login")
+    @OperationLog(module = "认证模块", operation = "用户登录")
     @Operation(summary = "用户登录", description = "提交用户名和密码进行登录")
     public Result<Map<String, Object>> login(@RequestBody LoginDTO loginDTO) {
         log.info("用户登录请求：{}", loginDTO.getUsername());
@@ -48,6 +50,7 @@ public class AuthController {
      * @return Result
      */
     @PostMapping("/register")
+    @OperationLog(module = "认证模块", operation = "用户注册")
     @Operation(summary = "用户注册", description = "提交注册信息进行注册")
     public Result<String> register(@RequestBody RegisterDTO registerDTO) {
         log.info("用户注册请求：{}", registerDTO.getUsername());
