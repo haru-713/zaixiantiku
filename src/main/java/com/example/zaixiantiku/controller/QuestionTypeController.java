@@ -22,7 +22,7 @@ public class QuestionTypeController {
     private final QuestionTypeService questionTypeService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','STUDENT')")
     @Operation(summary = "题型列表", description = "返回启用状态的题型列表（用于下拉选择）")
     public Result<List<QuestionTypeVO>> listTypes() {
         return Result.success(questionTypeService.listEnabledTypes());

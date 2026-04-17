@@ -109,8 +109,8 @@
         </el-form-item>
         <el-form-item label="公布成绩">
           <el-radio-group v-model="form.publishScore">
-            <el-radio :label="0">否</el-radio>
-            <el-radio :label="1">是</el-radio>
+            <el-radio :value="0">否</el-radio>
+            <el-radio :value="1">是</el-radio>
           </el-radio-group>
         </el-form-item>
         <!-- 这里简化处理，班级和学生ID通过输入或后续补充，暂时留空或支持多选 -->

@@ -35,7 +35,7 @@ public class CourseKnowledgePointController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','STUDENT')")
     @Operation(summary = "查询知识点(树形)")
     public Result<List<KnowledgePointTreeVO>> tree(@PathVariable Long courseId) {
         return Result.success(knowledgePointService.tree(courseId));

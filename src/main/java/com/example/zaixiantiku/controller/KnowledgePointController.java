@@ -32,7 +32,7 @@ public class KnowledgePointController {
     private final KnowledgePointService knowledgePointService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','STUDENT')")
     @Operation(summary = "知识点列表", description = "根据课程查询知识点（用于选择）")
     public Result<List<KnowledgePointSimpleVO>> list(
             @RequestParam Long courseId,
@@ -41,7 +41,7 @@ public class KnowledgePointController {
     }
 
     @GetMapping("/{kpId}")
-    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','STUDENT')")
     @Operation(summary = "知识点详情")
     public Result<KnowledgePointVO> detail(@PathVariable Long kpId) {
         return Result.success(knowledgePointService.detail(kpId));

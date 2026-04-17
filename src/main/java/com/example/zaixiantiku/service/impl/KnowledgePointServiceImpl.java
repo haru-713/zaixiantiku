@@ -52,7 +52,10 @@ public class KnowledgePointServiceImpl implements KnowledgePointService {
             throw new RuntimeException("课程不存在");
         }
         LoginUser loginUser = requireLoginUser();
-        requireTeacherOfCourseOrAdmin(loginUser, courseId);
+        // 学生允许查看知识点列表
+        if (!isStudent(loginUser)) {
+            requireTeacherOfCourseOrAdmin(loginUser, courseId);
+        }
         LambdaQueryWrapper<KnowledgePoint> qw = new LambdaQueryWrapper<>();
         qw.eq(KnowledgePoint::getCourseId, courseId);
         if (StringUtils.hasText(keyword)) {
@@ -310,7 +313,10 @@ public class KnowledgePointServiceImpl implements KnowledgePointService {
         }
 
         LoginUser loginUser = requireLoginUser();
-        requireTeacherOfCourseOrAdmin(loginUser, courseId);
+        // 学生允许查看知识点树
+        if (!isStudent(loginUser)) {
+            requireTeacherOfCourseOrAdmin(loginUser, courseId);
+        }
 
         List<KnowledgePoint> list = knowledgePointMapper.selectList(new LambdaQueryWrapper<KnowledgePoint>()
                 .eq(KnowledgePoint::getCourseId, courseId)
@@ -356,7 +362,10 @@ public class KnowledgePointServiceImpl implements KnowledgePointService {
             throw new RuntimeException("知识点不存在");
         }
         LoginUser loginUser = requireLoginUser();
-        requireTeacherOfCourseOrAdmin(loginUser, kp.getCourseId());
+        // 学生允许查看知识点详情
+        if (!isStudent(loginUser)) {
+            requireTeacherOfCourseOrAdmin(loginUser, kp.getCourseId());
+        }
         return toVO(kp);
     }
 
@@ -442,6 +451,11 @@ public class KnowledgePointServiceImpl implements KnowledgePointService {
     private boolean isAdmin(LoginUser loginUser) {
         List<String> roles = loginUser == null ? null : loginUser.getRoleCodes();
         return roles != null && roles.contains("ADMIN");
+    }
+
+    private boolean isStudent(LoginUser loginUser) {
+        List<String> roles = loginUser == null ? null : loginUser.getRoleCodes();
+        return roles != null && roles.contains("STUDENT");
     }
 
     private LoginUser requireLoginUser() {

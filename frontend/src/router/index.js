@@ -18,6 +18,9 @@ import StudyRecord from '../views/StudyRecord.vue'
 import ExamRecord from '../views/ExamRecord.vue'
 import ExamRecordDetail from '../views/ExamRecordDetail.vue'
 import ExamMarkingList from '../views/ExamMarkingList.vue'
+import PracticeView from '../views/PracticeView.vue'
+import MistakeBook from '../views/MistakeBook.vue'
+import FavoriteBook from '../views/FavoriteBook.vue'
 
 const routes = [
   {
@@ -109,8 +112,20 @@ const routes = [
   {
     path: '/study/practice',
     name: 'MyPractice',
-    component: ComingSoon,
-    meta: { requiresAuth: true, title: '我的练习', roles: ['STUDENT'] }
+    component: PracticeView,
+    meta: { requiresAuth: true, title: '在线练习', roles: ['STUDENT'] }
+  },
+  {
+    path: '/study/mistakes',
+    name: 'MistakeBook',
+    component: MistakeBook,
+    meta: { requiresAuth: true, title: '错题本', roles: ['STUDENT'] }
+  },
+  {
+    path: '/study/favorites',
+    name: 'FavoriteBook',
+    component: FavoriteBook,
+    meta: { requiresAuth: true, title: '收藏夹', roles: ['STUDENT'] }
   },
   {
     path: '/study/exam',

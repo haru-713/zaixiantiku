@@ -45,7 +45,9 @@
             <el-sub-menu v-if="isStudent" index="study">
               <template #title>学习管理</template>
               <el-menu-item index="/course/query">课程查询</el-menu-item>
-              <el-menu-item index="/study/practice">我的练习</el-menu-item>
+              <el-menu-item index="/study/practice">在线练习</el-menu-item>
+              <el-menu-item index="/study/mistakes">错题本</el-menu-item>
+              <el-menu-item index="/study/favorites">收藏夹</el-menu-item>
               <el-menu-item index="/study/exam">我的考试</el-menu-item>
               <el-menu-item index="/study/record">学习记录</el-menu-item>
             </el-sub-menu>

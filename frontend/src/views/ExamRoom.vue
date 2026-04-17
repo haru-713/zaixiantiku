@@ -39,7 +39,7 @@
             </div>
             <div class="q-options">
               <el-radio-group v-model="answers[q.id]">
-                <el-radio v-for="opt in q.options" :key="opt" :label="opt.substring(0, 1)" class="opt-item">
+                <el-radio v-for="opt in q.options" :key="opt" :value="opt.substring(0, 1)" class="opt-item">
                   {{ opt }}
                 </el-radio>
               </el-radio-group>
