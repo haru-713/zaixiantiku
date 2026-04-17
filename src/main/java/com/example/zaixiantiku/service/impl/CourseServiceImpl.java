@@ -816,17 +816,6 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         return count != null && count > 0;
     }
 
-    private void requireAdminOrCourseCreator(Long courseId) {
-        LoginUser loginUser = requireLoginUser();
-        if (isAdmin(loginUser)) {
-            return;
-        }
-        if (isCourseCreator(loginUser, courseId)) {
-            return;
-        }
-        throw new RuntimeException("仅管理员或课程创建者可操作");
-    }
-
     private void requireCourseMemberOrAdmin(Long courseId) {
         LoginUser loginUser = requireLoginUser();
         List<String> roleCodes = loginUser.getRoleCodes();

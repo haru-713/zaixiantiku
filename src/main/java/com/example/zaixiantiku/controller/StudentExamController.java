@@ -3,6 +3,7 @@ package com.example.zaixiantiku.controller;
 import com.example.zaixiantiku.common.Result;
 import com.example.zaixiantiku.pojo.dto.ExamSubmitDTO;
 import com.example.zaixiantiku.pojo.vo.ExamEnterVO;
+import com.example.zaixiantiku.pojo.vo.ExamRecordDetailVO;
 import com.example.zaixiantiku.pojo.vo.ExamVO;
 import com.example.zaixiantiku.pojo.vo.PageResult;
 import com.example.zaixiantiku.pojo.vo.StudentExamRecordVO;
@@ -57,5 +58,13 @@ public class StudentExamController {
             @RequestParam(defaultValue = "10") Integer size) {
         PageResult<StudentExamRecordVO> res = studentExamService.getStudentExamRecords(page, size);
         return Result.success(res);
+    }
+
+    @GetMapping("/student/exam-records/{recordId}")
+    @PreAuthorize("hasAnyRole('STUDENT', 'TEACHER', 'ADMIN')")
+    @Operation(summary = "查看考试成绩/试卷")
+    public Result<ExamRecordDetailVO> getExamRecordDetail(@PathVariable Long recordId) {
+        ExamRecordDetailVO vo = studentExamService.getExamRecordDetail(recordId);
+        return Result.success(vo);
     }
 }

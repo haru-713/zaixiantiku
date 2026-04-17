@@ -45,8 +45,10 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import request from '@/utils/request'
 
+const router = useRouter()
 const loading = ref(false)
 const list = ref([])
 const total = ref(0)
@@ -91,7 +93,8 @@ const getRecordStatusLabel = (status) => {
 }
 
 const viewDetail = (row) => {
-  // 详情页逻辑暂未实现
+  if (!row || !row.id) return
+  router.push(`/study/exam-record/${row.id}`)
 }
 
 const formatDateTime = (value) => {

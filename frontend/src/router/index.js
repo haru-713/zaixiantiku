@@ -16,6 +16,8 @@ import MyExams from '../views/MyExams.vue'
 import ExamRoom from '../views/ExamRoom.vue'
 import StudyRecord from '../views/StudyRecord.vue'
 import ExamRecord from '../views/ExamRecord.vue'
+import ExamRecordDetail from '../views/ExamRecordDetail.vue'
+import ExamMarkingList from '../views/ExamMarkingList.vue'
 
 const routes = [
   {
@@ -67,6 +69,12 @@ const routes = [
     name: 'ExamSchedule',
     component: ExamSchedule,
     meta: { requiresAuth: true, title: '考试安排', roles: ['ADMIN', 'TEACHER'] }
+  },
+  {
+    path: '/exam/marking',
+    name: 'ExamMarking',
+    component: ExamMarkingList,
+    meta: { requiresAuth: true, title: '阅卷管理', roles: ['ADMIN', 'TEACHER'] }
   },
   {
     path: '/exam/statistics',
@@ -127,6 +135,12 @@ const routes = [
     name: 'ExamRecord',
     component: ExamRecord,
     meta: { requiresAuth: true, title: '考试记录', roles: ['STUDENT'] }
+  },
+  {
+    path: '/study/exam-record/:recordId',
+    name: 'ExamRecordDetail',
+    component: ExamRecordDetail,
+    meta: { requiresAuth: true, title: '考试详情', roles: ['ADMIN', 'TEACHER', 'STUDENT'] }
   },
   {
     path: '/system/roles',

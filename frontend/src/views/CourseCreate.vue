@@ -451,7 +451,7 @@ onMounted(() => {
   color: #909399;
   font-size: 20px;
 }
-</style>
+
 .cover-row {
 width: 100%;
 display: flex;

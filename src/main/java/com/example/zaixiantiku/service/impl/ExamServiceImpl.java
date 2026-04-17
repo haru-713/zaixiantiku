@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -197,6 +198,16 @@ public class ExamServiceImpl implements ExamService {
     }
 
     private ExamVO toVO(Exam exam) {
+        Integer status = exam.getStatus();
+        LocalDateTime now = LocalDateTime.now();
+        if (now.isBefore(exam.getStartTime())) {
+            status = 0;
+        } else if (now.isAfter(exam.getEndTime())) {
+            status = 2;
+        } else {
+            status = 1;
+        }
+
         return ExamVO.builder()
                 .id(exam.getId())
                 .examName(exam.getExamName())
@@ -205,7 +216,7 @@ public class ExamServiceImpl implements ExamService {
                 .startTime(exam.getStartTime())
                 .endTime(exam.getEndTime())
                 .duration(exam.getDuration())
-                .status(exam.getStatus())
+                .status(status)
                 .publishScore(exam.getPublishScore())
                 .createBy(exam.getCreateBy())
                 .createTime(exam.getCreateTime())

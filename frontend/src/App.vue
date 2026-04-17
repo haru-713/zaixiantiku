@@ -34,6 +34,7 @@
               <template #title>考试管理</template>
               <el-menu-item index="/exam/paper">试卷管理</el-menu-item>
               <el-menu-item index="/exam/schedule">考试安排</el-menu-item>
+              <el-menu-item index="/exam/marking">阅卷管理</el-menu-item>
               <el-menu-item index="/exam/statistics">成绩统计</el-menu-item>
             </el-sub-menu>
 

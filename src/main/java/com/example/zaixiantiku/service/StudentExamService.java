@@ -1,10 +1,7 @@
 package com.example.zaixiantiku.service;
 
 import com.example.zaixiantiku.pojo.dto.ExamSubmitDTO;
-import com.example.zaixiantiku.pojo.vo.ExamEnterVO;
-import com.example.zaixiantiku.pojo.vo.ExamVO;
-import com.example.zaixiantiku.pojo.vo.PageResult;
-import com.example.zaixiantiku.pojo.vo.StudentExamRecordVO;
+import com.example.zaixiantiku.pojo.vo.*;
 
 import java.util.Map;
 
@@ -32,4 +29,9 @@ public interface StudentExamService {
      * 获取学生考试记录列表
      */
     PageResult<StudentExamRecordVO> getStudentExamRecords(Integer page, Integer size);
+
+    /**
+     * 获取考试记录详情
+     */
+    ExamRecordDetailVO getExamRecordDetail(Long recordId);
 }

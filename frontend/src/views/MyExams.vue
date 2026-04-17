@@ -27,14 +27,14 @@
         <el-table-column prop="duration" label="时长(分)" width="100" />
         <el-table-column label="状态" width="100">
           <template #default="scope">
-            <el-tag :type="getStatusType(scope.row)">
-              {{ getStatusLabel(scope.row) }}
+            <el-tag :type="getStatusType(scope.row.status)">
+              {{ getStatusLabel(scope.row.status) }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="120">
           <template #default="scope">
-            <el-button type="primary" size="small" :disabled="!canEnter(scope.row)" @click="enterExam(scope.row)">
+            <el-button type="primary" size="small" :disabled="scope.row.status !== 1" @click="enterExam(scope.row)">
               进入考试
             </el-button>
           </template>
@@ -90,31 +90,16 @@ const handleCourseDropdown = (visible) => {
   }
 }
 
-const getStatusType = (row) => {
-  const now = new Date()
-  const start = new Date(row.startTime.replace('T', ' '))
-  const end = new Date(row.endTime.replace('T', ' '))
-  
-  if (now < start) return 'info'
-  if (now > end) return 'danger'
+const getStatusType = (status) => {
+  if (status === 0) return 'info'
+  if (status === 2) return 'warning'
   return 'success'
 }
 
-const getStatusLabel = (row) => {
-  const now = new Date()
-  const start = new Date(row.startTime.replace('T', ' '))
-  const end = new Date(row.endTime.replace('T', ' '))
-  
-  if (now < start) return '未开始'
-  if (now > end) return '已结束'
+const getStatusLabel = (status) => {
+  if (status === 0) return '未开始'
+  if (status === 2) return '已结束'
   return '进行中'
-}
-
-const canEnter = (row) => {
-  const now = new Date()
-  const start = new Date(row.startTime.replace('T', ' '))
-  const end = new Date(row.endTime.replace('T', ' '))
-  return now >= start && now <= end
 }
 
 const enterExam = (row) => {
