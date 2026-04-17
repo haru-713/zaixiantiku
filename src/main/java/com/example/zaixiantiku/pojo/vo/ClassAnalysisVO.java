@@ -14,6 +14,7 @@ import java.util.List;
 public class ClassAnalysisVO {
     private List<ScoreDistributionVO> scoreDistribution;
     private Double averageScore;
+    private Integer maxScore;
     private List<QuestionAccuracyVO> questionAccuracies;
 
     @Data

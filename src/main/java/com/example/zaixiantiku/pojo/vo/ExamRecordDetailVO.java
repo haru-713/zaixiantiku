@@ -17,6 +17,7 @@ import java.util.List;
 public class ExamRecordDetailVO {
     private String examName;
     private Integer totalScore;
+    private Integer maxScore;
     private List<AnswerItemVO> answers;
 
     @Data

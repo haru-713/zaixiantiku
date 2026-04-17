@@ -49,6 +49,7 @@
               <el-menu-item index="/course/query">课程查询</el-menu-item>
               <el-menu-item index="/study/practice">在线练习</el-menu-item>
               <el-menu-item index="/study/exam">我的考试</el-menu-item>
+              <el-menu-item index="/shares">交流分享</el-menu-item>
             </el-sub-menu>
 
             <el-sub-menu v-if="isStudent" index="personal">
@@ -67,6 +68,7 @@
             <el-sub-menu v-if="isAdmin || isTeacher" index="system">
               <template #title>系统管理</template>
               <el-menu-item index="/system/users">用户管理</el-menu-item>
+              <el-menu-item index="/shares">交流分享</el-menu-item>
               <el-menu-item v-if="isAdmin" index="/system/roles">角色权限</el-menu-item>
               <el-menu-item v-if="isAdmin" index="/system/settings">系统设置</el-menu-item>
             </el-sub-menu>

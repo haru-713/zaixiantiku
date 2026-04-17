@@ -353,6 +353,7 @@ public class AnalysisServiceImpl implements AnalysisService {
         return ClassAnalysisVO.builder()
                 .scoreDistribution(distVOs)
                 .averageScore(totalScoreSum / examRecords.size())
+                .maxScore(singleExamMaxScore)
                 .questionAccuracies(accuracyVOs)
                 .build();
     }
@@ -507,12 +508,16 @@ public class AnalysisServiceImpl implements AnalysisService {
                 .collect(Collectors.groupingBy(ExamRecord::getExamId));
 
         for (Exam exam : allExamsInDb) {
+            Paper paper = paperMap.get(exam.getPaperId());
+            int maxScore = (paper != null && paper.getTotalScore() != null) ? paper.getTotalScore() : 100;
+
             List<ExamRecord> records = examToRecordsMap.get(exam.getId());
             if (records == null || records.isEmpty()) {
                 examBriefs.add(GlobalAnalysisVO.ExamBriefVO.builder()
                         .id(exam.getId())
                         .examName(exam.getExamName())
                         .averageScore(0.0)
+                        .maxScore(maxScore)
                         .passRate(0.0)
                         .participantCount(0)
                         .build());
@@ -521,8 +526,6 @@ public class AnalysisServiceImpl implements AnalysisService {
 
             double avgScore = records.stream().mapToInt(ExamRecord::getTotalScore).average().orElse(0.0);
             long passCountInExam = records.stream().filter(er -> {
-                Paper paper = paperMap.get(exam.getPaperId());
-                int maxScore = (paper != null && paper.getTotalScore() != null) ? paper.getTotalScore() : 100;
                 return er.getTotalScore() >= maxScore * 0.6;
             }).count();
 
@@ -530,6 +533,7 @@ public class AnalysisServiceImpl implements AnalysisService {
                     .id(exam.getId())
                     .examName(exam.getExamName())
                     .averageScore(avgScore)
+                    .maxScore(maxScore)
                     .passRate((double) passCountInExam / records.size())
                     .participantCount(records.size())
                     .build());

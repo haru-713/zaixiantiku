@@ -25,6 +25,8 @@ import StudentAnalysis from '../views/StudentAnalysis.vue'
 import TeacherAnalysis from '../views/TeacherAnalysis.vue'
 import AdminAnalysis from '../views/AdminAnalysis.vue'
 import PracticeReport from '../views/PracticeReport.vue'
+import ShareList from '../views/ShareList.vue'
+import ShareDetail from '../views/ShareDetail.vue'
 
 const routes = [
   {
@@ -178,6 +180,18 @@ const routes = [
     name: 'ExamRecordDetail',
     component: ExamRecordDetail,
     meta: { requiresAuth: true, title: '考试详情', roles: ['ADMIN', 'TEACHER', 'STUDENT'] }
+  },
+  {
+    path: '/shares',
+    name: 'ShareList',
+    component: ShareList,
+    meta: { requiresAuth: true, title: '交流分享' }
+  },
+  {
+    path: '/shares/:id',
+    name: 'ShareDetail',
+    component: ShareDetail,
+    meta: { requiresAuth: true, title: '分享详情' }
   },
   {
     path: '/system/roles',

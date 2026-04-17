@@ -27,6 +27,7 @@ public class GlobalAnalysisVO {
         private Long id;
         private String examName;
         private Double averageScore;
+        private Integer maxScore;
         private Double passRate;
         private Integer participantCount;
     }
@@ -39,6 +40,7 @@ public class GlobalAnalysisVO {
         private Long classId;
         private String className;
         private Double averageScore;
+        private Integer maxScore;
         private Double passRate;
     }
 }

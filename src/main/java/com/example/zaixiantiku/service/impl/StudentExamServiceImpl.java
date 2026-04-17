@@ -300,15 +300,27 @@ public class StudentExamServiceImpl implements StudentExamService {
             return PageResult.of(0L, new ArrayList<>());
         }
 
-        // 获取考试名称
+        // 获取考试和试卷信息以获取满分
         List<Long> examIds = records.stream().map(ExamRecord::getExamId).distinct().collect(Collectors.toList());
-        Map<Long, String> examNameMap = examMapper.selectBatchIds(examIds).stream()
+        List<Exam> exams = examMapper.selectBatchIds(examIds);
+        Map<Long, String> examNameMap = exams.stream()
                 .collect(Collectors.toMap(Exam::getId, Exam::getExamName));
+
+        // 批量加载试卷信息
+        Set<Long> paperIds = exams.stream().map(Exam::getPaperId).collect(Collectors.toSet());
+        Map<Long, Integer> paperMaxScoreMap = paperIds.isEmpty() ? new HashMap<>()
+                : paperMapper.selectBatchIds(paperIds).stream()
+                        .collect(Collectors.toMap(Paper::getId,
+                                p -> p.getTotalScore() != null ? p.getTotalScore() : 100));
+
+        Map<Long, Integer> examMaxScoreMap = exams.stream()
+                .collect(Collectors.toMap(Exam::getId, e -> paperMaxScoreMap.getOrDefault(e.getPaperId(), 100)));
 
         List<StudentExamRecordVO> voList = records.stream().map(r -> StudentExamRecordVO.builder()
                 .id(r.getId())
                 .examName(examNameMap.get(r.getExamId()))
                 .totalScore(r.getTotalScore())
+                .maxScore(examMaxScoreMap.get(r.getExamId()))
                 .submitTime(r.getSubmitTime())
                 .status(r.getStatus())
                 .build()).collect(Collectors.toList());
@@ -383,6 +395,8 @@ public class StudentExamServiceImpl implements StudentExamService {
         }
 
         Exam exam = examMapper.selectById(record.getExamId());
+        Paper paper = paperMapper.selectById(exam.getPaperId());
+        Integer maxScore = (paper != null && paper.getTotalScore() != null) ? paper.getTotalScore() : 100;
 
         // 查询答题详情
         List<AnswerDetail> details = answerDetailMapper.selectList(new LambdaQueryWrapper<AnswerDetail>()
@@ -420,6 +434,7 @@ public class StudentExamServiceImpl implements StudentExamService {
         return ExamRecordDetailVO.builder()
                 .examName(exam.getExamName())
                 .totalScore(record.getTotalScore())
+                .maxScore(maxScore)
                 .answers(answers)
                 .build();
     }

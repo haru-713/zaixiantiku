@@ -58,6 +58,7 @@
             </template>
             <div class="stat-value" :class="{ 'zero-value': analysis.averageScore === 0 }">
               {{ analysis.averageScore.toFixed(2) }}
+              <span v-if="analysis.maxScore" class="total-score-suffix">/ {{ analysis.maxScore }}</span>
             </div>
           </el-card>
         </el-col>
@@ -240,6 +241,12 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
+}
+.total-score-suffix {
+  font-size: 18px;
+  color: #909399;
+  margin-left: 5px;
+  margin-top: 10px;
 }
 .stat-value.zero-value {
   color: #909399;

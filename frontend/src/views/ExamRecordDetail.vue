@@ -9,6 +9,7 @@
           </div>
           <div class="total-score" v-if="data.totalScore !== null">
             得分：<span class="score-num">{{ data.totalScore }}</span>
+            <span class="max-score" v-if="data.maxScore"> / {{ data.maxScore }}</span>
           </div>
         </div>
       </template>
@@ -114,7 +115,14 @@ onMounted(() => {
   font-weight: bold;
 }
 .score-num {
-  color: #f56c6c;
+  font-size: 24px;
+  font-weight: bold;
+  color: #67c23a;
+}
+.max-score {
+  font-size: 16px;
+  color: #909399;
+  margin-left: 2px;
 }
 .question-item {
   border-bottom: 1px solid #ebeef5;

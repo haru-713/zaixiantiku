@@ -10,9 +10,10 @@
       <el-table v-loading="loading" :data="list" style="width: 100%; margin-top: 16px">
         <el-table-column type="index" label="序号" width="60" />
         <el-table-column prop="examName" label="考试名称" min-width="200" />
-        <el-table-column prop="totalScore" label="得分" width="100">
+        <el-table-column prop="totalScore" label="得分" width="120">
           <template #default="scope">
             <span class="score-text">{{ scope.row.totalScore ?? '-' }}</span>
+            <span class="max-score" v-if="scope.row.maxScore"> / {{ scope.row.maxScore }}</span>
           </template>
         </el-table-column>
         <el-table-column label="提交时间" width="180">
@@ -121,7 +122,12 @@ onMounted(() => {
 }
 .score-text {
   font-weight: bold;
-  color: #f56c6c;
+  color: #67c23a;
+}
+.max-score {
+  font-size: 12px;
+  color: #909399;
+  margin-left: 2px;
 }
 .pagination-container {
   margin-top: 20px;

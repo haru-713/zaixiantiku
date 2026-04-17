@@ -19,6 +19,7 @@ public class StudentExamRecordVO {
     private Long id;
     private String examName;
     private Integer totalScore;
+    private Integer maxScore;
     
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime submitTime;

@@ -40,9 +40,10 @@
       </template>
       <el-table :data="globalStats.classPerformance" style="width: 100%" border stripe>
         <el-table-column prop="className" label="班级名称" min-width="150" />
-        <el-table-column label="平均分" width="150" align="center">
+        <el-table-column label="平均分" width="120" align="center">
           <template #default="scope">
-            <span class="score-text">{{ (scope.row.averageScore || 0).toFixed(2) }}</span>
+            <span class="score-text">{{ (scope.row.averageScore || 0).toFixed(1) }}</span>
+            <span class="max-score" v-if="scope.row.maxScore"> / {{ scope.row.maxScore }}</span>
           </template>
         </el-table-column>
         <el-table-column label="及格率" width="250">
@@ -75,6 +76,7 @@
         <el-table-column label="平均分" width="150" align="center">
           <template #default="scope">
             <span class="score-text">{{ (scope.row.averageScore || 0).toFixed(2) }}</span>
+            <span class="max-score" v-if="scope.row.maxScore"> / {{ scope.row.maxScore }}</span>
           </template>
         </el-table-column>
         <el-table-column label="及格率" width="250">
@@ -166,6 +168,11 @@ onMounted(() => {
 .score-text {
   font-weight: bold;
   color: #67c23a;
+}
+.max-score {
+  font-size: 12px;
+  color: #909399;
+  margin-left: 2px;
 }
 .progress-cell {
   display: flex;
