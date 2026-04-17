@@ -25,31 +25,43 @@
             </el-menu-item>
 
             <el-sub-menu v-if="isAdmin || isTeacher" index="qbank">
-              <template #title>知识点管理</template>
+              <template #title>题库管理</template>
               <el-menu-item index="/question/manage">试题管理</el-menu-item>
               <el-menu-item index="/question/category">知识点管理</el-menu-item>
             </el-sub-menu>
 
-            <el-sub-menu v-if="isAdmin || isTeacher" index="exam">
-              <template #title>考试管理</template>
+            <el-sub-menu v-if="isAdmin || isTeacher" index="academic">
+              <template #title>教务管理</template>
+              <el-menu-item index="/course/list">课程管理</el-menu-item>
               <el-menu-item index="/exam/paper">试卷管理</el-menu-item>
               <el-menu-item index="/exam/schedule">考试安排</el-menu-item>
+            </el-sub-menu>
+
+            <el-sub-menu v-if="isAdmin || isTeacher" index="analysis">
+              <template #title>成绩分析</template>
               <el-menu-item index="/exam/marking">阅卷管理</el-menu-item>
+              <el-menu-item index="/teacher/analysis">班级分析</el-menu-item>
               <el-menu-item index="/exam/statistics">成绩统计</el-menu-item>
             </el-sub-menu>
 
-            <el-menu-item v-if="isAdmin || isTeacher" index="/course/list">
-              课程管理
-            </el-menu-item>
-
             <el-sub-menu v-if="isStudent" index="study">
-              <template #title>学习管理</template>
+              <template #title>学习中心</template>
               <el-menu-item index="/course/query">课程查询</el-menu-item>
               <el-menu-item index="/study/practice">在线练习</el-menu-item>
+              <el-menu-item index="/study/exam">我的考试</el-menu-item>
+            </el-sub-menu>
+
+            <el-sub-menu v-if="isStudent" index="personal">
+              <template #title>个人题库</template>
               <el-menu-item index="/study/mistakes">错题本</el-menu-item>
               <el-menu-item index="/study/favorites">收藏夹</el-menu-item>
-              <el-menu-item index="/study/exam">我的考试</el-menu-item>
-              <el-menu-item index="/study/record">学习记录</el-menu-item>
+            </el-sub-menu>
+
+            <el-sub-menu v-if="isStudent" index="records">
+              <template #title>数据与记录</template>
+              <el-menu-item index="/study/analysis">学习报告</el-menu-item>
+              <el-menu-item index="/study/record">练习记录</el-menu-item>
+              <el-menu-item index="/study/exam-record">考试记录</el-menu-item>
             </el-sub-menu>
 
             <el-sub-menu v-if="isAdmin || isTeacher" index="system">

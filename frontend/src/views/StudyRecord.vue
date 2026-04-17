@@ -7,33 +7,116 @@
         </div>
       </template>
 
-      <el-empty description="暂无练习记录" />
+      <el-table v-loading="loading" :data="list" style="width: 100%" @sort-change="handleSortChange">
+        <el-table-column type="index" label="序号" width="80" :index="indexMethod" />
+        <el-table-column prop="startTime" label="开始时间" width="180" sortable="custom">
+          <template #default="scope">
+            {{ formatDateTime(scope.row.startTime) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="submitTime" label="提交时间" width="180" sortable="custom">
+          <template #default="scope">
+            <el-tag v-if="!scope.row.submitTime" type="info" size="small">未完成</el-tag>
+            <span v-else>{{ formatDateTime(scope.row.submitTime) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="totalScore" label="得分" width="100" sortable="custom">
+          <template #default="scope">
+            <span v-if="scope.row.submitTime !== null" class="score-text">{{ scope.row.totalScore }}</span>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="totalDuration" label="总耗时" width="120">
+          <template #default="scope">
+            {{ formatDuration(scope.row.totalDuration) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="180">
+          <template #default="scope">
+            <el-button type="primary" link @click="viewDetail(scope.row)">查看报告</el-button>
+            <el-popconfirm title="确定要删除这条记录吗？" @confirm="handleDelete(scope.row)">
+              <template #reference>
+                <el-button type="danger" link>删除</el-button>
+              </template>
+            </el-popconfirm>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <div class="pagination-container">
+        <el-pagination
+          :current-page="query.page"
+          :page-size="query.size"
+          :page-sizes="[10, 20, 50]"
+          layout="total, sizes, prev, pager, next"
+          :total="total"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
+      </div>
     </el-card>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import request from '@/utils/request'
+import { ElMessage } from 'element-plus'
 
+const router = useRouter()
 const loading = ref(false)
 const list = ref([])
 const total = ref(0)
 const query = reactive({
   page: 1,
-  size: 10
+  size: 10,
+  sortBy: '',
+  order: ''
 })
 
 const fetchList = async () => {
   loading.value = true
   try {
-    const res = await request.get('/student/exam-records', { params: query })
-    list.value = res.data.list
-    total.value = res.data.total
+    const res = await request.get('/student/practice-records', { 
+      params: {
+        page: query.page,
+        size: query.size,
+        sortBy: query.sortBy,
+        order: query.order
+      } 
+    })
+    if (res.code === 1) {
+      list.value = res.data.list
+      total.value = res.data.total
+    }
   } catch (e) {
     console.error(e)
   } finally {
     loading.value = false
+  }
+}
+
+const handleSortChange = ({ prop, order }) => {
+  query.sortBy = prop
+  query.order = order === 'ascending' ? 'asc' : order === 'descending' ? 'desc' : ''
+  fetchList()
+}
+
+const indexMethod = (index) => {
+  return (query.page - 1) * query.size + index + 1
+}
+
+const handleDelete = async (row) => {
+  try {
+    const res = await request.delete(`/student/practice-records/${row.id}`)
+    if (res.code === 1) {
+      ElMessage.success('删除成功')
+      fetchList()
+    }
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('删除失败')
   }
 }
 
@@ -47,30 +130,20 @@ const handleCurrentChange = (val) => {
   fetchList()
 }
 
-const getRecordStatusType = (status) => {
-  if (status === 0) return 'info'
-  if (status === 1) return 'primary'
-  if (status === 2) return 'success'
-  return ''
-}
-
-const getRecordStatusLabel = (status) => {
-  const labels = ['考试中', '已交卷', '已批阅']
-  return labels[status] || '未知'
-}
-
 const viewDetail = (row) => {
-  // 详情页逻辑暂未实现
+  router.push(`/study/practice-report/${row.id}`)
 }
 
 const formatDateTime = (value) => {
   if (!value) return '-'
-  const str = String(value)
-  if (str.includes('T')) {
-    const replaced = str.replace('T', ' ')
-    return replaced.length >= 19 ? replaced.slice(0, 19) : replaced
-  }
-  return str
+  return value.replace('T', ' ').substring(0, 19)
+}
+
+const formatDuration = (seconds) => {
+  if (!seconds) return '0秒'
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return m > 0 ? `${m}分${s}秒` : `${s}秒`
 }
 
 onMounted(() => {

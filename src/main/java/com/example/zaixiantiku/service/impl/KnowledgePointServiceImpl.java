@@ -402,8 +402,7 @@ public class KnowledgePointServiceImpl implements KnowledgePointService {
 
         sql.append("ORDER BY kp.course_id ASC, kp.sort_order ASC, kp.id ASC ");
 
-        List<KnowledgePointPageVO> list = jdbcTemplate.query(sql.toString(), params.toArray(),
-                (rs, rowNum) -> KnowledgePointPageVO.builder()
+        List<KnowledgePointPageVO> list = jdbcTemplate.query(sql.toString(), (rs, rowNum) -> KnowledgePointPageVO.builder()
                         .id(rs.getLong("id"))
                         .courseId(rs.getLong("courseId"))
                         .courseName(rs.getString("courseName"))
@@ -411,7 +410,7 @@ public class KnowledgePointServiceImpl implements KnowledgePointService {
                         .parentId(rs.getObject("parentId") == null ? null : rs.getLong("parentId"))
                         .sortOrder(rs.getObject("sortOrder") == null ? 0 : rs.getInt("sortOrder"))
                         .createTime(rs.getTimestamp("createTime").toLocalDateTime())
-                        .build());
+                        .build(), params.toArray());
 
         PageInfo<KnowledgePointPageVO> pageInfo = new PageInfo<>(list);
         return PageResult.of(pageInfo.getTotal(), list);

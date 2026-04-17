@@ -16,7 +16,22 @@ public interface PracticeService {
 
     Map<String, Object> submitPractice(Long practiceId, PracticeSubmitDTO submitDTO);
 
-    PageResult<PracticeRecord> getPracticeRecords(Integer page, Integer size);
+    PageResult<PracticeRecord> getPracticeRecords(Integer page, Integer size, String sortBy, String order);
+
+    /**
+     * 获取练习报告详情
+     * 
+     * @param practiceId 练习ID
+     * @return 报告详情
+     */
+    Map<String, Object> getPracticeReport(Long practiceId);
+
+    /**
+     * 删除练习记录
+     * 
+     * @param practiceId 练习记录ID
+     */
+    void removePracticeRecord(Long practiceId);
 
     // 错题本相关
     List<Map<String, Object>> getMistakeBook(Long courseId, Integer typeId);
@@ -25,8 +40,9 @@ public interface PracticeService {
 
     /**
      * 提交重做结果
+     * 
      * @param mistakeId 错题ID
-     * @param answer 用户输入的答案
+     * @param answer    用户输入的答案
      * @return 是否正确
      */
     boolean submitRedo(Long mistakeId, String answer);

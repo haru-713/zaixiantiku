@@ -26,7 +26,7 @@ public class PracticeRecord {
     private Long courseId;
     
     @TableField(typeHandler = JacksonTypeHandler.class)
-    private List<Long> questionIds;
+    private List<Object> questionIds;
     
     @TableField(typeHandler = JacksonTypeHandler.class)
     private List<Map<String, Object>> answers;

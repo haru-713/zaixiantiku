@@ -44,8 +44,25 @@ public class PracticeController {
     @Operation(summary = "练习记录列表")
     public Result<PageResult<PracticeRecord>> getPracticeRecords(
             @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "10") Integer size) {
-        return Result.success(practiceService.getPracticeRecords(page, size));
+            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(required = false) String sortBy,
+            @RequestParam(required = false) String order) {
+        return Result.success(practiceService.getPracticeRecords(page, size, sortBy, order));
+    }
+
+    @GetMapping("/student/practice-report/{practiceId}")
+    @PreAuthorize("hasRole('STUDENT')")
+    @Operation(summary = "获取练习报告详情")
+    public Result<Map<String, Object>> getPracticeReport(@PathVariable Long practiceId) {
+        return Result.success(practiceService.getPracticeReport(practiceId));
+    }
+
+    @DeleteMapping("/student/practice-records/{practiceId}")
+    @PreAuthorize("hasRole('STUDENT')")
+    @Operation(summary = "删除练习记录")
+    public Result<Void> removePracticeRecord(@PathVariable Long practiceId) {
+        practiceService.removePracticeRecord(practiceId);
+        return Result.success(1, "删除成功", null);
     }
 
     @GetMapping("/student/mistake-book")

@@ -84,9 +84,15 @@
             <div class="q-options">
               <!-- 单选题/判断题 -->
               <el-radio-group v-if="currentMode === 'single'" v-model="answers[currentQuestion.id]">
-                <el-radio v-for="opt in currentQuestion.options" :key="opt" :label="opt.substring(0, 1)" class="opt-item">
-                  {{ opt }}
-                </el-radio>
+                <template v-if="currentQuestion.options && currentQuestion.options.length">
+                  <el-radio v-for="opt in currentQuestion.options" :key="opt" :label="opt.substring(0, 1)" class="opt-item">
+                    {{ opt }}
+                  </el-radio>
+                </template>
+                <template v-else-if="getTypeName(currentQuestion.typeId).includes('判断')">
+                  <el-radio label="正确" class="opt-item">正确</el-radio>
+                  <el-radio label="错误" class="opt-item">错误</el-radio>
+                </template>
               </el-radio-group>
               
               <!-- 多选题 -->
@@ -133,7 +139,8 @@
         </el-result>
       </div>
       <template #footer>
-        <el-button type="primary" @click="resetPractice">返回首页</el-button>
+        <el-button @click="resetPractice">返回首页</el-button>
+        <el-button type="primary" @click="goToReport">查看详细报告</el-button>
       </template>
     </el-dialog>
   </div>
@@ -157,6 +164,17 @@ const currentIndex = ref(0)
 const answers = reactive({})
 const multiAnswers = reactive({}) // 用于多选题的数组存储
 const practiceId = ref(null)
+const startTimeStamp = ref(0)
+const questionStartTime = ref(0)
+const questionDurations = reactive({})
+
+const goToReport = () => {
+  if (practiceId.value) {
+    resultVisible.value = false
+    router.push(`/study/practice-report/${practiceId.value}`)
+    resetPractice()
+  }
+}
 
 // 状态持久化：保存进度到 sessionStorage
 const saveProgress = () => {
@@ -218,6 +236,15 @@ onBeforeRouteLeave((to, from, next) => {
 
 // 监听题目切换，保存进度
 const handleNav = (index) => {
+  // 记录当前题目耗时
+  if (currentQuestion.value) {
+    const now = Date.now()
+    const duration = Math.floor((now - questionStartTime.value) / 1000)
+    const qId = currentQuestion.value.id
+    questionDurations[qId] = (questionDurations[qId] || 0) + duration
+    questionStartTime.value = now
+  }
+
   currentIndex.value = index
   const q = questions.value[index]
   if (q && getTypeName(q.typeId).includes('多选') && answers[q.id]) {
@@ -316,6 +343,8 @@ const startPractice = async () => {
     questions.value = res.data.questions
     practiceId.value = res.data.practiceId
     isStarted.value = true
+    startTimeStamp.value = Date.now()
+    questionStartTime.value = Date.now()
     saveProgress() // 开始后保存初始状态
   } catch (e) {
     console.error(e)
@@ -357,11 +386,22 @@ const submitConfirm = () => {
 
 const submit = async () => {
   try {
+    // 提交前更新最后一道题的耗时
+    if (currentQuestion.value) {
+      const now = Date.now()
+      const duration = Math.floor((now - questionStartTime.value) / 1000)
+      const qId = currentQuestion.value.id
+      questionDurations[qId] = (questionDurations[qId] || 0) + duration
+    }
+
+    const totalDuration = Math.floor((Date.now() - startTimeStamp.value) / 1000)
+
     const submitData = {
+      totalDuration: totalDuration,
       answers: questions.value.map(q => ({
         questionId: q.id,
         answer: answers[q.id] || '',
-        timeSpent: 0
+        timeSpent: questionDurations[q.id] || 0
       }))
     }
     const res = await request.post(`/practice/${practiceId.value}/submit`, submitData)
@@ -491,12 +531,17 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
 }
+.q-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 .q-index {
-  color: #909399;
+  font-weight: bold;
+  color: #606266;
 }
 .q-text {
-  font-size: 18px;
-  line-height: 1.6;
+  font-size: 16px;
   margin-bottom: 30px;
 }
 .q-options {
@@ -504,13 +549,12 @@ onUnmounted(() => {
 }
 .opt-item {
   display: block;
-  margin-bottom: 20px;
-  font-size: 16px;
+  margin-bottom: 15px;
   white-space: normal;
   height: auto;
 }
 .q-footer {
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid #ebeef5;
   padding-top: 20px;
   display: flex;
   justify-content: center;

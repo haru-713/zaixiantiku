@@ -89,7 +89,7 @@ public class PracticeServiceImpl implements PracticeService {
         PracticeRecord record = PracticeRecord.builder()
                 .userId(userId)
                 .courseId(startDTO.getCourseId())
-                .questionIds(questionIds)
+                .questionIds(new ArrayList<>(questionIds))
                 .answers(new ArrayList<>())
                 .startTime(LocalDateTime.now())
                 .build();
@@ -113,7 +113,9 @@ public class PracticeServiceImpl implements PracticeService {
         if (!record.getUserId().equals(loginUser.getUser().getId()))
             throw new RuntimeException("无权操作");
 
-        List<Long> questionIds = record.getQuestionIds();
+        List<Long> questionIds = record.getQuestionIds().stream()
+                .map(id -> Long.valueOf(id.toString()))
+                .collect(Collectors.toList());
         Map<Long, Question> questionMap = questionMapper.selectBatchIds(questionIds).stream()
                 .collect(Collectors.toMap(Question::getId, q -> q));
 
@@ -202,14 +204,115 @@ public class PracticeServiceImpl implements PracticeService {
     }
 
     @Override
-    public PageResult<PracticeRecord> getPracticeRecords(Integer page, Integer size) {
+    public PageResult<PracticeRecord> getPracticeRecords(Integer page, Integer size, String sortBy, String order) {
         LoginUser loginUser = getLoginUser();
         PageHelper.startPage(page, size);
-        List<PracticeRecord> list = practiceRecordMapper.selectList(new LambdaQueryWrapper<PracticeRecord>()
-                .eq(PracticeRecord::getUserId, loginUser.getUser().getId())
-                .orderByDesc(PracticeRecord::getSubmitTime));
+
+        LambdaQueryWrapper<PracticeRecord> qw = new LambdaQueryWrapper<PracticeRecord>()
+                .eq(PracticeRecord::getUserId, loginUser.getUser().getId());
+
+        boolean isAsc = "asc".equalsIgnoreCase(order);
+        if ("totalScore".equals(sortBy)) {
+            qw.orderBy(true, isAsc, PracticeRecord::getTotalScore);
+        } else if ("submitTime".equals(sortBy)) {
+            qw.orderBy(true, isAsc, PracticeRecord::getSubmitTime);
+        } else if ("startTime".equals(sortBy)) {
+            qw.orderBy(true, isAsc, PracticeRecord::getStartTime);
+        } else {
+            qw.orderByDesc(PracticeRecord::getId);
+        }
+
+        List<PracticeRecord> list = practiceRecordMapper.selectList(qw);
         PageInfo<PracticeRecord> pageInfo = new PageInfo<>(list);
         return PageResult.of(pageInfo.getTotal(), list);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void removePracticeRecord(Long practiceId) {
+        PracticeRecord record = practiceRecordMapper.selectById(practiceId);
+        if (record == null) return;
+        
+        LoginUser loginUser = getLoginUser();
+        if (!record.getUserId().equals(loginUser.getUser().getId())) {
+            throw new RuntimeException("无权删除此记录");
+        }
+        
+        practiceRecordMapper.deleteById(practiceId);
+    }
+
+    @Override
+    public Map<String, Object> getPracticeReport(Long practiceId) {
+        PracticeRecord record = practiceRecordMapper.selectById(practiceId);
+        if (record == null)
+            throw new RuntimeException("练习记录不存在");
+
+        LoginUser loginUser = getLoginUser();
+        if (!record.getUserId().equals(loginUser.getUser().getId())) {
+            throw new RuntimeException("无权查看此报告");
+        }
+
+        List<Object> rawQIds = record.getQuestionIds();
+        List<Long> qIds = rawQIds.stream()
+                .map(id -> Long.valueOf(id.toString()))
+                .collect(Collectors.toList());
+        Map<Long, Question> questionMap = questionMapper.selectBatchIds(qIds).stream()
+                .collect(Collectors.toMap(Question::getId, q -> q));
+
+        List<Map<String, Object>> details = new ArrayList<>();
+        List<Map<String, Object>> userAnswers = record.getAnswers();
+
+        // 建立用户答案映射，方便查找
+        Map<Long, Map<String, Object>> userAnswerMap = new HashMap<>();
+        if (userAnswers != null) {
+            for (Map<String, Object> ua : userAnswers) {
+                if (ua.get("questionId") != null) {
+                    userAnswerMap.put(Long.valueOf(ua.get("questionId").toString()), ua);
+                }
+            }
+        }
+
+        for (Long qId : qIds) {
+            Question q = questionMap.get(qId);
+            if (q == null)
+                continue;
+
+            Map<String, Object> detail = new HashMap<>();
+            detail.put("question", toVO(q));
+
+            Map<String, Object> ua = userAnswerMap.get(qId);
+            if (ua != null) {
+                detail.put("userAnswer", ua.get("userAnswer"));
+                detail.put("isCorrect", checkCorrect(ua.get("isCorrect")));
+                detail.put("timeSpent", ua.get("timeSpent"));
+            } else {
+                detail.put("userAnswer", null);
+                detail.put("isCorrect", false);
+                detail.put("timeSpent", 0);
+            }
+            details.add(detail);
+        }
+
+        Map<String, Object> res = new HashMap<>();
+        res.put("record", record);
+        res.put("details", details);
+        return res;
+    }
+
+    private boolean checkCorrect(Object isCorrectObj) {
+        if (isCorrectObj == null)
+            return false;
+        if (isCorrectObj instanceof Boolean) {
+            return (Boolean) isCorrectObj;
+        }
+        if (isCorrectObj instanceof Number) {
+            return ((Number) isCorrectObj).intValue() == 1;
+        }
+        if (isCorrectObj instanceof String) {
+            String s = (String) isCorrectObj;
+            return "true".equalsIgnoreCase(s) || "1".equals(s);
+        }
+        return false;
     }
 
     @Override

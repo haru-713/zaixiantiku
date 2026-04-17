@@ -21,6 +21,10 @@ import ExamMarkingList from '../views/ExamMarkingList.vue'
 import PracticeView from '../views/PracticeView.vue'
 import MistakeBook from '../views/MistakeBook.vue'
 import FavoriteBook from '../views/FavoriteBook.vue'
+import StudentAnalysis from '../views/StudentAnalysis.vue'
+import TeacherAnalysis from '../views/TeacherAnalysis.vue'
+import AdminAnalysis from '../views/AdminAnalysis.vue'
+import PracticeReport from '../views/PracticeReport.vue'
 
 const routes = [
   {
@@ -80,9 +84,15 @@ const routes = [
     meta: { requiresAuth: true, title: '阅卷管理', roles: ['ADMIN', 'TEACHER'] }
   },
   {
+    path: '/teacher/analysis',
+    name: 'TeacherAnalysis',
+    component: TeacherAnalysis,
+    meta: { requiresAuth: true, title: '班级分析', roles: ['ADMIN', 'TEACHER'] }
+  },
+  {
     path: '/exam/statistics',
     name: 'ExamStatistics',
-    component: ComingSoon,
+    component: AdminAnalysis,
     meta: { requiresAuth: true, title: '成绩统计', roles: ['ADMIN', 'TEACHER'] }
   },
   {
@@ -144,6 +154,18 @@ const routes = [
     name: 'StudyRecord',
     component: StudyRecord,
     meta: { requiresAuth: true, title: '练习记录', roles: ['STUDENT'] }
+  },
+  {
+    path: '/study/practice-report/:id',
+    name: 'PracticeReport',
+    component: PracticeReport,
+    meta: { requiresAuth: true, title: '练习报告', roles: ['STUDENT'] }
+  },
+  {
+    path: '/study/analysis',
+    name: 'StudentAnalysis',
+    component: StudentAnalysis,
+    meta: { requiresAuth: true, title: '学习报告', roles: ['STUDENT'] }
   },
   {
     path: '/study/exam-record',
