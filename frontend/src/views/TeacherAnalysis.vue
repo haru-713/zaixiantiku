@@ -82,28 +82,35 @@
         <template #header>
           <div class="card-header">
             <span>题目正确率分析</span>
+            <span class="header-tip" v-if="!query.examId">（请选择具体考试以查看题目分析）</span>
           </div>
         </template>
-        <el-table :data="analysis.questionAccuracies" style="width: 100%" border stripe v-if="analysis.questionAccuracies.length > 0">
-          <el-table-column prop="questionId" label="题目ID" width="100" align="center" />
-          <el-table-column prop="content" label="题目内容" show-overflow-tooltip>
-            <template #default="scope">
-              <div v-html="scope.row.content"></div>
-            </template>
-          </el-table-column>
-          <el-table-column label="班级正确率" width="200">
-            <template #default="scope">
-              <div class="accuracy-cell">
-                <el-progress 
-                  :percentage="Math.round(scope.row.accuracy * 100)" 
-                  :status="scope.row.accuracy < 0.6 ? 'exception' : 'success'"
-                />
-                <span class="percentage-text">{{ Math.round(scope.row.accuracy * 100) }}%</span>
-              </div>
-            </template>
-          </el-table-column>
-        </el-table>
-        <el-empty v-else description="暂无题目分析数据" :image-size="100" />
+        <div v-if="query.examId">
+          <el-table :data="analysis.questionAccuracies" style="width: 100%" border stripe v-if="analysis.questionAccuracies.length > 0">
+            <el-table-column prop="questionId" label="题目ID" width="100" align="center" />
+            <el-table-column prop="content" label="题目内容" show-overflow-tooltip>
+              <template #default="scope">
+                <div v-html="scope.row.content"></div>
+              </template>
+            </el-table-column>
+            <el-table-column label="班级正确率" width="200">
+              <template #default="scope">
+                <div class="accuracy-cell">
+                  <el-progress 
+                    :percentage="Math.round(scope.row.accuracy * 100)" 
+                    :status="scope.row.accuracy < 0.6 ? 'exception' : 'success'"
+                  />
+                  <span class="percentage-text">{{ Math.round(scope.row.accuracy * 100) }}%</span>
+                </div>
+              </template>
+            </el-table-column>
+          </el-table>
+          <el-empty v-else description="暂无题目分析数据" :image-size="100" />
+        </div>
+        <div v-else class="all-exams-tip">
+          <el-result icon="info" title="模式说明" sub-title="在“全部考试”模式下，系统仅统计班级整体分数表现。如需查看具体题目的正确率分析，请在上方选择一场具体的考试。">
+          </el-result>
+        </div>
       </el-card>
     </template>
   </div>
@@ -318,6 +325,15 @@ onMounted(() => {
 }
 .card-header {
   font-weight: bold;
+}
+.header-tip {
+  font-size: 12px;
+  font-weight: normal;
+  color: #909399;
+  margin-left: 8px;
+}
+.all-exams-tip {
+  padding: 20px 0;
 }
 .empty-tip {
   margin-top: 50px;

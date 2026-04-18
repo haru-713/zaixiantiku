@@ -42,8 +42,24 @@ public class ExamServiceImpl implements ExamService {
 
     @Override
     public PageResult<ExamVO> getExamPage(Integer page, Integer size, String keyword, Long courseId, Integer status) {
+        LoginUser loginUser = requireLoginUser();
+        boolean isAdmin = loginUser.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+
         PageHelper.startPage(page, size);
         LambdaQueryWrapper<Exam> qw = new LambdaQueryWrapper<>();
+
+        // 教师权限过滤
+        if (!isAdmin) {
+            List<Long> teacherCourseIds = courseTeacherMapper.selectList(new LambdaQueryWrapper<CourseTeacher>()
+                    .eq(CourseTeacher::getTeacherId, loginUser.getUser().getId()))
+                    .stream().map(CourseTeacher::getCourseId).collect(Collectors.toList());
+            if (teacherCourseIds.isEmpty()) {
+                return PageResult.of(0L, new java.util.ArrayList<>());
+            }
+            qw.in(Exam::getCourseId, teacherCourseIds);
+        }
+
         if (courseId != null) {
             qw.eq(Exam::getCourseId, courseId);
         }

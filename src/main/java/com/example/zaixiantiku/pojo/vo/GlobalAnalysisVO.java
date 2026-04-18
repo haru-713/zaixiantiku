@@ -30,6 +30,7 @@ public class GlobalAnalysisVO {
         private Integer maxScore;
         private Double passRate;
         private Integer participantCount;
+        private String status; // 新增状态标识：'empty' - 无人参加, 'normal' - 正常
     }
 
     @Data

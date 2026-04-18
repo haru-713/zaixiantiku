@@ -72,7 +72,12 @@
       <el-table :data="globalStats.recentExams" style="width: 100%" border stripe>
         <el-table-column prop="id" label="考试ID" width="100" align="center" />
         <el-table-column prop="examName" label="考试名称" min-width="200" />
-        <el-table-column prop="participantCount" label="参与人数" width="120" align="center" />
+        <el-table-column label="参与人数" width="120" align="center">
+          <template #default="scope">
+            <el-tag v-if="scope.row.status === 'empty'" type="info" size="small">无人参加</el-tag>
+            <span v-else>{{ scope.row.participantCount }}</span>
+          </template>
+        </el-table-column>
         <el-table-column label="平均分" width="150" align="center">
           <template #default="scope">
             <span class="score-text">{{ (scope.row.averageScore || 0).toFixed(2) }}</span>
