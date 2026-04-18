@@ -121,6 +121,7 @@ public class AnalysisServiceImpl implements AnalysisService {
 
         int totalExamCount = examRecords.size();
         int maxExamScore = 0;
+        int maxExamTotalScore = 0;
         double totalExamScoreSum = 0;
         double totalMaxScoreSum = 0;
         int[] scoreDist = new int[5]; // 0-59, 60-69, 70-79, 80-89, 90-100
@@ -131,8 +132,6 @@ public class AnalysisServiceImpl implements AnalysisService {
         for (ExamRecord er : examRecords) {
             int score = er.getTotalScore() != null ? er.getTotalScore() : 0;
             totalExamScoreSum += score;
-            if (score > maxExamScore)
-                maxExamScore = score;
 
             // 获取考试满分以计算得分率
             Exam exam = examMapper.selectById(er.getExamId());
@@ -149,6 +148,11 @@ public class AnalysisServiceImpl implements AnalysisService {
                         maxScore,
                         (double) score / maxScore,
                         er.getSubmitTime().format(formatter)));
+            }
+
+            if (score > maxExamScore || (maxExamScore == 0 && maxExamTotalScore == 0)) {
+                maxExamScore = score;
+                maxExamTotalScore = maxScore;
             }
 
             // 分数分布
@@ -270,6 +274,7 @@ public class AnalysisServiceImpl implements AnalysisService {
                 .totalExamCount(totalExamCount)
                 .avgExamScore(totalExamCount == 0 ? 0.0 : totalExamScoreSum / totalExamCount)
                 .maxExamScore(maxExamScore)
+                .maxExamTotalScore(maxExamTotalScore)
                 .avgExamScoreRate(totalMaxScoreSum == 0 ? 0.0 : totalExamScoreSum / totalMaxScoreSum)
                 .mistakeCount(mistakes.size())
                 .recentExams(recentExams.stream()

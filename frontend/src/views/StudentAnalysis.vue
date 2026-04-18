@@ -56,7 +56,10 @@
             </div>
             <div class="stat-item">
               <div class="label">最高分</div>
-              <div class="value high-score">{{ report.maxExamScore }}</div>
+              <div class="value high-score">
+                {{ report.maxExamScore }}
+                <span class="total-score-label" v-if="report.maxExamTotalScore"> / {{ report.maxExamTotalScore }}</span>
+              </div>
             </div>
           </div>
         </el-card>
@@ -364,6 +367,12 @@ onMounted(() => {
 
 .value.accuracy, .value.rate { color: #409eff; }
 .value.high-score { color: #67c23a; }
+.total-score-label {
+  font-size: 14px;
+  color: #909399;
+  font-weight: normal;
+  margin-left: 2px;
+}
 .value.mistake-count { color: #f56c6c; font-size: 32px; }
 
 .analysis-tabs {

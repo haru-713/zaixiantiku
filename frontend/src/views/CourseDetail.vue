@@ -46,12 +46,6 @@
       <el-table :data="detail.teachers || []" style="width: 100%">
         <el-table-column type="index" label="序号" width="80" />
         <el-table-column prop="name" label="姓名" />
-        <el-table-column v-if="canRemoveTeacherUI" label="操作" width="120">
-          <template #default="scope">
-            <el-button v-if="canRemoveTeacherRow(scope.row.id)" type="danger" size="small"
-              @click="handleRemoveTeacher(scope.row.id)">移除</el-button>
-          </template>
-        </el-table-column>
       </el-table>
 
       <template v-if="localCanManageStudents">
@@ -196,16 +190,6 @@ const canAddTeacherUI = computed(() => {
   return false
 })
 
-const canRemoveTeacherUI = computed(() => {
-  if (detail.value.canRemoveTeacher === true) {
-    return true
-  }
-  if (detail.value.canRemoveTeacher == null) {
-    return localIsAdmin.value
-  }
-  return false
-})
-
 const canAddStudentUI = computed(() => {
   if (detail.value.canAddStudent === true) {
     return true
@@ -236,25 +220,6 @@ const formatDateTime = (value) => {
     return replaced.length >= 19 ? replaced.slice(0, 19) : replaced
   }
   return str
-}
-
-const canRemoveTeacherRow = (teacherId) => {
-  if (!canRemoveTeacherUI.value) {
-    return false
-  }
-  // 管理员允许移除所有教师
-  if (localIsAdmin.value) {
-    return true
-  }
-  const teachers = detail.value.teachers || []
-  // 非管理员至少保留一名教师，且不能移除自己
-  if (teachers.length <= 1) {
-    return false
-  }
-  if (currentUserId.value && teacherId === currentUserId.value) {
-    return false
-  }
-  return true
 }
 
 const fetchDetail = async () => {
@@ -443,33 +408,6 @@ const confirmAddTeachers = async () => {
     fetchDetail()
   } catch (e) {
     console.error('添加教师失败:', e)
-  } finally {
-    teacherSaving.value = false
-  }
-}
-
-const handleRemoveTeacher = async (teacherId) => {
-  const courseId = route.params.courseId
-  if (!courseId || !teacherId) {
-    return
-  }
-  try {
-    await ElMessageBox.confirm('确定要移除该教师吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
-  } catch {
-    return
-  }
-
-  teacherSaving.value = true
-  try {
-    await request.delete(`/courses/${courseId}/teachers`, { params: { teacherId } })
-    ElMessage.success('移除成功')
-    fetchDetail()
-  } catch (e) {
-    console.error('移除教师失败:', e)
   } finally {
     teacherSaving.value = false
   }
