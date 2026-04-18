@@ -30,8 +30,9 @@ public class ExamController {
             @RequestParam(defaultValue = "10") Integer size,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Long courseId,
+            @RequestParam(required = false) Long classId,
             @RequestParam(required = false) Integer status) {
-        PageResult<ExamVO> res = examService.getExamPage(page, size, keyword, courseId, status);
+        PageResult<ExamVO> res = examService.getExamPage(page, size, keyword, courseId, classId, status);
         return Result.success(res);
     }
 

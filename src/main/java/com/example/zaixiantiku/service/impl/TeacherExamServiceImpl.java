@@ -160,7 +160,7 @@ public class TeacherExamServiceImpl implements TeacherExamService {
                 // 更新得分，这里假设 score 之前是 0 或者 null
                 int oldScore = detail.getScore() != null ? detail.getScore() : 0;
                 detail.setScore(item.getScore());
-                // 主观题批阅通常认为只要批阅了就可能是对的（部分正确也算1，或者根据分数判断）
+                // 阅卷通常认为只要阅卷了就可能是对的（部分正确也算1，或者根据分数判断）
                 detail.setIsCorrect(item.getScore() > 0 ? 1 : 0);
                 answerDetailMapper.updateById(detail);
 

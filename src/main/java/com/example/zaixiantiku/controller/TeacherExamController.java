@@ -15,14 +15,14 @@ import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
-@Tag(name = "教师考试管理", description = "教师批阅考试相关接口")
+@Tag(name = "教师阅卷管理", description = "教师阅卷相关接口")
 public class TeacherExamController {
 
     private final TeacherExamService teacherExamService;
 
     @GetMapping("/teacher/exam-records/pending")
     @PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")
-    @Operation(summary = "教师：待批阅列表（主观题）")
+    @Operation(summary = "教师：待阅卷列表")
     public Result<PageResult<TeacherExamRecordVO>> getPendingMarkingRecords(
             @RequestParam(required = false) Long courseId,
             @RequestParam(required = false) Integer status,
@@ -34,7 +34,7 @@ public class TeacherExamController {
 
     @PutMapping("/teacher/exam-records/{recordId}/mark")
     @PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")
-    @Operation(summary = "教师：批阅主观题")
+    @Operation(summary = "教师：阅卷")
     public Result<Map<String, Object>> markExamRecord(
             @PathVariable Long recordId,
             @RequestBody ExamMarkDTO markDTO) {

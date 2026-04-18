@@ -43,11 +43,11 @@ public class LogController {
             @RequestParam(required = false) String module,
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer size) {
-        
+
         PageHelper.startPage(page, size);
         LambdaQueryWrapper<Log> qw = new LambdaQueryWrapper<Log>()
                 .orderByDesc(Log::getCreateTime);
-        
+
         if (module != null && !module.trim().isEmpty()) {
             qw.like(Log::getModule, module);
         }
@@ -56,20 +56,46 @@ public class LogController {
         PageInfo<Log> pageInfo = new PageInfo<>(list);
 
         // 填充用户名
-        List<Long> userIds = list.stream().map(Log::getUserId).filter(id -> id != null).distinct().collect(Collectors.toList());
-        Map<Long, String> userNameMap = userIds.isEmpty() ? Map.of() : userMapper.selectBatchIds(userIds).stream()
-                .collect(Collectors.toMap(User::getId, User::getName));
+        List<Long> userIds = list.stream().map(Log::getUserId).filter(id -> id != null).distinct()
+                .collect(Collectors.toList());
+        Map<Long, String> userNameMap = userIds.isEmpty() ? Map.of()
+                : userMapper.selectBatchIds(userIds).stream()
+                        .collect(Collectors.toMap(User::getId, User::getName));
 
-        List<LogVO> vos = list.stream().map(log -> LogVO.builder()
-                .id(log.getId())
-                .userId(log.getUserId())
-                .username(userNameMap.getOrDefault(log.getUserId(), "未知"))
-                .operation(log.getOperation())
-                .module(log.getModule())
-                .params(log.getParams())
-                .ip(log.getIp())
-                .createTime(log.getCreateTime())
-                .build()).collect(Collectors.toList());
+        List<LogVO> vos = list.stream().map(log -> {
+            String username = "未知";
+            if (log.getUserId() != null) {
+                username = userNameMap.getOrDefault(log.getUserId(), "未知");
+            } else if (log.getParams() != null && log.getParams().contains("\"username\":\"")) {
+                // 针对 userId 为空的历史日志，从参数中提取用户名 (用于展示)
+                try {
+                    String p = log.getParams();
+                    int start = p.indexOf("\"username\":\"") + 12;
+                    int end = p.indexOf("\"", start);
+                    if (start > 11 && end > start) {
+                        username = p.substring(start, end);
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+
+            String params = log.getParams();
+            // 敏感信息脱敏 (针对历史记录)
+            if (params != null) {
+                params = params.replaceAll("\"password\":\"[^\"]+\"", "\"password\":\"******\"");
+            }
+
+            return LogVO.builder()
+                    .id(log.getId())
+                    .userId(log.getUserId())
+                    .username(username)
+                    .operation(log.getOperation())
+                    .module(log.getModule())
+                    .params(params)
+                    .ip(log.getIp())
+                    .createTime(log.getCreateTime())
+                    .build();
+        }).collect(Collectors.toList());
 
         return Result.success(PageResult.of(pageInfo.getTotal(), vos));
     }

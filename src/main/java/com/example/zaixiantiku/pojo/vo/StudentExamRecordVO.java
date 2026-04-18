@@ -25,7 +25,7 @@ public class StudentExamRecordVO {
     private LocalDateTime submitTime;
     
     /**
-     * 状态：0-考试中，1-已交卷，2-已批阅
+     * 状态：0-考试中，1-已交卷，2-已阅卷
      */
     private Integer status;
 }

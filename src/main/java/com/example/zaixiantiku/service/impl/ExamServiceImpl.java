@@ -39,15 +39,29 @@ public class ExamServiceImpl implements ExamService {
     private final ExamStudentMapper examStudentMapper;
     private final CourseTeacherMapper courseTeacherMapper;
     private final com.example.zaixiantiku.mapper.PaperMapper paperMapper;
+    private final com.example.zaixiantiku.mapper.ClassMapper classMapper;
 
     @Override
-    public PageResult<ExamVO> getExamPage(Integer page, Integer size, String keyword, Long courseId, Integer status) {
+    public PageResult<ExamVO> getExamPage(Integer page, Integer size, String keyword, Long courseId, Long classId,
+            Integer status) {
         LoginUser loginUser = requireLoginUser();
         boolean isAdmin = loginUser.getAuthorities().stream()
                 .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
 
         PageHelper.startPage(page, size);
         LambdaQueryWrapper<Exam> qw = new LambdaQueryWrapper<>();
+
+        // 班级筛选逻辑
+        if (classId != null) {
+            List<ExamClass> examClassesForFilter = examClassMapper.selectList(new LambdaQueryWrapper<ExamClass>()
+                    .eq(ExamClass::getClassId, classId));
+            List<Long> examIdsForFilter = examClassesForFilter.stream().map(ExamClass::getExamId)
+                    .collect(Collectors.toList());
+            if (examIdsForFilter.isEmpty()) {
+                return PageResult.of(0L, new java.util.ArrayList<>());
+            }
+            qw.in(Exam::getId, examIdsForFilter);
+        }
 
         // 教师权限过滤
         if (!isAdmin) {
@@ -73,6 +87,10 @@ public class ExamServiceImpl implements ExamService {
         List<Exam> list = examMapper.selectList(qw);
         PageInfo<Exam> pageInfo = new PageInfo<>(list);
 
+        if (list.isEmpty()) {
+            return PageResult.of(0L, new java.util.ArrayList<>());
+        }
+
         // 获取试卷名称映射
         List<Long> paperIds = list.stream().map(Exam::getPaperId).distinct().collect(Collectors.toList());
         java.util.Map<Long, String> paperNameMap = new java.util.HashMap<>();
@@ -82,10 +100,56 @@ public class ExamServiceImpl implements ExamService {
                     com.example.zaixiantiku.entity.Paper::getPaperName));
         }
 
+        // 获取考试ID列表
+        List<Long> examIds = list.stream().map(Exam::getId).collect(Collectors.toList());
+
+        // 批量查询班级关联
+        List<ExamClass> examClasses = examClassMapper.selectList(new LambdaQueryWrapper<ExamClass>()
+                .in(ExamClass::getExamId, examIds));
+        java.util.Map<Long, List<Long>> examToClassIds = examClasses.stream()
+                .collect(Collectors.groupingBy(ExamClass::getExamId,
+                        Collectors.mapping(ExamClass::getClassId, Collectors.toList())));
+
+        // 查询所有涉及的班级名称
+        List<Long> allClassIds = examClasses.stream().map(ExamClass::getClassId).distinct()
+                .collect(Collectors.toList());
+        java.util.Map<Long, String> classNameMap = new java.util.HashMap<>();
+        if (!allClassIds.isEmpty()) {
+            List<com.example.zaixiantiku.entity.Class> classes = classMapper.selectBatchIds(allClassIds);
+            classNameMap = classes.stream().collect(Collectors.toMap(com.example.zaixiantiku.entity.Class::getId,
+                    com.example.zaixiantiku.entity.Class::getClassName));
+        }
+
+        // 批量查询学生关联（仅统计人数）
+        List<ExamStudent> examStudents = examStudentMapper.selectList(new LambdaQueryWrapper<ExamStudent>()
+                .in(ExamStudent::getExamId, examIds));
+        java.util.Map<Long, Long> examToStudentCount = examStudents.stream()
+                .collect(Collectors.groupingBy(ExamStudent::getExamId, Collectors.counting()));
+
         java.util.Map<Long, String> finalPaperNameMap = paperNameMap;
+        java.util.Map<Long, String> finalClassNameMap = classNameMap;
         List<ExamVO> voList = list.stream().map(exam -> {
             ExamVO vo = this.toVO(exam);
             vo.setPaperName(finalPaperNameMap.get(exam.getPaperId()));
+
+            // 填充参与班级信息
+            List<Long> classIdsForExam = examToClassIds.get(exam.getId());
+            if (classIdsForExam != null && !classIdsForExam.isEmpty()) {
+                String names = classIdsForExam.stream()
+                        .map(id -> finalClassNameMap.getOrDefault(id, "未知班级"))
+                        .collect(Collectors.joining(","));
+                vo.setTargetClasses(names);
+                vo.setTargetType("CLASS");
+            } else {
+                Long studentCount = examToStudentCount.getOrDefault(exam.getId(), 0L);
+                if (studentCount > 0) {
+                    vo.setTargetClasses("指定学生 (" + studentCount + "人)");
+                    vo.setTargetType("STUDENT");
+                } else {
+                    vo.setTargetClasses("未设置");
+                    vo.setTargetType("NONE");
+                }
+            }
             return vo;
         }).collect(Collectors.toList());
 

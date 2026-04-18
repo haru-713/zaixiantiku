@@ -108,7 +108,7 @@ const getRecordStatusType = (status) => {
 }
 
 const getRecordStatusLabel = (status) => {
-  const labels = ['考试中', '已交卷', '已批阅']
+  const labels = ['考试中', '已交卷', '已阅卷']
   return labels[status] || '未知'
 }
 

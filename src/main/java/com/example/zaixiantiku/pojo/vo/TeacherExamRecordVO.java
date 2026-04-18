@@ -25,5 +25,5 @@ public class TeacherExamRecordVO {
     private LocalDateTime submitTime;
     
     private Integer totalScore;
-    private Integer status; // 0-考试中, 1-已交卷(待批阅), 2-已批阅
+    private Integer status; // 0-考试中, 1-已交卷(待阅卷), 2-已阅卷
 }

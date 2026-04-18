@@ -27,5 +27,5 @@ public interface ExamService {
      * 分页查询考试列表
      */
     com.example.zaixiantiku.pojo.vo.PageResult<ExamVO> getExamPage(Integer page, Integer size, String keyword,
-            Long courseId, Integer status);
+            Long courseId, Long classId, Integer status);
 }

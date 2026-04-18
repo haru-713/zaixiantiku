@@ -43,4 +43,8 @@ public class ExamVO {
 
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime createTime;
+
+    private String targetClasses;
+
+    private String targetType; // CLASS or STUDENT
 }

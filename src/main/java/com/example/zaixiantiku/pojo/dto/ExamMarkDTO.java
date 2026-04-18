@@ -5,7 +5,7 @@ import lombok.Data;
 import java.util.List;
 
 /**
- * 考试批阅 DTO
+ * 考试阅卷 DTO
  */
 @Data
 public class ExamMarkDTO {

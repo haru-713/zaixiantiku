@@ -12,8 +12,8 @@
           <el-option v-for="c in courseOptions" :key="c.id" :label="c.courseName" :value="c.id" />
         </el-select>
         <el-select v-model="query.status" placeholder="状态" clearable style="width: 150px; margin-right: 10px" @change="handleQuery">
-          <el-option label="待批阅" :value="1" />
-          <el-option label="已批阅" :value="2" />
+          <el-option label="待阅卷" :value="1" />
+          <el-option label="已阅卷" :value="2" />
         </el-select>
         <el-button type="primary" @click="handleQuery">查询</el-button>
       </div>
@@ -30,14 +30,14 @@
         <el-table-column label="状态" width="100">
           <template #default="scope">
             <el-tag :type="scope.row.status === 1 ? 'warning' : 'success'">
-              {{ scope.row.status === 1 ? '待批阅' : '已批阅' }}
+              {{ scope.row.status === 1 ? '待阅卷' : '已阅卷' }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="120">
           <template #default="scope">
             <el-button type="primary" size="small" @click="openMarking(scope.row)">
-              {{ scope.row.status === 1 ? '批阅' : '查看' }}
+              {{ scope.row.status === 1 ? '阅卷' : '查看' }}
             </el-button>
           </template>
         </el-table-column>
@@ -50,8 +50,8 @@
       </div>
     </el-card>
 
-    <!-- 批阅/详情对话框 -->
-    <el-dialog v-model="markingVisible" title="考卷批阅" width="1000px" fullscreen>
+    <!-- 阅卷/详情对话框 -->
+    <el-dialog v-model="markingVisible" title="考卷阅卷" width="1000px" fullscreen>
       <div v-if="markingData" class="marking-container">
         <div class="marking-header">
           <span class="m-title">{{ markingData.examName }} - {{ currentRecord.studentName }}</span>
@@ -100,7 +100,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="markingVisible = false">取消</el-button>
-          <el-button v-if="currentRecord.status === 1" type="primary" :loading="submitting" @click="submitMark">提交批阅</el-button>
+          <el-button v-if="currentRecord.status === 1" type="primary" :loading="submitting" @click="submitMark">提交阅卷</el-button>
         </span>
       </template>
     </el-dialog>
@@ -199,11 +199,11 @@ const submitMark = async () => {
     }))
     
     await request.put(`/teacher/exam-records/${currentRecord.value.id}/mark`, { scores })
-    ElMessage.success('批阅成功')
+    ElMessage.success('阅卷成功')
     markingVisible.value = false
     fetchList()
   } catch (e) {
-    console.error('批阅失败:', e)
+    console.error('阅卷失败:', e)
   } finally {
     submitting.value = false
   }

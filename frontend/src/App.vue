@@ -35,7 +35,7 @@
               <template #title>教学管理</template>
               <el-menu-item index="/course/list">课程管理</el-menu-item>
               <el-menu-item index="/exam/schedule">考试安排</el-menu-item>
-              <el-menu-item index="/exam/marking">主观题批阅</el-menu-item>
+              <el-menu-item index="/exam/marking">阅卷管理</el-menu-item>
             </el-sub-menu>
 
             <el-sub-menu v-if="isAdmin || isTeacher" index="analysis">
@@ -69,7 +69,7 @@
               <template #title>系统管理</template>
               <el-menu-item index="/system/classes">班级管理</el-menu-item>
               <el-menu-item index="/admin/users">用户管理</el-menu-item>
-              <el-menu-item index="/admin/logs">系统日志</el-menu-item>
+              <el-menu-item index="/admin/logs">操作日志</el-menu-item>
             </el-sub-menu>
           </el-menu>
         </el-aside>

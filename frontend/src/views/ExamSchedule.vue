@@ -12,13 +12,16 @@
 
       <div class="search-bar">
         <el-select v-model="query.courseId" filterable remote clearable :remote-method="fetchCourseOptions"
-          :loading="courseLoading" placeholder="请选择课程" style="width: 240px; margin-right: 10px"
-          @visible-change="handleCourseDropdown">
+          :loading="courseLoading" placeholder="请选择课程" style="width: 200px; margin-right: 10px"
+          @visible-change="handleCourseDropdown" @change="handleCourseChangeQuery">
           <el-option v-for="c in courseOptions" :key="c.id" :label="c.courseName" :value="c.id" />
         </el-select>
-        <el-input v-model="query.keyword" placeholder="考试名称关键字" clearable style="width: 240px; margin-right: 10px"
+        <el-select v-model="query.classId" placeholder="按班级筛选" clearable style="width: 180px; margin-right: 10px" @change="handleQuery">
+          <el-option v-for="c in allClassOptions" :key="c.id" :label="c.className" :value="c.id" />
+        </el-select>
+        <el-input v-model="query.keyword" placeholder="考试名称关键字" clearable style="width: 200px; margin-right: 10px"
           @keyup.enter="handleQuery" />
-        <el-select v-model="query.status" placeholder="状态" clearable style="width: 120px; margin-right: 10px">
+        <el-select v-model="query.status" placeholder="状态" clearable style="width: 100px; margin-right: 10px" @change="handleQuery">
           <el-option label="未开始" :value="0" />
           <el-option label="进行中" :value="1" />
           <el-option label="已结束" :value="2" />
@@ -29,30 +32,40 @@
 
       <el-table v-loading="loading" :data="list" style="width: 100%; margin-top: 16px">
         <el-table-column type="index" label="序号" width="60" />
-        <el-table-column prop="examName" label="考试名称" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="paperName" label="试卷名称" min-width="150" show-overflow-tooltip />
-        <el-table-column label="起止时间" width="320">
+        <el-table-column prop="examName" label="考试名称" min-width="180" show-overflow-tooltip>
           <template #default="scope">
-            {{ formatDateTime(scope.row.startTime) }} ~ {{ formatDateTime(scope.row.endTime) }}
+            <el-link type="primary" @click="viewDetail(scope.row)">{{ scope.row.examName }}</el-link>
           </template>
         </el-table-column>
-        <el-table-column prop="duration" label="时长(分)" width="100" />
-        <el-table-column label="状态" width="100">
+        <el-table-column prop="paperName" label="试卷名称" min-width="150" show-overflow-tooltip />
+        <el-table-column label="起止时间" width="300">
           <template #default="scope">
-            <el-tag :type="getStatusType(scope.row.status)">
+            <div style="font-size: 12px">
+              {{ formatDateTime(scope.row.startTime) }}<br/>
+              {{ formatDateTime(scope.row.endTime) }}
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="duration" label="时长(分)" width="90" align="center" />
+        <el-table-column label="状态" width="90" align="center">
+          <template #default="scope">
+            <el-tag :type="getStatusType(scope.row.status)" size="small">
               {{ getStatusLabel(scope.row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createTime" label="创建时间" width="180">
+        <el-table-column prop="targetClasses" label="参与班级" min-width="150" show-overflow-tooltip>
           <template #default="scope">
-            {{ formatDateTime(scope.row.createTime) }}
+            <span :class="{ 'student-target': scope.row.targetType === 'STUDENT' }">
+              {{ scope.row.targetClasses }}
+            </span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200">
+        <el-table-column label="操作" width="220" fixed="right">
           <template #default="scope">
             <el-button type="primary" size="small" :disabled="scope.row.status !== 0"
               @click="openEdit(scope.row)">修改</el-button>
+            <el-button type="success" size="small" @click="handleCopy(scope.row)">复制</el-button>
             <el-button type="danger" size="small" :disabled="scope.row.status !== 0"
               @click="handleCancel(scope.row)">取消</el-button>
           </template>
@@ -144,10 +157,12 @@ const query = reactive({
   size: 10,
   keyword: '',
   courseId: null,
+  classId: null,
   status: null
 })
 
 const courseOptions = ref([])
+const allClassOptions = ref([])
 const courseLoading = ref(false)
 const paperOptions = ref([])
 
@@ -257,15 +272,83 @@ const handleCourseChange = async (val, keepPaperId = false) => {
   }
 }
 
+const fetchAllClasses = async () => {
+  try {
+    const res = await request.get('/teacher/analysis/classes', {
+      params: { courseId: query.courseId }
+    })
+    if (res.code === 1) {
+      allClassOptions.value = res.data
+    }
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+const handleCourseChangeQuery = () => {
+  query.classId = null
+  fetchAllClasses()
+  handleQuery()
+}
+
 const handleQuery = () => {
   query.page = 1
   fetchList()
 }
 
+const handleCopy = (row) => {
+  editingId.value = null
+  Object.assign(form, {
+    examName: row.examName + ' - 副本',
+    courseId: row.courseId,
+    paperId: row.paperId,
+    startTime: row.startTime,
+    endTime: row.endTime,
+    duration: row.duration,
+    publishScore: row.publishScore,
+    classIds: [], // 复制时班级和学生通常需要重新确认，或者根据需求决定是否复制
+    studentIds: []
+  })
+  
+  // 填充时间显示
+  if (row.startTime) {
+    const splitChar = row.startTime.includes('T') ? 'T' : ' '
+    const [d, t] = row.startTime.split(splitChar)
+    temp.startDate = d
+    temp.startTime = t
+  }
+  if (row.endTime) {
+    const splitChar = row.endTime.includes('T') ? 'T' : ' '
+    const [d, t] = row.endTime.split(splitChar)
+    temp.endDate = d
+    temp.endTime = t
+  }
+  
+  handleCourseChange(row.courseId, true)
+  dialogVisible.value = true
+}
+
+const viewDetail = (row) => {
+  ElMessageBox.alert(`
+    <div style="text-align: left">
+      <p><b>考试名称：</b>${row.examName}</p>
+      <p><b>试卷名称：</b>${row.paperName}</p>
+      <p><b>参与班级：</b>${row.targetClasses}</p>
+      <p><b>起止时间：</b>${formatDateTime(row.startTime)} ~ ${formatDateTime(row.endTime)}</p>
+      <p><b>考试时长：</b>${row.duration} 分钟</p>
+    </div>
+  `, '考试详情', {
+    dangerouslyUseHTMLString: true,
+    confirmButtonText: '确定'
+  })
+}
+
 const resetQuery = () => {
   query.keyword = ''
   query.courseId = null
+  query.classId = null
   query.status = null
+  allClassOptions.value = []
   handleQuery()
 }
 
@@ -407,6 +490,7 @@ const getStatusType = (status) => {
 
 onMounted(() => {
   fetchList()
+  fetchAllClasses()
 })
 </script>
 
@@ -444,5 +528,10 @@ onMounted(() => {
   position: absolute;
   top: 100%;
   left: 0;
+}
+
+.student-target {
+  color: #e6a23c;
+  font-weight: 500;
 }
 </style>

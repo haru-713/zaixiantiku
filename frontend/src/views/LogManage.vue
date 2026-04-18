@@ -19,7 +19,7 @@
       </div>
 
       <el-table :data="list" v-loading="loading" style="width: 100%">
-        <el-table-column prop="id" label="ID" width="80" />
+        <el-table-column type="index" label="序号" width="80" :index="indexMethod" />
         <el-table-column prop="username" label="操作人" width="120" />
         <el-table-column prop="module" label="模块" width="120" />
         <el-table-column prop="operation" label="操作描述" width="180" />
@@ -27,7 +27,6 @@
         <el-table-column prop="createTime" label="操作时间" width="180">
           <template #default="scope">{{ formatDateTime(scope.row.createTime) }}</template>
         </el-table-column>
-        <el-table-column prop="params" label="请求参数" min-width="200" show-overflow-tooltip />
         <el-table-column label="详情" width="80" fixed="right">
           <template #default="scope">
             <el-button type="primary" link @click="showDetail(scope.row)">详情</el-button>
@@ -117,6 +116,10 @@ const handleCurrentChange = () => {
 const showDetail = (row) => {
   currentLog.value = row
   detailVisible.value = true
+}
+
+const indexMethod = (index) => {
+  return (query.page - 1) * query.size + index + 1
 }
 
 const formatDateTime = (time) => {

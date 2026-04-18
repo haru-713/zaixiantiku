@@ -36,10 +36,10 @@ public class LogAspect {
 
     @AfterReturning(pointcut = "logPointcut()", returning = "result")
     public void doAfterReturning(JoinPoint joinPoint, Object result) {
-        handleLog(joinPoint, null);
+        handleLog(joinPoint, null, result);
     }
 
-    private void handleLog(JoinPoint joinPoint, Exception e) {
+    private void handleLog(JoinPoint joinPoint, Exception e, Object result) {
         try {
             // 获取注解信息
             MethodSignature signature = (MethodSignature) joinPoint.getSignature();
@@ -50,8 +50,10 @@ public class LogAspect {
             // 获取当前登录用户
             Long userId = null;
             try {
-                LoginUser loginUser = (LoginUser) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-                userId = loginUser.getUser().getId();
+                Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+                if (principal instanceof LoginUser loginUser) {
+                    userId = loginUser.getUser().getId();
+                }
             } catch (Exception ignored) {
             }
 
@@ -60,12 +62,63 @@ public class LogAspect {
                     .getRequestAttributes();
             HttpServletRequest request = attributes != null ? attributes.getRequest() : null;
 
+            // 如果 userId 仍然为空，尝试从返回值获取 (针对登录等场景)
+            if (userId == null && result instanceof com.example.zaixiantiku.common.Result<?> res) {
+                Object data = res.getData();
+                if (data instanceof java.util.Map<?, ?> map) {
+                    // 登录接口返回的数据结构中包含 userInfo，其中有 id
+                    Object userInfo = map.get("userInfo");
+                    if (userInfo instanceof java.util.Map<?, ?> userMap) {
+                        Object id = userMap.get("id");
+                        if (id instanceof Number num) {
+                            userId = num.longValue();
+                        }
+                    }
+                }
+            }
+
+            // 如果 userId 仍然为空，尝试从参数中获取 (针对登录和注册场景)
+            if (userId == null) {
+                Object[] args = joinPoint.getArgs();
+                for (Object arg : args) {
+                    String username = null;
+                    if (arg instanceof com.example.zaixiantiku.pojo.dto.LoginDTO loginDTO) {
+                        username = loginDTO.getUsername();
+                    } else if (arg instanceof com.example.zaixiantiku.pojo.dto.RegisterDTO registerDTO) {
+                        username = registerDTO.getUsername();
+                    }
+
+                    if (username != null) {
+                        try {
+                            // 动态获取 UserMapper 以获取用户 ID
+                            com.example.zaixiantiku.mapper.UserMapper userMapper = org.springframework.web.context.support.WebApplicationContextUtils
+                                    .getRequiredWebApplicationContext(request.getServletContext())
+                                    .getBean(com.example.zaixiantiku.mapper.UserMapper.class);
+                            com.example.zaixiantiku.entity.User user = userMapper.selectOne(
+                                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.example.zaixiantiku.entity.User>()
+                                            .eq(com.example.zaixiantiku.entity.User::getUsername, username));
+                            if (user != null) {
+                                userId = user.getId();
+                            }
+                        } catch (Exception ignored) {
+                        }
+                        break;
+                    }
+                }
+            }
+
             // 构建日志对象
+            String params = objectMapper.writeValueAsString(joinPoint.getArgs());
+            // 敏感信息脱敏 (如密码)
+            if (params != null) {
+                params = params.replaceAll("\"password\":\"[^\"]+\"", "\"password\":\"******\"");
+            }
+
             Log log = Log.builder()
                     .userId(userId)
                     .module(annotation.module())
                     .operation(annotation.operation())
-                    .params(objectMapper.writeValueAsString(joinPoint.getArgs()))
+                    .params(params)
                     .ip(request != null ? getIpAddr(request) : "unknown")
                     .createTime(LocalDateTime.now())
                     .build();

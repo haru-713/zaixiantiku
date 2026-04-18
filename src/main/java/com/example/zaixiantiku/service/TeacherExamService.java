@@ -12,12 +12,12 @@ import java.util.Map;
 public interface TeacherExamService {
 
     /**
-     * 获取待批阅的考试记录列表
+     * 获取待阅卷的考试记录列表
      */
     PageResult<TeacherExamRecordVO> getPendingMarkingRecords(Long courseId, Integer status, Integer page, Integer size);
 
     /**
-     * 批阅主观题
+     * 阅卷
      */
     Map<String, Object> markExamRecord(Long recordId, ExamMarkDTO markDTO);
 }
