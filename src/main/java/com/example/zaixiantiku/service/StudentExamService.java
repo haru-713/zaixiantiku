@@ -28,7 +28,7 @@ public interface StudentExamService {
     /**
      * 获取学生考试记录列表
      */
-    PageResult<StudentExamRecordVO> getStudentExamRecords(Integer page, Integer size);
+    PageResult<StudentExamRecordVO> getStudentExamRecords(Integer page, Integer size, Long courseId);
 
     /**
      * 获取考试记录详情

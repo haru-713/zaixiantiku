@@ -1,10 +1,10 @@
 package com.example.zaixiantiku.service;
 
 import com.example.zaixiantiku.entity.MistakeBook;
-import com.example.zaixiantiku.entity.PracticeRecord;
 import com.example.zaixiantiku.pojo.dto.PracticeStartDTO;
 import com.example.zaixiantiku.pojo.dto.PracticeSubmitDTO;
 import com.example.zaixiantiku.pojo.vo.PageResult;
+import com.example.zaixiantiku.pojo.vo.PracticeRecordVO;
 import com.example.zaixiantiku.pojo.vo.QuestionDetailVO;
 
 import java.util.List;
@@ -16,7 +16,7 @@ public interface PracticeService {
 
     Map<String, Object> submitPractice(Long practiceId, PracticeSubmitDTO submitDTO);
 
-    PageResult<PracticeRecord> getPracticeRecords(Integer page, Integer size, String sortBy, String order);
+    PageResult<PracticeRecordVO> getPracticeRecords(Integer page, Integer size, Long courseId, String sortBy, String order);
 
     /**
      * 获取练习报告详情

@@ -4,11 +4,17 @@
       <template #header>
         <div class="card-header">
           <span>练习记录</span>
+          <div class="filter-group">
+            <el-select v-model="query.courseId" placeholder="按课程筛选" clearable @change="fetchList" size="small" style="width: 180px">
+              <el-option v-for="item in courses" :key="item.id" :label="item.name" :value="item.id" />
+            </el-select>
+          </div>
         </div>
       </template>
 
       <el-table v-loading="loading" :data="list" style="width: 100%" @sort-change="handleSortChange">
         <el-table-column type="index" label="序号" width="80" :index="indexMethod" />
+        <el-table-column prop="courseName" label="所属课程" min-width="150" />
         <el-table-column prop="startTime" label="开始时间" width="180" sortable="custom">
           <template #default="scope">
             {{ formatDateTime(scope.row.startTime) }}
@@ -60,20 +66,34 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 
 const router = useRouter()
+const route = useRoute()
 const loading = ref(false)
 const list = ref([])
 const total = ref(0)
+const courses = ref([])
 const query = reactive({
   page: 1,
   size: 10,
+  courseId: route.query.courseId ? Number(route.query.courseId) : null,
   sortBy: '',
   order: ''
 })
+
+const fetchCourses = async () => {
+  try {
+    const res = await request.get('/student/analysis/courses')
+    if (res.code === 1) {
+      courses.value = res.data
+    }
+  } catch (e) {
+    console.error(e)
+  }
+}
 
 const fetchList = async () => {
   loading.value = true
@@ -82,6 +102,7 @@ const fetchList = async () => {
       params: {
         page: query.page,
         size: query.size,
+        courseId: query.courseId,
         sortBy: query.sortBy,
         order: query.order
       } 
@@ -147,6 +168,7 @@ const formatDuration = (seconds) => {
 }
 
 onMounted(() => {
+  fetchCourses()
   fetchList()
 })
 </script>
@@ -157,6 +179,9 @@ onMounted(() => {
 }
 .card-header {
   font-weight: bold;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 .score-text {
   font-weight: bold;

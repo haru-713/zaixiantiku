@@ -12,43 +12,24 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class StudentAnalysisVO {
-    // 1. 整体概览 (仪表盘)
+    // 1. 练习概况
     private Integer totalPracticeCount; // 总练习次数
-    private Integer totalPracticeQuestions; // 总练习题目数
-    private Double avgPracticeAccuracy; // 练习平均正确率
+    private Integer totalPracticeQuestions; // 累计答题数
+    private Double avgPracticeAccuracy; // 平均正确率
 
+    // 2. 考试概况
     private Integer totalExamCount; // 参加考试次数
-    private Double avgExamScore; // 考试平均分
-    private Integer maxExamScore; // 考试最高分
-    private Integer maxExamTotalScore; // 最高分对应考试的满分
     private Double avgExamScoreRate; // 平均得分率
-    private Integer mistakeCount; // 错题总数
+    private Integer maxExamScore; // 最高得分
+    private Integer maxExamTotalScore; // 最高分对应考试的满分
 
-    // 2. 详细记录列表
-    private List<RecentExamVO> recentExams; // 近期考试记录
+    // 3. 错题统计
+    private Integer mistakeCount; // 当前错题总数
 
-    @Data
-    @AllArgsConstructor
-    @NoArgsConstructor
-    public static class RecentExamVO {
-        private String examName;
-        private Integer score;
-        private Integer maxScore;
-        private Double scoreRate;
-        private String submitTime;
-    }
-
-    // 3. 练习详细分析
-    private List<TrendVO> practiceTrend; // 近期练习正确率趋势 (折线图)
-    private List<KnowledgeMasteryVO> knowledgeRadar; // 知识点掌握情况 (雷达图)
-    private List<TypeStatVO> practiceTypeStats; // 各题型练习统计
-    private List<MistakePointVO> topMistakePoints; // 错题集中知识点 Top5
-
-    // 3. 考试详细分析
-    private List<ScoreDistVO> examScoreDist; // 考试成绩分布 (柱状图)
-    private List<RankingTrendVO> rankingTrend; // 班级排名趋势 (折线图)
-    private List<TypeStatVO> examTypeStats; // 各题型得分率统计
-    private List<HighFreqMistakeVO> highFreqMistakes; // 考试高频错题
+    // 4. 图表数据
+    private List<TrendVO> practiceTrend; // 学习正确率趋势 (近7天)
+    private List<TypeStatVO> examTypeStats; // 题型分布统计 (按正确率)
+    private List<KnowledgeMasteryVO> knowledgeRadar; // 知识点掌握情况 (雷达图/柱状图)
 
     @Data
     @AllArgsConstructor
@@ -63,8 +44,8 @@ public class StudentAnalysisVO {
     @NoArgsConstructor
     public static class KnowledgeMasteryVO {
         private String name;
-        private Double value; // 正确率
-        private Integer total; // 该知识点题目总数
+        private Double value;
+        private Integer count;
     }
 
     @Data
@@ -73,41 +54,7 @@ public class StudentAnalysisVO {
     public static class TypeStatVO {
         private String typeName;
         private Integer count;
-        private Double accuracy; // 或得分率
-        private Double classAvg; // 班级平均 (用于考试)
-    }
-
-    @Data
-    @AllArgsConstructor
-    @NoArgsConstructor
-    public static class MistakePointVO {
-        private String name;
-        private Integer count;
-    }
-
-    @Data
-    @AllArgsConstructor
-    @NoArgsConstructor
-    public static class ScoreDistVO {
-        private String range;
-        private Integer count;
-    }
-
-    @Data
-    @AllArgsConstructor
-    @NoArgsConstructor
-    public static class RankingTrendVO {
-        private String examName;
-        private Integer rank;
-        private Integer totalStudents;
-    }
-
-    @Data
-    @AllArgsConstructor
-    @NoArgsConstructor
-    public static class HighFreqMistakeVO {
-        private Long questionId;
-        private String content;
-        private Integer wrongCount;
+        private Double accuracy;
+        private Integer correctCount;
     }
 }

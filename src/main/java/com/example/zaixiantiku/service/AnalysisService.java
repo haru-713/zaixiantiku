@@ -6,13 +6,14 @@ import com.example.zaixiantiku.pojo.vo.StudentAnalysisVO;
 
 public interface AnalysisService {
     /**
-     * 获取学生学习报告
-     * 
-     * @param courseId  课程ID（可选）
-     * @param timeRange 时间范围（可选，如：week, month, all）
-     * @return 学习报告数据
+     * 获取学生的分析报告
      */
     StudentAnalysisVO getStudentAnalysisReport(Long courseId, String timeRange);
+
+    /**
+     * 获取学生选修的课程列表（用于分析筛选）
+     */
+    java.util.List<java.util.Map<String, Object>> getStudentEnrolledCourses();
 
     /**
      * 获取教师班级分析

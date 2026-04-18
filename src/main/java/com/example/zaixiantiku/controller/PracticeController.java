@@ -2,10 +2,10 @@ package com.example.zaixiantiku.controller;
 
 import com.example.zaixiantiku.common.Result;
 import com.example.zaixiantiku.entity.MistakeBook;
-import com.example.zaixiantiku.entity.PracticeRecord;
 import com.example.zaixiantiku.pojo.dto.PracticeStartDTO;
 import com.example.zaixiantiku.pojo.dto.PracticeSubmitDTO;
 import com.example.zaixiantiku.pojo.vo.PageResult;
+import com.example.zaixiantiku.pojo.vo.PracticeRecordVO;
 import com.example.zaixiantiku.pojo.vo.QuestionDetailVO;
 import com.example.zaixiantiku.service.PracticeService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -42,12 +42,13 @@ public class PracticeController {
     @GetMapping("/student/practice-records")
     @PreAuthorize("hasRole('STUDENT')")
     @Operation(summary = "练习记录列表")
-    public Result<PageResult<PracticeRecord>> getPracticeRecords(
+    public Result<PageResult<PracticeRecordVO>> getPracticeRecords(
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(required = false) Long courseId,
             @RequestParam(required = false) String sortBy,
             @RequestParam(required = false) String order) {
-        return Result.success(practiceService.getPracticeRecords(page, size, sortBy, order));
+        return Result.success(practiceService.getPracticeRecords(page, size, courseId, sortBy, order));
     }
 
     @GetMapping("/student/practice-report/{practiceId}")

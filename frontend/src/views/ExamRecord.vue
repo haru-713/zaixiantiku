@@ -4,6 +4,11 @@
       <template #header>
         <div class="card-header">
           <span>考试记录</span>
+          <div class="filter-group">
+            <el-select v-model="query.courseId" placeholder="按课程筛选" clearable @change="fetchList" size="small" style="width: 180px">
+              <el-option v-for="item in courses" :key="item.id" :label="item.name" :value="item.id" />
+            </el-select>
+          </div>
         </div>
       </template>
 
@@ -46,17 +51,31 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import request from '@/utils/request'
 
 const router = useRouter()
+const route = useRoute()
 const loading = ref(false)
 const list = ref([])
 const total = ref(0)
+const courses = ref([])
 const query = reactive({
   page: 1,
-  size: 10
+  size: 10,
+  courseId: route.query.courseId ? Number(route.query.courseId) : null
 })
+
+const fetchCourses = async () => {
+  try {
+    const res = await request.get('/student/analysis/courses')
+    if (res.code === 1) {
+      courses.value = res.data
+    }
+  } catch (e) {
+    console.error(e)
+  }
+}
 
 const fetchList = async () => {
   loading.value = true
@@ -109,6 +128,7 @@ const formatDateTime = (value) => {
 }
 
 onMounted(() => {
+  fetchCourses()
   fetchList()
 })
 </script>
@@ -119,6 +139,9 @@ onMounted(() => {
 }
 .card-header {
   font-weight: bold;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 .score-text {
   font-weight: bold;

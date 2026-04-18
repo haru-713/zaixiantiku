@@ -87,15 +87,17 @@
 
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
+const route = useRoute()
 const loading = ref(false)
 const mistakes = ref([])
 const courses = ref([])
 const questionTypes = ref([])
 const filter = reactive({
-  courseId: null,
+  courseId: route.query.courseId ? Number(route.query.courseId) : null,
   typeId: null
 })
 

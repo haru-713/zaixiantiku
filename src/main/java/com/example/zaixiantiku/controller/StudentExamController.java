@@ -55,8 +55,9 @@ public class StudentExamController {
     @Operation(summary = "学生：考试记录列表")
     public Result<PageResult<StudentExamRecordVO>> getStudentExamRecords(
             @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "10") Integer size) {
-        PageResult<StudentExamRecordVO> res = studentExamService.getStudentExamRecords(page, size);
+            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(required = false) Long courseId) {
+        PageResult<StudentExamRecordVO> res = studentExamService.getStudentExamRecords(page, size, courseId);
         return Result.success(res);
     }
 

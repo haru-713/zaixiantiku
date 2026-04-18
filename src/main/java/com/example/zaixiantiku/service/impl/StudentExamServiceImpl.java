@@ -287,14 +287,27 @@ public class StudentExamServiceImpl implements StudentExamService {
     }
 
     @Override
-    public PageResult<StudentExamRecordVO> getStudentExamRecords(Integer page, Integer size) {
+    public PageResult<StudentExamRecordVO> getStudentExamRecords(Integer page, Integer size, Long courseId) {
         LoginUser loginUser = requireLoginUser();
         Long userId = loginUser.getUser().getId();
 
         PageHelper.startPage(page, size);
-        List<ExamRecord> records = examRecordMapper.selectList(new LambdaQueryWrapper<ExamRecord>()
-                .eq(ExamRecord::getUserId, userId)
-                .orderByDesc(ExamRecord::getId));
+        LambdaQueryWrapper<ExamRecord> qw = new LambdaQueryWrapper<ExamRecord>()
+                .eq(ExamRecord::getUserId, userId);
+
+        if (courseId != null) {
+            // 先获取该课程下的所有考试ID
+            List<Long> examIds = examMapper.selectList(new LambdaQueryWrapper<Exam>()
+                    .eq(Exam::getCourseId, courseId))
+                    .stream().map(Exam::getId).collect(Collectors.toList());
+            if (examIds.isEmpty()) {
+                return PageResult.of(0L, new ArrayList<>());
+            }
+            qw.in(ExamRecord::getExamId, examIds);
+        }
+
+        qw.orderByDesc(ExamRecord::getId);
+        List<ExamRecord> records = examRecordMapper.selectList(qw);
 
         PageInfo<ExamRecord> pageInfo = new PageInfo<>(records);
 

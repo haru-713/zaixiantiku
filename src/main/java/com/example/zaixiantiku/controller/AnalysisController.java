@@ -31,6 +31,15 @@ public class AnalysisController {
     }
 
     /**
+     * 获取学生选修的课程列表
+     */
+    @GetMapping("/student/analysis/courses")
+    @PreAuthorize("hasRole('STUDENT')")
+    public Result<List<java.util.Map<String, Object>>> getStudentEnrolledCourses() {
+        return Result.success(analysisService.getStudentEnrolledCourses());
+    }
+
+    /**
      * 班级成绩分析 (教师/管理员)
      */
     @GetMapping("/teacher/analysis/class/{classId}")

@@ -6,6 +6,7 @@ import com.example.zaixiantiku.mapper.*;
 import com.example.zaixiantiku.pojo.dto.PracticeStartDTO;
 import com.example.zaixiantiku.pojo.dto.PracticeSubmitDTO;
 import com.example.zaixiantiku.pojo.vo.PageResult;
+import com.example.zaixiantiku.pojo.vo.PracticeRecordVO;
 import com.example.zaixiantiku.pojo.vo.QuestionDetailVO;
 import com.example.zaixiantiku.security.LoginUser;
 import com.example.zaixiantiku.service.PracticeService;
@@ -33,6 +34,7 @@ public class PracticeServiceImpl implements PracticeService {
     private final MistakeBookMapper mistakeBookMapper;
     private final FavoriteMapper favoriteMapper;
     private final ObjectMapper objectMapper;
+    private final CourseMapper courseMapper;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -204,12 +206,17 @@ public class PracticeServiceImpl implements PracticeService {
     }
 
     @Override
-    public PageResult<PracticeRecord> getPracticeRecords(Integer page, Integer size, String sortBy, String order) {
+    public PageResult<PracticeRecordVO> getPracticeRecords(Integer page, Integer size, Long courseId, String sortBy,
+            String order) {
         LoginUser loginUser = getLoginUser();
         PageHelper.startPage(page, size);
 
         LambdaQueryWrapper<PracticeRecord> qw = new LambdaQueryWrapper<PracticeRecord>()
                 .eq(PracticeRecord::getUserId, loginUser.getUser().getId());
+
+        if (courseId != null) {
+            qw.eq(PracticeRecord::getCourseId, courseId);
+        }
 
         boolean isAsc = "asc".equalsIgnoreCase(order);
         if ("totalScore".equals(sortBy)) {
@@ -224,20 +231,47 @@ public class PracticeServiceImpl implements PracticeService {
 
         List<PracticeRecord> list = practiceRecordMapper.selectList(qw);
         PageInfo<PracticeRecord> pageInfo = new PageInfo<>(list);
-        return PageResult.of(pageInfo.getTotal(), list);
+
+        if (list.isEmpty()) {
+            return PageResult.of(pageInfo.getTotal(), new ArrayList<>());
+        }
+
+        // 获取课程名称
+        List<Long> courseIds = list.stream().map(PracticeRecord::getCourseId).filter(Objects::nonNull).distinct()
+                .collect(Collectors.toList());
+        Map<Long, String> courseNameMap = new HashMap<>();
+        if (!courseIds.isEmpty()) {
+            courseNameMap = courseMapper.selectBatchIds(courseIds).stream()
+                    .collect(Collectors.toMap(Course::getId, Course::getCourseName));
+        }
+
+        final Map<Long, String> finalCourseNameMap = courseNameMap;
+        List<PracticeRecordVO> voList = list.stream().map(r -> PracticeRecordVO.builder()
+                .id(r.getId())
+                .userId(r.getUserId())
+                .courseId(r.getCourseId())
+                .courseName(finalCourseNameMap.get(r.getCourseId()))
+                .totalScore(r.getTotalScore())
+                .totalDuration(r.getTotalDuration())
+                .startTime(r.getStartTime())
+                .submitTime(r.getSubmitTime())
+                .build()).collect(Collectors.toList());
+
+        return PageResult.of(pageInfo.getTotal(), voList);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void removePracticeRecord(Long practiceId) {
         PracticeRecord record = practiceRecordMapper.selectById(practiceId);
-        if (record == null) return;
-        
+        if (record == null)
+            return;
+
         LoginUser loginUser = getLoginUser();
         if (!record.getUserId().equals(loginUser.getUser().getId())) {
             throw new RuntimeException("无权删除此记录");
         }
-        
+
         practiceRecordMapper.deleteById(practiceId);
     }
 
