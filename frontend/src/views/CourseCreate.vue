@@ -63,9 +63,10 @@
             {{ formatDateTime(scope.row.updateTime) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="220">
+        <el-table-column label="操作" width="280">
           <template #default="scope">
             <el-button size="small" @click="openDetail(scope.row)">详情</el-button>
+            <el-button v-if="canManage" size="small" type="success" @click="manageStudents(scope.row)">学生管理</el-button>
             <el-button v-if="canManage" type="primary" size="small" @click="openEdit(scope.row)">修改</el-button>
             <el-button v-if="isAdmin" type="danger" size="small" @click="handleDelete(scope.row)">删除</el-button>
             <el-button v-else-if="isTeacher" type="warning" size="small" @click="handleExit(scope.row)">退出</el-button>
@@ -285,6 +286,16 @@ const openDetail = (row) => {
     return
   }
   router.push(`/course/detail/${row.id}`)
+}
+
+const manageStudents = (row) => {
+  if (!row || !row.id) {
+    return
+  }
+  router.push({
+    path: '/course/students',
+    query: { courseId: row.id }
+  })
 }
 
 const handleEdit = async () => {

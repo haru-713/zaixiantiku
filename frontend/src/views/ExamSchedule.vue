@@ -224,12 +224,11 @@ const fetchList = async () => {
   }
 }
 
-const fetchCourseOptions = async (keyword) => {
-  if (!keyword && courseOptions.value.length > 0) return
+const fetchCourseOptions = async () => {
   courseLoading.value = true
   try {
-    const res = await request.get('/courses', { params: { keyword, page: 1, size: 20 } })
-    courseOptions.value = res.data.list
+    const res = await request.get('/courses/managed')
+    courseOptions.value = res.data
   } catch (e) {
     console.error(e)
   } finally {

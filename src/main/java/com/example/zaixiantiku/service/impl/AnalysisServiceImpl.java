@@ -201,7 +201,8 @@ public class AnalysisServiceImpl implements AnalysisService {
             typeResults.forEach((typeId, results) -> {
                 long correct = results.stream().filter(b -> b).count();
                 double acc = (double) correct / results.size();
-                examTypeStats.add(new StudentAnalysisVO.TypeStatVO(typeNames.get(typeId), results.size(), acc, (int) correct));
+                examTypeStats.add(
+                        new StudentAnalysisVO.TypeStatVO(typeNames.get(typeId), results.size(), acc, (int) correct));
             });
         }
 
@@ -259,7 +260,7 @@ public class AnalysisServiceImpl implements AnalysisService {
     }
 
     @Override
-    public ClassAnalysisVO getClassAnalysis(Long classId, Long examId) {
+    public ClassAnalysisVO getClassAnalysis(Long classId, Long examId, Long courseId) {
         LoginUser loginUser = (LoginUser) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         boolean isAdmin = loginUser.getAuthorities().stream()
                 .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
@@ -292,6 +293,10 @@ public class AnalysisServiceImpl implements AnalysisService {
                         .questionAccuracies(Collections.emptyList()).build();
             }
 
+            if (courseId != null && !teacherCourseIds.contains(courseId)) {
+                throw new RuntimeException("您无权查看该课程的分析数据");
+            }
+
             if (examId != null) {
                 Exam exam = examMapper.selectById(examId);
                 if (exam == null || !teacherCourseIds.contains(exam.getCourseId())) {
@@ -299,6 +304,15 @@ public class AnalysisServiceImpl implements AnalysisService {
                             .questionAccuracies(Collections.emptyList()).build();
                 }
                 recordQw.eq(ExamRecord::getExamId, examId);
+            } else if (courseId != null) {
+                List<Long> courseExamIds = examMapper.selectList(new LambdaQueryWrapper<Exam>()
+                        .eq(Exam::getCourseId, courseId))
+                        .stream().map(Exam::getId).collect(Collectors.toList());
+                if (courseExamIds.isEmpty()) {
+                    return ClassAnalysisVO.builder().scoreDistribution(Collections.emptyList()).averageScore(0.0)
+                            .questionAccuracies(Collections.emptyList()).build();
+                }
+                recordQw.in(ExamRecord::getExamId, courseExamIds);
             } else {
                 List<Long> teacherExamIds = examMapper.selectList(new LambdaQueryWrapper<Exam>()
                         .in(Exam::getCourseId, teacherCourseIds))
@@ -312,6 +326,15 @@ public class AnalysisServiceImpl implements AnalysisService {
         } else {
             if (examId != null) {
                 recordQw.eq(ExamRecord::getExamId, examId);
+            } else if (courseId != null) {
+                List<Long> courseExamIds = examMapper.selectList(new LambdaQueryWrapper<Exam>()
+                        .eq(Exam::getCourseId, courseId))
+                        .stream().map(Exam::getId).collect(Collectors.toList());
+                if (courseExamIds.isEmpty()) {
+                    return ClassAnalysisVO.builder().scoreDistribution(Collections.emptyList()).averageScore(0.0)
+                            .questionAccuracies(Collections.emptyList()).build();
+                }
+                recordQw.in(ExamRecord::getExamId, courseExamIds);
             }
         }
         List<ExamRecord> examRecords = examRecordMapper.selectList(recordQw);
@@ -325,74 +348,139 @@ public class AnalysisServiceImpl implements AnalysisService {
         }
 
         // 3. 统计分布
+        String[] labels = { "90-100%", "80-89%", "70-79%", "60-69%", "0-59%" };
         int[] distribution = new int[5];
         double totalScoreSum = 0;
-        Map<Long, Integer> examMaxScoreMap = new HashMap<>();
         Integer singleExamMaxScore = null;
+
         if (examId != null) {
+            // 单场考试模式：统计学生分数分布
             Exam exam = examMapper.selectById(examId);
             if (exam != null) {
                 Paper paper = paperMapper.selectById(exam.getPaperId());
                 singleExamMaxScore = (paper != null && paper.getTotalScore() != null) ? paper.getTotalScore() : 100;
             }
-        }
+            int maxScore = (singleExamMaxScore != null) ? singleExamMaxScore : 100;
 
-        for (ExamRecord er : examRecords) {
-            totalScoreSum += (er.getTotalScore() != null ? er.getTotalScore() : 0);
-            Integer maxScore = examMaxScoreMap.computeIfAbsent(er.getExamId(), id -> {
-                Exam exam = examMapper.selectById(id);
-                if (exam != null) {
-                    Paper paper = paperMapper.selectById(exam.getPaperId());
-                    return (paper != null && paper.getTotalScore() != null) ? paper.getTotalScore() : 100;
+            for (ExamRecord er : examRecords) {
+                int score = (er.getTotalScore() != null ? er.getTotalScore() : 0);
+                totalScoreSum += score;
+                double ratio = (double) score / maxScore;
+                if (ratio >= 0.9)
+                    distribution[0]++;
+                else if (ratio >= 0.8)
+                    distribution[1]++;
+                else if (ratio >= 0.7)
+                    distribution[2]++;
+                else if (ratio >= 0.6)
+                    distribution[3]++;
+                else
+                    distribution[4]++;
+            }
+        } else {
+            // 全部考试模式：统计题目得分率分布
+            List<Long> recordIds = examRecords.stream().map(ExamRecord::getId).collect(Collectors.toList());
+            List<AnswerDetail> details = answerDetailMapper.selectList(
+                    new LambdaQueryWrapper<AnswerDetail>().in(AnswerDetail::getExamRecordId, recordIds));
+
+            // 计算班级平均分（基于所有考试记录）
+            totalScoreSum = examRecords.stream().mapToInt(er -> er.getTotalScore() != null ? er.getTotalScore() : 0)
+                    .sum();
+
+            // 按题目 ID 分组答题详情
+            Map<Long, List<AnswerDetail>> qMap = details.stream()
+                    .filter(d -> d.getQuestionId() != null)
+                    .collect(Collectors.groupingBy(AnswerDetail::getQuestionId));
+
+            // 获取所有题目的满分
+            Set<Long> qIds = qMap.keySet();
+            Map<Long, Integer> qMaxScoreMap = new HashMap<>();
+            if (!qIds.isEmpty()) {
+                // 找到这些题目所属的所有试卷
+                List<Long> examIds = examRecords.stream().map(ExamRecord::getExamId).distinct()
+                        .collect(Collectors.toList());
+                List<Exam> exams = examMapper.selectBatchIds(examIds);
+                List<Long> paperIds = exams.stream().map(Exam::getPaperId).collect(Collectors.toList());
+
+                List<PaperQuestion> pqs = paperQuestionMapper.selectList(new LambdaQueryWrapper<PaperQuestion>()
+                        .in(PaperQuestion::getPaperId, paperIds)
+                        .in(PaperQuestion::getQuestionId, qIds));
+
+                // 一个题目在不同试卷可能分值不同，这里取平均或者按答题记录对应的试卷找
+                // 为了简化且符合大多数场景，我们按答题记录关联
+                Map<Long, Map<Long, Integer>> paperQuestionScoreMap = new HashMap<>(); // paperId -> questionId -> score
+                for (PaperQuestion pq : pqs) {
+                    paperQuestionScoreMap.computeIfAbsent(pq.getPaperId(), k -> new HashMap<>()).put(pq.getQuestionId(),
+                            pq.getScore());
                 }
-                return 100;
-            });
-            double ratio = (double) (er.getTotalScore() != null ? er.getTotalScore() : 0) / maxScore;
-            if (ratio >= 0.9)
-                distribution[0]++;
-            else if (ratio >= 0.8)
-                distribution[1]++;
-            else if (ratio >= 0.7)
-                distribution[2]++;
-            else if (ratio >= 0.6)
-                distribution[3]++;
-            else
-                distribution[4]++;
+
+                // 重新统计得分率
+                Map<Long, Long> examPaperMap = exams.stream().collect(Collectors.toMap(Exam::getId, Exam::getPaperId));
+                Map<Long, Long> recordExamMap = examRecords.stream()
+                        .collect(Collectors.toMap(ExamRecord::getId, ExamRecord::getExamId));
+
+                for (Map.Entry<Long, List<AnswerDetail>> entry : qMap.entrySet()) {
+                    Long qId = entry.getKey();
+                    List<AnswerDetail> qDetails = entry.getValue();
+
+                    double totalQScore = 0;
+                    double totalQMaxScore = 0;
+
+                    for (AnswerDetail d : qDetails) {
+                        Long examIdOfRecord = recordExamMap.get(d.getExamRecordId());
+                        if (examIdOfRecord == null)
+                            continue;
+
+                        Long paperId = examPaperMap.get(examIdOfRecord);
+                        if (paperId == null)
+                            continue;
+
+                        Integer maxScore = paperQuestionScoreMap.getOrDefault(paperId, Collections.emptyMap())
+                                .getOrDefault(qId, 5);
+
+                        totalQScore += (d.getScore() != null ? d.getScore() : 0);
+                        totalQMaxScore += maxScore;
+                    }
+
+                    double qAccuracy = totalQMaxScore == 0 ? 0 : totalQScore / totalQMaxScore;
+                    if (qAccuracy >= 0.9)
+                        distribution[0]++;
+                    else if (qAccuracy >= 0.8)
+                        distribution[1]++;
+                    else if (qAccuracy >= 0.7)
+                        distribution[2]++;
+                    else if (qAccuracy >= 0.6)
+                        distribution[3]++;
+                    else
+                        distribution[4]++;
+                }
+            }
         }
 
-        String[] labels = { "90-100%", "80-89%", "70-79%", "60-69%", "0-59%" };
         List<ClassAnalysisVO.ScoreDistributionVO> distVOs = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             distVOs.add(new ClassAnalysisVO.ScoreDistributionVO(labels[i], distribution[i]));
         }
 
-        // 4. 题目正确率
+        // 4. 题目正确率 (仅单场考试模式)
         List<ClassAnalysisVO.QuestionAccuracyVO> accuracyVOs = new ArrayList<>();
         if (examId != null) {
             List<Long> recordIds = examRecords.stream().map(ExamRecord::getId).collect(Collectors.toList());
-            Set<Long> targetQuestionIds = new HashSet<>();
             Exam exam = examMapper.selectById(examId);
-            if (exam != null) {
-                List<PaperQuestion> pqs = paperQuestionMapper.selectList(
-                        new LambdaQueryWrapper<PaperQuestion>().eq(PaperQuestion::getPaperId, exam.getPaperId()));
-                targetQuestionIds = pqs.stream().map(PaperQuestion::getQuestionId).collect(Collectors.toSet());
-            }
+            List<PaperQuestion> pqs = paperQuestionMapper.selectList(
+                    new LambdaQueryWrapper<PaperQuestion>().eq(PaperQuestion::getPaperId, exam.getPaperId()));
+            Set<Long> targetQuestionIds = pqs.stream().map(PaperQuestion::getQuestionId).collect(Collectors.toSet());
 
             if (!recordIds.isEmpty()) {
                 List<AnswerDetail> details = answerDetailMapper.selectList(
                         new LambdaQueryWrapper<AnswerDetail>().in(AnswerDetail::getExamRecordId, recordIds));
                 Map<Long, List<Boolean>> qMap = new HashMap<>();
-                Map<Long, Integer> recordStatusMap = examRecords.stream()
-                        .collect(Collectors.toMap(ExamRecord::getId, ExamRecord::getStatus));
 
                 for (AnswerDetail detail : details) {
-                    if (!targetQuestionIds.isEmpty() && !targetQuestionIds.contains(detail.getQuestionId()))
+                    if (!targetQuestionIds.contains(detail.getQuestionId()))
                         continue;
-                    Integer status = recordStatusMap.get(detail.getExamRecordId());
-                    if (status != null && status == 2) {
-                        qMap.putIfAbsent(detail.getQuestionId(), new ArrayList<>());
-                        qMap.get(detail.getQuestionId()).add(detail.getIsCorrect() == 1);
-                    }
+                    qMap.putIfAbsent(detail.getQuestionId(), new ArrayList<>());
+                    qMap.get(detail.getQuestionId()).add(detail.getIsCorrect() != null && detail.getIsCorrect() == 1);
                 }
 
                 if (!qMap.isEmpty()) {
@@ -420,54 +508,86 @@ public class AnalysisServiceImpl implements AnalysisService {
     }
 
     @Override
-    public List<com.example.zaixiantiku.entity.Class> getTeacherClasses() {
+    public List<com.example.zaixiantiku.entity.Class> getTeacherClasses(Long courseId) {
         LoginUser loginUser = (LoginUser) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         boolean isAdmin = loginUser.getAuthorities().stream()
                 .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
-        if (isAdmin)
-            return classMapper.selectList(null);
-        Long teacherId = loginUser.getUser().getId();
-        List<Long> courseIds = courseTeacherMapper.selectList(new LambdaQueryWrapper<CourseTeacher>()
-                .eq(CourseTeacher::getTeacherId, teacherId))
-                .stream().map(CourseTeacher::getCourseId).collect(Collectors.toList());
-        if (courseIds.isEmpty())
-            return Collections.emptyList();
+
+        List<Long> targetCourseIds;
+        if (isAdmin) {
+            if (courseId != null) {
+                targetCourseIds = Collections.singletonList(courseId);
+            } else {
+                return classMapper.selectList(null);
+            }
+        } else {
+            Long teacherId = loginUser.getUser().getId();
+            List<Long> managedCourseIds = courseTeacherMapper.selectList(new LambdaQueryWrapper<CourseTeacher>()
+                    .eq(CourseTeacher::getTeacherId, teacherId))
+                    .stream().map(CourseTeacher::getCourseId).collect(Collectors.toList());
+            if (managedCourseIds.isEmpty())
+                return Collections.emptyList();
+
+            if (courseId != null) {
+                if (managedCourseIds.contains(courseId)) {
+                    targetCourseIds = Collections.singletonList(courseId);
+                } else {
+                    return Collections.emptyList();
+                }
+            } else {
+                targetCourseIds = managedCourseIds;
+            }
+        }
+
         List<Long> studentIds = courseStudentMapper.selectList(new LambdaQueryWrapper<CourseStudent>()
-                .in(CourseStudent::getCourseId, courseIds))
+                .in(CourseStudent::getCourseId, targetCourseIds))
                 .stream().map(CourseStudent::getStudentId).collect(Collectors.toList());
         if (studentIds.isEmpty())
             return Collections.emptyList();
+
         List<Long> classIds = studentClassMapper.selectList(new LambdaQueryWrapper<StudentClass>()
                 .in(StudentClass::getStudentId, studentIds))
                 .stream().map(StudentClass::getClassId).distinct().collect(Collectors.toList());
         if (classIds.isEmpty())
             return Collections.emptyList();
+
         return classMapper.selectBatchIds(classIds);
     }
 
     @Override
-    public List<Exam> getClassExams(Long classId) {
+    public List<Exam> getExams(Long classId, Long courseId) {
         LoginUser loginUser = (LoginUser) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         boolean isAdmin = loginUser.getAuthorities().stream()
                 .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
-        List<StudentClass> studentsInClass = studentClassMapper.selectList(
-                new LambdaQueryWrapper<StudentClass>().eq(StudentClass::getClassId, classId));
-        if (studentsInClass.isEmpty())
-            return Collections.emptyList();
-        List<Long> studentIds = studentsInClass.stream().map(StudentClass::getStudentId).collect(Collectors.toList());
-        Set<Long> examIds = new HashSet<>();
-        List<ExamClass> examClasses = examClassMapper.selectList(
-                new LambdaQueryWrapper<ExamClass>().eq(ExamClass::getClassId, classId));
-        examIds.addAll(examClasses.stream().map(ExamClass::getExamId).collect(Collectors.toSet()));
-        List<ExamRecord> records = examRecordMapper.selectList(new LambdaQueryWrapper<ExamRecord>()
-                .in(ExamRecord::getUserId, studentIds)
-                .select(ExamRecord::getExamId));
-        examIds.addAll(records.stream().map(ExamRecord::getExamId).collect(Collectors.toSet()));
-        if (examIds.isEmpty())
-            return Collections.emptyList();
-        LambdaQueryWrapper<Exam> examQw = new LambdaQueryWrapper<Exam>()
-                .in(Exam::getId, examIds)
-                .orderByDesc(Exam::getStartTime);
+
+        LambdaQueryWrapper<Exam> examQw = new LambdaQueryWrapper<Exam>();
+
+        if (courseId != null) {
+            examQw.eq(Exam::getCourseId, courseId);
+        }
+
+        if (classId != null) {
+            List<ExamClass> examClasses = examClassMapper.selectList(
+                    new LambdaQueryWrapper<ExamClass>().eq(ExamClass::getClassId, classId));
+            Set<Long> examIds = examClasses.stream().map(ExamClass::getExamId).collect(Collectors.toSet());
+
+            // 补充有成绩记录的考试
+            List<StudentClass> studentsInClass = studentClassMapper.selectList(
+                    new LambdaQueryWrapper<StudentClass>().eq(StudentClass::getClassId, classId));
+            if (!studentsInClass.isEmpty()) {
+                List<Long> studentIds = studentsInClass.stream().map(StudentClass::getStudentId)
+                        .collect(Collectors.toList());
+                List<ExamRecord> records = examRecordMapper.selectList(new LambdaQueryWrapper<ExamRecord>()
+                        .in(ExamRecord::getUserId, studentIds)
+                        .select(ExamRecord::getExamId));
+                examIds.addAll(records.stream().map(ExamRecord::getExamId).collect(Collectors.toSet()));
+            }
+
+            if (examIds.isEmpty())
+                return Collections.emptyList();
+            examQw.in(Exam::getId, examIds);
+        }
+
         if (!isAdmin) {
             List<Long> teacherCourseIds = courseTeacherMapper.selectList(new LambdaQueryWrapper<CourseTeacher>()
                     .eq(CourseTeacher::getTeacherId, loginUser.getUser().getId()))
@@ -476,16 +596,21 @@ public class AnalysisServiceImpl implements AnalysisService {
                 return Collections.emptyList();
             examQw.in(Exam::getCourseId, teacherCourseIds);
         }
+
+        examQw.orderByDesc(Exam::getStartTime);
         return examMapper.selectList(examQw);
     }
 
     @Override
-    public List<com.example.zaixiantiku.entity.Class> getAllClasses() {
-        return classMapper.selectList(null);
+    public List<com.example.zaixiantiku.entity.Class> getAllClasses(Long courseId) {
+        if (courseId == null) {
+            return classMapper.selectList(null);
+        }
+        return getTeacherClasses(courseId); // 管理员传 courseId 时复用 getTeacherClasses 的逻辑即可
     }
 
     @Override
-    public GlobalAnalysisVO getGlobalAnalysis() {
+    public GlobalAnalysisVO getGlobalAnalysis(Long courseId) {
         LoginUser loginUser = (LoginUser) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         boolean isAdmin = loginUser.getAuthorities().stream()
                 .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
@@ -495,9 +620,27 @@ public class AnalysisServiceImpl implements AnalysisService {
         List<com.example.zaixiantiku.entity.Class> allClasses;
 
         if (isAdmin) {
-            allRecords = examRecordMapper.selectList(new LambdaQueryWrapper<ExamRecord>().ge(ExamRecord::getStatus, 1));
-            allExamsInDb = examMapper.selectList(null);
-            allClasses = classMapper.selectList(null);
+            LambdaQueryWrapper<Exam> examQw = new LambdaQueryWrapper<>();
+            if (courseId != null) {
+                examQw.eq(Exam::getCourseId, courseId);
+            }
+            allExamsInDb = examMapper.selectList(examQw);
+
+            if (courseId != null) {
+                List<Long> examIds = allExamsInDb.stream().map(Exam::getId).collect(Collectors.toList());
+                if (examIds.isEmpty()) {
+                    allRecords = Collections.emptyList();
+                } else {
+                    allRecords = examRecordMapper.selectList(new LambdaQueryWrapper<ExamRecord>()
+                            .in(ExamRecord::getExamId, examIds)
+                            .ge(ExamRecord::getStatus, 1));
+                }
+                allClasses = getTeacherClasses(courseId);
+            } else {
+                allRecords = examRecordMapper
+                        .selectList(new LambdaQueryWrapper<ExamRecord>().ge(ExamRecord::getStatus, 1));
+                allClasses = classMapper.selectList(null);
+            }
         } else {
             Long teacherId = loginUser.getUser().getId();
             List<Long> teacherCourseIds = courseTeacherMapper.selectList(new LambdaQueryWrapper<CourseTeacher>()
@@ -511,8 +654,19 @@ public class AnalysisServiceImpl implements AnalysisService {
                         .build();
             }
 
+            // 如果指定了 courseId，校验权限
+            List<Long> targetCourseIds;
+            if (courseId != null) {
+                if (!teacherCourseIds.contains(courseId)) {
+                    throw new RuntimeException("您无权查看该课程的分析数据");
+                }
+                targetCourseIds = Collections.singletonList(courseId);
+            } else {
+                targetCourseIds = teacherCourseIds;
+            }
+
             allExamsInDb = examMapper
-                    .selectList(new LambdaQueryWrapper<Exam>().in(Exam::getCourseId, teacherCourseIds));
+                    .selectList(new LambdaQueryWrapper<Exam>().in(Exam::getCourseId, targetCourseIds));
             List<Long> examIds = allExamsInDb.stream().map(Exam::getId).collect(Collectors.toList());
             if (examIds.isEmpty()) {
                 allRecords = Collections.emptyList();
@@ -521,7 +675,7 @@ public class AnalysisServiceImpl implements AnalysisService {
                         .in(ExamRecord::getExamId, examIds)
                         .ge(ExamRecord::getStatus, 1));
             }
-            allClasses = getTeacherClasses();
+            allClasses = getTeacherClasses(courseId);
         }
 
         if (allExamsInDb.isEmpty()) {
@@ -584,19 +738,20 @@ public class AnalysisServiceImpl implements AnalysisService {
                             .collect(Collectors.toList());
                     int participantCount = examRecords.size();
                     if (participantCount == 0) {
+                        Paper paper = paperMapper.selectById(exam.getPaperId());
+                        int maxScore = (paper != null && paper.getTotalScore() != null) ? paper.getTotalScore() : 100;
                         return GlobalAnalysisVO.ExamBriefVO.builder()
-                                .id(exam.getId()).examName(exam.getExamName()).averageScore(0.0).maxScore(0)
+                                .id(exam.getId()).examName(exam.getExamName()).averageScore(0.0).maxScore(maxScore)
                                 .passRate(0.0).participantCount(0).status("empty")
                                 .build();
                     }
                     double examAvg = examRecords.stream().mapToInt(ExamRecord::getTotalScore).average().orElse(0.0);
-                    int examMax = examRecords.stream().mapToInt(ExamRecord::getTotalScore).max().orElse(0);
                     Paper paper = paperMapper.selectById(exam.getPaperId());
                     int maxScore = (paper != null && paper.getTotalScore() != null) ? paper.getTotalScore() : 100;
                     long examPassCount = examRecords.stream().filter(er -> er.getTotalScore() >= maxScore * 0.6)
                             .count();
                     return GlobalAnalysisVO.ExamBriefVO.builder()
-                            .id(exam.getId()).examName(exam.getExamName()).averageScore(examAvg).maxScore(examMax)
+                            .id(exam.getId()).examName(exam.getExamName()).averageScore(examAvg).maxScore(maxScore)
                             .passRate((double) examPassCount / participantCount).participantCount(participantCount)
                             .status("normal")
                             .build();

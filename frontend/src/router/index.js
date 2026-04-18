@@ -28,6 +28,8 @@ import PracticeReport from '../views/PracticeReport.vue'
 import ShareList from '../views/ShareList.vue'
 import ShareDetail from '../views/ShareDetail.vue'
 import AnnouncementManage from '../views/AnnouncementManage.vue'
+import ClassManage from '../views/ClassManage.vue'
+import CourseStudentManage from '../views/CourseStudentManage.vue'
 
 const routes = [
   {
@@ -107,6 +109,18 @@ const routes = [
     name: 'CourseList',
     component: CourseCreate,
     meta: { requiresAuth: true, title: '课程管理', roles: ['ADMIN', 'TEACHER'] }
+  },
+  {
+    path: '/course/students',
+    name: 'CourseStudentManage',
+    component: CourseStudentManage,
+    meta: { requiresAuth: true, title: '课程学生', roles: ['ADMIN', 'TEACHER'] }
+  },
+  {
+    path: '/system/classes',
+    name: 'ClassManage',
+    component: ClassManage,
+    meta: { requiresAuth: true, title: '班级管理', roles: ['ADMIN'] }
   },
   {
     path: '/course/query',

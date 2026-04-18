@@ -38,9 +38,9 @@
 
       <el-divider />
 
-      <div class="section-title">教师</div>
+      <div class="section-title">教师列表</div>
       <div v-if="canAddTeacherUI" class="teacher-actions">
-        <el-button type="primary" @click="openTeacherPicker">选择教师</el-button>
+        <el-button type="primary" @click="openTeacherPicker">添加教师</el-button>
       </div>
 
       <el-table :data="detail.teachers || []" style="width: 100%">
@@ -50,19 +50,13 @@
 
       <template v-if="localCanManageStudents">
         <el-divider />
-        <div class="section-title">学生</div>
-        <div v-if="canAddStudentUI" class="teacher-actions">
-          <el-button type="primary" @click="openStudentPicker">选择学生</el-button>
+        <div class="student-manage-entry">
+          <el-button type="success" size="large" @click="goToStudentManage">
+            <el-icon style="margin-right: 8px"><User /></el-icon>
+            管理课程学生
+          </el-button>
+          <p class="hint">点击进入专用的学生管理页面，进行按班级批量导入、筛选及移除操作。</p>
         </div>
-        <el-table :data="detail.students || []" style="width: 100%">
-          <el-table-column type="index" label="序号" width="80" />
-          <el-table-column prop="name" label="姓名" />
-          <el-table-column v-if="canRemoveStudentUI" label="操作" width="120">
-            <template #default="scope">
-              <el-button type="danger" size="small" @click="handleRemoveStudent(scope.row.id)">移除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
       </template>
     </el-card>
 
@@ -94,35 +88,6 @@
         </span>
       </template>
     </el-dialog>
-
-    <el-dialog v-model="studentPickerVisible" title="选择学生" width="720px">
-      <div class="picker-toolbar">
-        <el-input v-model="studentQuery.keyword" placeholder="姓名/用户名/手机号" clearable style="width: 260px"
-          @clear="handleStudentQuery" @keyup.enter="handleStudentQuery" />
-        <el-button type="primary" @click="handleStudentQuery">查询</el-button>
-        <el-button @click="resetStudentQuery">重置</el-button>
-      </div>
-
-      <el-table :data="studentList" v-loading="studentLoading" style="width: 100%; margin-top: 12px"
-        @selection-change="handleStudentSelectionChange">
-        <el-table-column type="selection" width="55" />
-        <el-table-column type="index" label="序号" width="80" :index="studentIndexMethod" />
-        <el-table-column prop="name" label="姓名" />
-      </el-table>
-
-      <div class="pagination-container">
-        <el-pagination :current-page="studentQuery.page" :page-size="studentQuery.size" :page-sizes="[10, 20, 50, 100]"
-          layout="total, sizes, prev, pager, next, jumper" :total="studentTotal" @size-change="handleStudentSizeChange"
-          @current-change="handleStudentCurrentChange" />
-      </div>
-
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="studentPickerVisible = false">取消</el-button>
-          <el-button type="primary" :loading="studentSaving" @click="confirmAddStudents">添加</el-button>
-        </span>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -131,7 +96,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Picture } from '@element-plus/icons-vue'
+import { Picture, User } from '@element-plus/icons-vue'
 import { useUserStore } from '@/store/user'
 
 const route = useRoute()
@@ -159,11 +124,8 @@ const detail = ref({
   auditStatus: null,
   auditReason: '',
   teachers: [],
-  students: [],
   canAddTeacher: false,
   canRemoveTeacher: false,
-  canAddStudent: false,
-  canRemoveStudent: false,
   createTime: '',
   updateTime: ''
 })
@@ -186,26 +148,6 @@ const canAddTeacherUI = computed(() => {
   }
   if (detail.value.canAddTeacher == null) {
     return localIsAdmin.value
-  }
-  return false
-})
-
-const canAddStudentUI = computed(() => {
-  if (detail.value.canAddStudent === true) {
-    return true
-  }
-  if (detail.value.canAddStudent == null) {
-    return localCanManageStudents.value
-  }
-  return false
-})
-
-const canRemoveStudentUI = computed(() => {
-  if (detail.value.canRemoveStudent === true) {
-    return true
-  }
-  if (detail.value.canRemoveStudent == null) {
-    return localCanManageStudents.value
   }
   return false
 })
@@ -269,99 +211,6 @@ const openTeacherPicker = () => {
   fetchTeacherCandidates()
 }
 
-const studentSaving = ref(false)
-const studentPickerVisible = ref(false)
-const studentLoading = ref(false)
-const studentTotal = ref(0)
-const studentList = ref([])
-const selectedStudentIds = ref([])
-const studentQuery = reactive({
-  page: 1,
-  size: 10,
-  keyword: ''
-})
-
-const fetchStudentCandidates = async () => {
-  const courseId = route.params.courseId
-  if (!courseId) {
-    return
-  }
-  studentLoading.value = true
-  try {
-    const res = await request.get(`/courses/${courseId}/students/candidates`, { params: studentQuery })
-    studentList.value = res.data.list
-    studentTotal.value = res.data.total
-  } catch (e) {
-    console.error('获取学生候选列表失败:', e)
-  } finally {
-    studentLoading.value = false
-  }
-}
-
-const openStudentPicker = () => {
-  if (!canAddStudentUI.value) {
-    ElMessage.error('没有权限操作')
-    return
-  }
-  studentQuery.page = 1
-  studentQuery.size = 10
-  studentQuery.keyword = ''
-  selectedStudentIds.value = []
-  studentPickerVisible.value = true
-  fetchStudentCandidates()
-}
-
-const handleStudentSelectionChange = (rows) => {
-  selectedStudentIds.value = (rows || []).map((r) => r.id).filter((id) => id)
-}
-
-const handleStudentQuery = () => {
-  studentQuery.page = 1
-  fetchStudentCandidates()
-}
-
-const resetStudentQuery = () => {
-  studentQuery.keyword = ''
-  handleStudentQuery()
-}
-
-const handleStudentSizeChange = (val) => {
-  studentQuery.size = val
-  fetchStudentCandidates()
-}
-
-const handleStudentCurrentChange = (val) => {
-  studentQuery.page = val
-  fetchStudentCandidates()
-}
-
-const studentIndexMethod = (index) => {
-  return (studentQuery.page - 1) * studentQuery.size + index + 1
-}
-
-const confirmAddStudents = async () => {
-  const courseId = route.params.courseId
-  if (!courseId) {
-    return
-  }
-  if (!selectedStudentIds.value || selectedStudentIds.value.length === 0) {
-    ElMessage.warning('请选择学生')
-    return
-  }
-
-  studentSaving.value = true
-  try {
-    await request.post(`/courses/${courseId}/students`, { studentIds: selectedStudentIds.value })
-    ElMessage.success('添加成功')
-    studentPickerVisible.value = false
-    fetchDetail()
-  } catch (e) {
-    console.error('添加学生失败:', e)
-  } finally {
-    studentSaving.value = false
-  }
-}
-
 const handleTeacherSelectionChange = (rows) => {
   selectedTeacherIds.value = (rows || []).map((r) => r.id).filter((id) => id)
 }
@@ -413,36 +262,11 @@ const confirmAddTeachers = async () => {
   }
 }
 
-const handleRemoveStudent = async (studentId) => {
-  const courseId = route.params.courseId
-  if (!courseId || !studentId) {
-    return
-  }
-  if (!canRemoveStudentUI.value) {
-    ElMessage.error('没有权限操作')
-    return
-  }
-
-  try {
-    await ElMessageBox.confirm('确定要移除该学生吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
-  } catch {
-    return
-  }
-
-  studentSaving.value = true
-  try {
-    await request.delete(`/courses/${courseId}/students`, { params: { studentId } })
-    ElMessage.success('移除成功')
-    fetchDetail()
-  } catch (e) {
-    console.error('移除学生失败:', e)
-  } finally {
-    studentSaving.value = false
-  }
+const goToStudentManage = () => {
+  router.push({
+    path: '/course/students',
+    query: { courseId: detail.value.id }
+  })
 }
 
 const goBack = () => {
@@ -496,6 +320,19 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;
+}
+
+.student-manage-entry {
+  padding: 30px 0;
+  text-align: center;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+}
+
+.student-manage-entry .hint {
+  margin-top: 12px;
+  color: #909399;
+  font-size: 14px;
 }
 
 .picker-toolbar {

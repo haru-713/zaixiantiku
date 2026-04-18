@@ -2,6 +2,7 @@ package com.example.zaixiantiku.controller;
 
 import com.example.zaixiantiku.common.Result;
 import com.example.zaixiantiku.entity.Course;
+import java.util.List;
 import com.example.zaixiantiku.pojo.dto.CourseCreateDTO;
 import com.example.zaixiantiku.pojo.dto.CourseQueryDTO;
 import com.example.zaixiantiku.pojo.dto.CourseStudentAddDTO;
@@ -41,6 +42,13 @@ public class CourseController {
     public Result<Course> createCourse(@RequestBody CourseCreateDTO createDTO) {
         Course course = courseService.createCourse(createDTO);
         return Result.success(course);
+    }
+
+    @GetMapping("/managed")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @Operation(summary = "获取当前用户管理的课程列表", description = "教师返回其授课课程，管理员返回所有已启用课程")
+    public Result<List<Course>> getManagedCourses() {
+        return Result.success(courseService.getManagedCourses());
     }
 
     @GetMapping
@@ -113,6 +121,28 @@ public class CourseController {
     public Result<Void> removeStudent(@PathVariable Long courseId, @RequestParam Long studentId) {
         courseService.removeStudent(courseId, studentId);
         return Result.success(null);
+    }
+
+    @GetMapping("/{courseId}/students")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @Operation(summary = "获取课程已选学生列表", description = "支持按班级过滤")
+    public Result<PageResult<StudentSimpleVO>> getCourseStudents(
+            @PathVariable Long courseId,
+            @RequestParam(required = false) Long classId,
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(required = false) String keyword) {
+        return Result.success(courseService.getCourseStudents(courseId, classId, page, size, keyword));
+    }
+
+    @PostMapping("/{courseId}/classes/{classId}/students")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @Operation(summary = "按班级批量添加学生到课程")
+    public Result<Void> batchAddClassStudentsToCourse(
+            @PathVariable Long courseId,
+            @PathVariable Long classId) {
+        courseService.batchAddClassStudentsToCourse(courseId, classId);
+        return Result.success();
     }
 
     @PutMapping("/{courseId}")

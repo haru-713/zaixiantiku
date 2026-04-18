@@ -37,6 +37,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -487,6 +488,91 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     }
 
     @Override
+    public PageResult<StudentSimpleVO> getCourseStudents(Long courseId, Long classId, Integer page, Integer size,
+            String keyword) {
+        if (courseId == null) {
+            throw new RuntimeException("courseId 不能为空");
+        }
+        Integer p = page == null || page < 1 ? 1 : page;
+        Integer s = size == null || size < 1 ? 10 : size;
+
+        requireCourseMemberOrAdmin(courseId);
+
+        PageHelper.startPage(p, s);
+        LambdaQueryWrapper<User> qw = new LambdaQueryWrapper<>();
+        qw.eq(User::getStatus, 1);
+        if (StringUtils.hasText(keyword)) {
+            qw.and(w -> w.like(User::getUsername, keyword)
+                    .or().like(User::getName, keyword));
+        }
+        qw.apply("id IN (SELECT student_id FROM course_student WHERE course_id = {0})", courseId);
+        if (classId != null) {
+            qw.apply("id IN (SELECT student_id FROM student_class WHERE class_id = {0})", classId);
+        }
+        qw.orderByAsc(User::getId);
+
+        List<User> users = userMapper.selectList(qw);
+        PageInfo<User> pageInfo = new PageInfo<>(users);
+
+        if (users == null || users.isEmpty()) {
+            return PageResult.of(pageInfo.getTotal(), Collections.emptyList());
+        }
+
+        List<StudentSimpleVO> list = users.stream().map(u -> {
+            StudentSimpleVO vo = StudentSimpleVO.builder()
+                    .id(u.getId())
+                    .name(StringUtils.hasText(u.getName()) ? u.getName() : u.getUsername())
+                    .username(u.getUsername())
+                    .avatar(u.getAvatar())
+                    .build();
+            // 获取班级名称
+            try {
+                String className = jdbcTemplate.queryForObject(
+                        "SELECT class_name FROM class c JOIN student_class sc ON c.id = sc.class_id WHERE sc.student_id = ? LIMIT 1",
+                        String.class, u.getId());
+                vo.setClassName(className);
+            } catch (Exception e) {
+                vo.setClassName("未分配班级");
+            }
+            return vo;
+        }).collect(Collectors.toList());
+
+        return PageResult.of(pageInfo.getTotal(), list);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void batchAddClassStudentsToCourse(Long courseId, Long classId) {
+        if (courseId == null || classId == null) {
+            throw new RuntimeException("courseId 和 classId 不能为空");
+        }
+        requireCourseOwnerOrAdmin(courseId);
+
+        // 获取班级下的所有学生
+        List<Long> studentIds = jdbcTemplate.queryForList(
+                "SELECT student_id FROM student_class WHERE class_id = ?",
+                Long.class, classId);
+
+        if (studentIds.isEmpty()) {
+            return;
+        }
+
+        for (Long studentId : studentIds) {
+            Long count = courseStudentMapper.selectCount(new LambdaQueryWrapper<CourseStudent>()
+                    .eq(CourseStudent::getCourseId, courseId)
+                    .eq(CourseStudent::getStudentId, studentId));
+            if (count == 0) {
+                CourseStudent cs = CourseStudent.builder()
+                        .courseId(courseId)
+                        .studentId(studentId)
+                        .joinTime(LocalDateTime.now())
+                        .build();
+                courseStudentMapper.insert(cs);
+            }
+        }
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteCourse(Long courseId) {
         if (courseId == null) {
@@ -737,6 +823,30 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         if (rows <= 0) {
             throw new RuntimeException("该学生未加入此课程");
         }
+    }
+
+    @Override
+    public List<Course> getManagedCourses() {
+        LoginUser loginUser = requireLoginUser();
+        List<String> roles = loginUser.getRoleCodes();
+        boolean isAdmin = roles != null && roles.contains("ADMIN");
+
+        if (isAdmin) {
+            return courseMapper.selectList(new LambdaQueryWrapper<Course>().eq(Course::getStatus, 1));
+        }
+
+        Long teacherId = loginUser.getUser().getId();
+        List<Long> managedCourseIds = courseTeacherMapper.selectList(new LambdaQueryWrapper<CourseTeacher>()
+                .eq(CourseTeacher::getTeacherId, teacherId))
+                .stream().map(CourseTeacher::getCourseId).collect(Collectors.toList());
+
+        if (managedCourseIds.isEmpty()) {
+            return new java.util.ArrayList<>();
+        }
+
+        return courseMapper.selectBatchIds(managedCourseIds).stream()
+                .filter(c -> c.getStatus() == 1)
+                .collect(Collectors.toList());
     }
 
     private static LoginUser getLoginUser() {

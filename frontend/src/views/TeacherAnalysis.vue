@@ -1,8 +1,18 @@
 <template>
   <div class="teacher-analysis-page" :class="{ 'embedded': isEmbedded }">
     <el-form :inline="true" :model="query" class="query-form" v-if="!isEmbedded">
+      <el-form-item label="选择课程">
+        <el-select v-model="query.courseId" placeholder="请选择课程" @change="handleCourseChange" style="width: 200px">
+          <el-option
+            v-for="item in courses"
+            :key="item.id"
+            :label="item.courseName"
+            :value="item.id"
+          />
+        </el-select>
+      </el-form-item>
       <el-form-item label="选择班级">
-        <el-select v-model="query.classId" placeholder="请选择班级" @change="handleClassChange" style="width: 200px">
+        <el-select v-model="query.classId" placeholder="请选择班级" @change="handleClassChange" style="width: 200px" :disabled="!query.courseId">
           <el-option
             v-for="item in classes"
             :key="item.id"
@@ -43,7 +53,11 @@
       </el-form>
     </div>
 
-    <div v-if="!query.classId" class="empty-tip">
+    <div v-if="!query.courseId && !isEmbedded" class="empty-tip">
+      <el-empty description="请先选择课程以进行分析" />
+    </div>
+    
+    <div v-else-if="!query.classId" class="empty-tip">
       <el-empty description="请先选择一个班级进行分析" />
     </div>
 
@@ -145,6 +159,10 @@ const props = defineProps({
     type: Number,
     default: null
   },
+  courseId: {
+    type: Number,
+    default: null
+  },
   isEmbedded: {
     type: Boolean,
     default: false
@@ -152,18 +170,21 @@ const props = defineProps({
 })
 
 const query = reactive({
+  courseId: props.courseId,
   classId: props.classId,
   examId: null
 })
 
-// 监听外部传入的 classId 变化
-watch(() => props.classId, (newId) => {
-  if (props.isEmbedded && newId) {
-    query.classId = newId
+// 监听外部传入的 classId 或 courseId 变化
+watch(() => [props.classId, props.courseId], ([newClassId, newCourseId]) => {
+  if (props.isEmbedded) {
+    if (newClassId) query.classId = newClassId
+    if (newCourseId) query.courseId = newCourseId
     handleClassChange()
   }
 })
 
+const courses = ref([])
 const classes = ref([])
 const exams = ref([])
 const analysis = ref(null)
@@ -171,13 +192,14 @@ const analysis = ref(null)
 const scoreDistOption = computed(() => {
   if (!analysis.value) return {}
   const data = [...analysis.value.scoreDistribution].reverse() // 0-59% 在左，90-100% 在右
+  const yName = query.examId ? '人数' : '题目数量'
   return {
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
     xAxis: { type: 'category', data: data.map(i => i.range) },
-    yAxis: { type: 'value', name: '人数' },
+    yAxis: { type: 'value', name: yName, minInterval: 1 },
     series: [{
-      name: '人数',
+      name: yName,
       type: 'bar',
       data: data.map(i => i.count),
       itemStyle: { color: '#409eff', borderRadius: [4, 4, 0, 0] },
@@ -191,45 +213,67 @@ const hasData = computed(() => {
   return analysis.value.scoreDistribution.some(item => item.count > 0)
 })
 
-const fetchClasses = async () => {
-  // 如果是嵌入模式，不需要获取班级列表
-  if (props.isEmbedded) {
-    if (props.classId) {
-      handleClassChange()
-    }
-    return
-  }
-
+const fetchCourses = async () => {
+  if (props.isEmbedded) return
   try {
-    const res = await request.get('/teacher/analysis/classes')
+    const res = await request.get('/courses/managed')
     if (res.code === 1) {
-      classes.value = res.data
-      if (classes.value.length > 0 && !query.classId) {
-        query.classId = classes.value[0].id
-        handleClassChange()
+      courses.value = res.data
+      if (courses.value.length > 0 && !query.courseId) {
+        query.courseId = courses.value[0].id
+        handleCourseChange()
       }
     }
   } catch (e) {
     console.error(e)
-    ElMessage.error('获取班级列表失败')
+    ElMessage.error('获取课程列表失败')
+  }
+}
+
+const handleCourseChange = async () => {
+  query.classId = null
+  query.examId = null
+  classes.value = []
+  exams.value = []
+  analysis.value = null
+  
+  if (!query.courseId) return
+
+  try {
+    // 同时加载班级和考试列表
+    const [classRes, examRes] = await Promise.all([
+      request.get('/teacher/analysis/classes', { params: { courseId: query.courseId } }),
+      request.get('/teacher/analysis/exams', { params: { courseId: query.courseId } })
+    ])
+    
+    if (classRes.code === 1) {
+      classes.value = classRes.data
+    }
+    if (examRes.code === 1) {
+      exams.value = examRes.data
+    }
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('获取列表数据失败')
   }
 }
 
 const handleClassChange = async () => {
   query.examId = null
-  exams.value = []
   analysis.value = null
   
   if (!query.classId) return
 
   try {
-    const res = await request.get(`/teacher/analysis/class/${query.classId}/exams`)
+    // 重新加载该班级下的考试列表（更精确）
+    const res = await request.get('/teacher/analysis/exams', {
+      params: { 
+        classId: query.classId,
+        courseId: query.courseId
+      }
+    })
     if (res.code === 1) {
       exams.value = res.data
-      // 默认不自动选考试，或者如果想自动选第一个：
-      // if (exams.value.length > 0) {
-      //   query.examId = exams.value[0].id
-      // }
     }
     fetchAnalysis()
   } catch (e) {
@@ -242,7 +286,10 @@ const fetchAnalysis = async () => {
   
   try {
     const res = await request.get(`/teacher/analysis/class/${query.classId}`, {
-      params: { examId: query.examId }
+      params: { 
+        examId: query.examId,
+        courseId: query.courseId
+      }
     })
     if (res.code === 1) {
       analysis.value = res.data
@@ -260,7 +307,13 @@ const getDistPercentage = (count) => {
 }
 
 onMounted(() => {
-  fetchClasses()
+  if (props.isEmbedded) {
+    if (props.classId) {
+      handleClassChange()
+    }
+  } else {
+    fetchCourses()
+  }
 })
 </script>
 

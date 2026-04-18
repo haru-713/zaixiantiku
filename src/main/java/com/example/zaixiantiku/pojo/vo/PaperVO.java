@@ -12,14 +12,28 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PaperVO {
+
     private Long id;
+
     private String paperName;
+
     private Long courseId;
+
+    private String courseName;
+
     private Integer totalScore;
-    private String remark;
-    private Integer status;
+
     private Long createBy;
+
+    private String creatorName;
+
+    private Integer status;
+
+    private String remark;
+
     private LocalDateTime createTime;
+
     private LocalDateTime updateTime;
+
     private List<PaperQuestionVO> questions;
 }

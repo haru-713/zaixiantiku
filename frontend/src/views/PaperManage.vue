@@ -30,20 +30,22 @@
       <el-table v-loading="loading" :data="list" style="width: 100%; margin-top: 16px">
         <el-table-column type="index" label="序号" width="60" />
         <el-table-column prop="paperName" label="试卷名称" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="totalScore" label="总分" width="100" />
-        <el-table-column label="状态" width="100">
+        <el-table-column v-if="isAdmin" prop="courseName" label="所属课程" width="150" />
+        <el-table-column v-if="isAdmin" prop="creatorName" label="创建教师" width="120" />
+        <el-table-column prop="totalScore" label="总分" width="80" align="center" />
+        <el-table-column label="状态" width="100" align="center">
           <template #default="scope">
             <el-tag :type="scope.row.status === 1 ? 'success' : 'info'">
               {{ scope.row.status === 1 ? '已启用' : '已禁用' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createTime" label="创建时间" width="180">
+        <el-table-column prop="createTime" label="创建时间" width="160">
           <template #default="scope">
             {{ formatDateTime(scope.row.createTime) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="240">
+        <el-table-column label="操作" width="220" fixed="right">
           <template #default="scope">
             <el-button size="small" @click="viewDetail(scope.row)">详情</el-button>
             <el-button type="primary" size="small" @click="openEdit(scope.row)">修改</el-button>
@@ -200,9 +202,13 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '@/utils/request'
+import { useUserStore } from '@/store/user'
+
+const userStore = useUserStore()
+const isAdmin = computed(() => userStore.userInfo?.roleCodes?.includes('ADMIN'))
 
 const loading = ref(false)
 const saving = ref(false)
@@ -295,11 +301,12 @@ const handleCurrentChange = (val) => {
   fetchList()
 }
 
-const fetchCourseOptions = async (keyword) => {
+const fetchCourseOptions = async () => {
   courseLoading.value = true
   try {
-    const res = await request.get('/courses', { params: { keyword, page: 1, size: 20, status: 1 } })
-    courseOptions.value = res.data.list || []
+    // 改为调用 managed 接口，根据角色自动过滤
+    const res = await request.get('/courses/managed')
+    courseOptions.value = res.data || []
   } catch (e) {
     console.error('获取课程选项失败:', e)
   } finally {
@@ -309,7 +316,7 @@ const fetchCourseOptions = async (keyword) => {
 
 const handleCourseDropdown = (visible) => {
   if (visible && courseOptions.value.length === 0) {
-    fetchCourseOptions('')
+    fetchCourseOptions()
   }
 }
 
@@ -545,7 +552,7 @@ const handleDelete = (row) => {
 
 onMounted(() => {
   fetchQuestionTypes()
-  fetchCourseOptions('')
+  fetchCourseOptions()
   fetchList()
 })
 </script>

@@ -1,5 +1,24 @@
 <template>
   <div class="admin-analysis-page">
+    <!-- 课程选择器 -->
+    <el-card shadow="hover" class="filter-card">
+      <el-form :inline="true">
+        <el-form-item label="选择课程">
+          <el-select v-model="courseId" placeholder="请选择课程" @change="fetchGlobalData" style="width: 250px">
+            <el-option
+              v-for="item in courses"
+              :key="item.id"
+              :label="item.courseName"
+              :value="item.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="fetchGlobalData">刷新数据</el-button>
+        </el-form-item>
+      </el-form>
+    </el-card>
+
     <!-- 概览卡片 -->
     <el-row :gutter="20" class="overview-cards">
       <el-col :span="6">
@@ -10,19 +29,19 @@
       </el-col>
       <el-col :span="6">
         <el-card shadow="hover">
-          <template #header>覆盖学生人数</template>
+          <template #header>课程选课人数</template>
           <div class="stat-value">{{ globalStats.totalStudents }}</div>
         </el-card>
       </el-col>
       <el-col :span="6">
         <el-card shadow="hover">
-          <template #header>全校平均分</template>
+          <template #header>课程平均分</template>
           <div class="stat-value">{{ (globalStats.averageScore || 0).toFixed(2) }}</div>
         </el-card>
       </el-col>
       <el-col :span="6">
         <el-card shadow="hover">
-          <template #header>全校及格率</template>
+          <template #header>课程及格率</template>
           <div class="stat-value">
             <el-progress type="circle" :percentage="Math.round((globalStats.passRate || 0) * 100)" :width="80" />
           </div>
@@ -35,7 +54,6 @@
       <template #header>
         <div class="card-header">
           <span>班级成绩对比</span>
-          <el-button type="primary" link @click="fetchGlobalData">刷新数据</el-button>
         </div>
       </template>
       <el-table :data="globalStats.classPerformance" style="width: 100%" border stripe>
@@ -43,13 +61,12 @@
         <el-table-column label="平均分" width="120" align="center">
           <template #default="scope">
             <span class="score-text">{{ (scope.row.averageScore || 0).toFixed(1) }}</span>
-            <span class="max-score" v-if="scope.row.maxScore"> / {{ scope.row.maxScore }}</span>
           </template>
         </el-table-column>
         <el-table-column label="及格率" width="250">
           <template #default="scope">
             <div class="progress-cell">
-              <el-progress :percentage="Math.round((scope.row.passRate || 0) * 100)" />
+              <el-progress :percentage="Math.round((scope.row.passRate || 0) * 100)" :show-text="false" />
               <span class="percentage-text">{{ Math.round((scope.row.passRate || 0) * 100) }}%</span>
             </div>
           </template>
@@ -87,7 +104,7 @@
         <el-table-column label="及格率" width="250">
           <template #default="scope">
             <div class="progress-cell">
-              <el-progress :percentage="Math.round((scope.row.passRate || 0) * 100)" />
+              <el-progress :percentage="Math.round((scope.row.passRate || 0) * 100)" :show-text="false" />
               <span class="percentage-text">{{ Math.round((scope.row.passRate || 0) * 100) }}%</span>
             </div>
           </template>
@@ -102,7 +119,7 @@
       size="70%"
       destroy-on-close
     >
-      <teacher-analysis :class-id="currentClassId" is-embedded />
+      <teacher-analysis :class-id="currentClassId" :course-id="courseId" is-embedded />
     </el-drawer>
   </div>
 </template>
@@ -113,6 +130,8 @@ import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 import TeacherAnalysis from './TeacherAnalysis.vue'
 
+const courseId = ref(null)
+const courses = ref([])
 const globalStats = ref({
   totalExams: 0,
   totalStudents: 0,
@@ -126,9 +145,27 @@ const detailVisible = ref(false)
 const currentClassId = ref(null)
 const currentClassName = ref('')
 
-const fetchGlobalData = async () => {
+const fetchCourses = async () => {
   try {
-    const res = await request.get('/admin/analysis/global')
+    const res = await request.get('/courses/managed')
+    if (res.code === 1) {
+      courses.value = res.data
+      if (courses.value.length > 0) {
+        courseId.value = courses.value[0].id
+        fetchGlobalData()
+      }
+    }
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+const fetchGlobalData = async () => {
+  if (!courseId.value) return
+  try {
+    const res = await request.get('/admin/analysis/global', {
+      params: { courseId: courseId.value }
+    })
     if (res.code === 1) {
       globalStats.value = res.data
     }
@@ -146,13 +183,16 @@ const viewClassDetail = (classId) => {
 }
 
 onMounted(() => {
-  fetchGlobalData()
+  fetchCourses()
 })
 </script>
 
 <style scoped>
 .admin-analysis-page {
   padding: 20px;
+}
+.filter-card {
+  margin-bottom: 20px;
 }
 .overview-cards {
   margin-bottom: 20px;

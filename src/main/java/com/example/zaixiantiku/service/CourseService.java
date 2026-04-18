@@ -34,6 +34,10 @@ public interface CourseService extends IService<Course> {
 
     void removeStudent(Long courseId, Long studentId);
 
+    PageResult<StudentSimpleVO> getCourseStudents(Long courseId, Long classId, Integer page, Integer size, String keyword);
+
+    void batchAddClassStudentsToCourse(Long courseId, Long classId);
+
     PageResult<Course> getMyCourses(CourseQueryDTO queryDTO);
 
     PageResult<CourseAdminVO> getAdminCoursePage(CourseQueryDTO queryDTO);
@@ -47,4 +51,6 @@ public interface CourseService extends IService<Course> {
     void deleteCourse(Long courseId);
 
     void addStudents(Long courseId, CourseStudentAddDTO addDTO);
+
+    java.util.List<com.example.zaixiantiku.entity.Course> getManagedCourses();
 }

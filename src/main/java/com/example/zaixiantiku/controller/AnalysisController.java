@@ -46,8 +46,9 @@ public class AnalysisController {
     @PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")
     public Result<ClassAnalysisVO> getClassAnalysis(
             @PathVariable Long classId,
-            @RequestParam(required = false) Long examId) {
-        return Result.success(analysisService.getClassAnalysis(classId, examId));
+            @RequestParam(required = false) Long examId,
+            @RequestParam(required = false) Long courseId) {
+        return Result.success(analysisService.getClassAnalysis(classId, examId, courseId));
     }
 
     /**
@@ -55,8 +56,9 @@ public class AnalysisController {
      */
     @GetMapping("/teacher/analysis/classes")
     @PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")
-    public Result<List<Class>> getTeacherClasses() {
-        return Result.success(analysisService.getTeacherClasses());
+    public Result<List<com.example.zaixiantiku.entity.Class>> getTeacherClasses(
+            @RequestParam(required = false) Long courseId) {
+        return Result.success(analysisService.getTeacherClasses(courseId));
     }
 
     /**
@@ -64,25 +66,37 @@ public class AnalysisController {
      */
     @GetMapping("/admin/analysis/classes")
     @PreAuthorize("hasRole('ADMIN')")
-    public Result<List<Class>> getAllClasses() {
-        return Result.success(analysisService.getAllClasses());
+    public Result<List<com.example.zaixiantiku.entity.Class>> getAllClasses(
+            @RequestParam(required = false) Long courseId) {
+        return Result.success(analysisService.getAllClasses(courseId));
     }
 
     /**
-     * 获取指定班级的考试列表
+     * 获取考试列表
+     */
+    @GetMapping("/teacher/analysis/exams")
+    @PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")
+    public Result<List<Exam>> getExams(
+            @RequestParam(required = false) Long classId,
+            @RequestParam(required = false) Long courseId) {
+        return Result.success(analysisService.getExams(classId, courseId));
+    }
+
+    /**
+     * 获取指定班级的考试列表 (向后兼容)
      */
     @GetMapping("/teacher/analysis/class/{classId}/exams")
     @PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")
     public Result<List<Exam>> getClassExams(@PathVariable Long classId) {
-        return Result.success(analysisService.getClassExams(classId));
+        return Result.success(analysisService.getExams(classId, null));
     }
 
     /**
-     * 全校成绩分析概览 (教师/管理员)
+     * 全校/课程成绩分析概览 (教师/管理员)
      */
     @GetMapping("/admin/analysis/global")
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
-    public Result<GlobalAnalysisVO> getGlobalAnalysis() {
-        return Result.success(analysisService.getGlobalAnalysis());
+    public Result<GlobalAnalysisVO> getGlobalAnalysis(@RequestParam(required = false) Long courseId) {
+        return Result.success(analysisService.getGlobalAnalysis(courseId));
     }
 }

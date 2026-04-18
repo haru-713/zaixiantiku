@@ -57,5 +57,4 @@ void addFavorite(Long questionId);
     void removeFavorite(Long favoriteId);
 
     PageResult<QuestionDetailVO> getFavorites(Integer page, Integer size, Long courseId, Long kpId);
-
-    // 错题本相关}
+}

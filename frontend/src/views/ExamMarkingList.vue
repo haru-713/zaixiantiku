@@ -148,8 +148,8 @@ const fetchList = async () => {
 
 const fetchCourseOptions = async () => {
   try {
-    const res = await request.get('/courses', { params: { page: 1, size: 100 } })
-    courseOptions.value = res.data.list
+    const res = await request.get('/courses/managed')
+    courseOptions.value = res.data
   } catch (e) {
     console.error(e)
   }

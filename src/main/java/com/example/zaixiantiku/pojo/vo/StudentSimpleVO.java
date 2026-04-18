@@ -16,5 +16,11 @@ public class StudentSimpleVO {
     private Long id;
 
     private String name;
+
+    private String username;
+
+    private String avatar;
+
+    private String className;
 }
 

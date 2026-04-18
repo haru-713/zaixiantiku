@@ -49,12 +49,31 @@ public class PaperServiceImpl implements PaperService {
     private final QuestionMapper questionMapper;
     private final QuestionKnowledgeMapper questionKnowledgeMapper;
     private final CourseTeacherMapper courseTeacherMapper;
+    private final com.example.zaixiantiku.mapper.CourseMapper courseMapper;
+    private final com.example.zaixiantiku.mapper.UserMapper userMapper;
     private final JdbcTemplate jdbcTemplate;
 
     @Override
     public PageResult<PaperVO> getPaperPage(Integer page, Integer size, String keyword, Long courseId, Integer status) {
+        LoginUser loginUser = requireLoginUser();
+        List<String> roles = loginUser.getRoleCodes();
+        boolean isAdmin = roles != null && roles.contains("ADMIN");
+
         PageHelper.startPage(page, size);
         LambdaQueryWrapper<Paper> qw = new LambdaQueryWrapper<>();
+
+        // 权限过滤：教师只能看到自己教授课程的试卷
+        if (!isAdmin) {
+            Long teacherId = loginUser.getUser().getId();
+            List<Long> managedCourseIds = courseTeacherMapper.selectList(new LambdaQueryWrapper<CourseTeacher>()
+                    .eq(CourseTeacher::getTeacherId, teacherId))
+                    .stream().map(CourseTeacher::getCourseId).collect(Collectors.toList());
+            if (managedCourseIds.isEmpty()) {
+                return PageResult.of(0L, new ArrayList<>());
+            }
+            qw.in(Paper::getCourseId, managedCourseIds);
+        }
+
         if (courseId != null) {
             qw.eq(Paper::getCourseId, courseId);
         }
@@ -67,7 +86,34 @@ public class PaperServiceImpl implements PaperService {
         qw.orderByDesc(Paper::getId);
         List<Paper> list = paperMapper.selectList(qw);
         PageInfo<Paper> pageInfo = new PageInfo<>(list);
-        List<PaperVO> voList = list.stream().map(this::toVO).collect(Collectors.toList());
+
+        if (list.isEmpty()) {
+            return PageResult.of(pageInfo.getTotal(), new ArrayList<>());
+        }
+
+        // 批量获取课程名和创建者名
+        Set<Long> cIds = list.stream().map(Paper::getCourseId).collect(Collectors.toSet());
+        Map<Long, String> courseMap = courseMapper.selectBatchIds(cIds).stream()
+                .collect(Collectors.toMap(com.example.zaixiantiku.entity.Course::getId,
+                        com.example.zaixiantiku.entity.Course::getCourseName));
+
+        Set<Long> uIds = list.stream().map(Paper::getCreateBy).filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, String> userMap = new HashMap<>();
+        if (!uIds.isEmpty()) {
+            userMap = userMapper.selectBatchIds(uIds).stream()
+                    .collect(Collectors.toMap(u -> u.getId(), u -> u.getName()));
+        }
+
+        final Map<Long, String> finalCourseMap = courseMap;
+        final Map<Long, String> finalUserMap = userMap;
+        List<PaperVO> voList = list.stream().map(p -> {
+            PaperVO vo = toVO(p);
+            vo.setCourseName(finalCourseMap.get(p.getCourseId()));
+            vo.setCreatorName(finalUserMap.get(p.getCreateBy()));
+            return vo;
+        }).collect(Collectors.toList());
+
         return PageResult.of(pageInfo.getTotal(), voList);
     }
 
@@ -77,6 +123,9 @@ public class PaperServiceImpl implements PaperService {
         if (paper == null) {
             throw new RuntimeException("试卷不存在");
         }
+        LoginUser loginUser = requireLoginUser();
+        requireTeacherOfCourseOrAdmin(loginUser, paper.getCourseId());
+
         PaperVO vo = toVO(paper);
 
         // 获取题目列表
@@ -418,24 +467,14 @@ public class PaperServiceImpl implements PaperService {
         requireTeacherOfCourseOrAdmin(loginUser, paper.getCourseId());
 
         // 检查是否被考试引用
-        if (existsTable("exam_paper")) {
-            Integer count = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM exam_paper WHERE paper_id = ?",
-                    Integer.class, id);
-            if (count != null && count > 0) {
-                throw new RuntimeException("试卷已被考试引用，禁止删除");
-            }
+        Integer count = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM exam WHERE paper_id = ?",
+                Integer.class, id);
+        if (count != null && count > 0) {
+            throw new RuntimeException("试卷已被考试引用，禁止删除");
         }
 
         paperMapper.deleteById(id);
         // paper_question 会通过数据库外键级联删除 (ON DELETE CASCADE)
-    }
-
-    private boolean existsTable(String tableName) {
-        Integer c = jdbcTemplate.queryForObject(
-                "SELECT COUNT(1) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?",
-                Integer.class,
-                tableName);
-        return c != null && c > 0;
     }
 
     private void validatePaperName(String name, Long id, Long courseId) {
