@@ -18,7 +18,18 @@ public class ExamRecordDetailVO {
     private String examName;
     private Integer totalScore;
     private Integer maxScore;
+    private Integer rank;           // 班级排名
+    private Integer totalStudents;  // 总人数
+    private List<KnowledgeMasteryVO> knowledgeMastery; // 知识点掌握情况
     private List<AnswerItemVO> answers;
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class KnowledgeMasteryVO {
+        private String name;
+        private Double accuracy;
+    }
 
     @Data
     @Builder

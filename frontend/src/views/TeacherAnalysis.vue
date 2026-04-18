@@ -66,14 +66,12 @@
           <el-card shadow="hover">
             <template #header>
               <div class="card-header">
-                <span>成绩分布</span>
+                <span>成绩分布 (得分率占比)</span>
               </div>
             </template>
-            <div class="dist-container" v-if="hasData">
-              <div v-for="item in analysis.scoreDistribution" :key="item.range" class="dist-item">
-                <div class="dist-label">{{ item.range }}</div>
-                <el-progress :percentage="getDistPercentage(item.count)" :format="() => item.count + '人'" />
-              </div>
+            <div class="chart-container" v-if="hasData">
+              <v-chart class="analysis-chart" :option="scoreDistOption" autoresize />
+              <div class="chart-hint">注：分数占比 = 学生得分 / 试卷总分 × 100%</div>
             </div>
             <div v-else class="no-data-mini">暂无成绩数据</div>
           </el-card>
@@ -115,6 +113,25 @@
 import { ref, reactive, computed, onMounted, defineProps, watch } from 'vue'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
+import { use } from 'echarts/core'
+import { CanvasRenderer } from 'echarts/renderers'
+import { BarChart } from 'echarts/charts'
+import {
+  TitleComponent,
+  TooltipComponent,
+  LegendComponent,
+  GridComponent
+} from 'echarts/components'
+import VChart from 'vue-echarts'
+
+use([
+  CanvasRenderer,
+  BarChart,
+  TitleComponent,
+  TooltipComponent,
+  LegendComponent,
+  GridComponent
+])
 
 const props = defineProps({
   classId: {
@@ -143,6 +160,24 @@ watch(() => props.classId, (newId) => {
 const classes = ref([])
 const exams = ref([])
 const analysis = ref(null)
+
+const scoreDistOption = computed(() => {
+  if (!analysis.value) return {}
+  const data = [...analysis.value.scoreDistribution].reverse() // 0-59% 在左，90-100% 在右
+  return {
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+    xAxis: { type: 'category', data: data.map(i => i.range) },
+    yAxis: { type: 'value', name: '人数' },
+    series: [{
+      name: '人数',
+      type: 'bar',
+      data: data.map(i => i.count),
+      itemStyle: { color: '#409eff', borderRadius: [4, 4, 0, 0] },
+      barWidth: '40%'
+    }]
+  }
+})
 
 const hasData = computed(() => {
   if (!analysis.value) return false
@@ -250,6 +285,20 @@ onMounted(() => {
 }
 .stat-value.zero-value {
   color: #909399;
+}
+.chart-container {
+  height: 250px;
+  display: flex;
+  flex-direction: column;
+}
+.analysis-chart {
+  flex: 1;
+}
+.chart-hint {
+  font-size: 12px;
+  color: #909399;
+  text-align: center;
+  margin-top: 10px;
 }
 .dist-container {
   display: flex;

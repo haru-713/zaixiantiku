@@ -37,13 +37,15 @@
 
       <div class="pagination-container">
         <el-pagination
-          v-model:current-page="query.page"
-          v-model:page-size="query.size"
+          :current-page="query.page"
+          :page-size="query.size"
           :total="total"
           :page-sizes="[10, 20, 50, 100]"
           layout="total, sizes, prev, pager, next, jumper"
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
+          @update:current-page="query.page = $event"
+          @update:page-size="query.size = $event"
         />
       </div>
     </el-card>

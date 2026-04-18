@@ -42,6 +42,10 @@ const routes = [
   },
   {
     path: '/',
+    redirect: '/login'
+  },
+  {
+    path: '/home',
     name: 'Home',
     component: Home,
     meta: { requiresAuth: true, title: '首页' }
@@ -209,7 +213,7 @@ const routes = [
   // 捕获所有未定义的路由并重定向到首页
   {
     path: '/:pathMatch(.*)*',
-    redirect: '/'
+    redirect: '/home'
   }
 ]
 
@@ -222,19 +226,29 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const rawToken = (localStorage.getItem('token') || '').trim()
   const token = rawToken && rawToken !== 'null' && rawToken !== 'undefined' ? rawToken : ''
-  const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}')
+  
+  let userInfo = {}
+  try {
+    const info = localStorage.getItem('userInfo')
+    if (info && info !== 'null' && info !== 'undefined') {
+      userInfo = JSON.parse(info)
+    }
+  } catch (e) {
+    console.error('解析用户信息失败:', e)
+  }
+  
   const userRoles = userInfo.roles || []
 
   const isTokenExpired = (jwt) => {
     try {
       const parts = String(jwt).split('.')
-      if (parts.length !== 3) return false
+      if (parts.length !== 3) return true // 非法格式视为过期
       const payload = JSON.parse(decodeURIComponent(escape(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))))
       const exp = payload?.exp
-      if (!exp) return false
+      if (!exp) return true // 无过期时间视为过期
       return Date.now() >= Number(exp) * 1000
     } catch {
-      return false
+      return true // 解析失败视为过期
     }
   }
 
@@ -250,14 +264,14 @@ router.beforeEach((to, from, next) => {
 
   // 定义根据角色跳转的默认路径
   const getHomePath = (roles) => {
-    return '/'
+    return '/home'
   }
 
   // 如果是前往需要认证的路由
   if (to.meta.requiresAuth) {
     if (authed) {
-      // 允许所有人访问根路径 / (Home 页面)
-      if (to.path === '/') {
+      // 允许所有人访问首页 /home
+      if (to.path === '/home') {
         next()
         return
       }

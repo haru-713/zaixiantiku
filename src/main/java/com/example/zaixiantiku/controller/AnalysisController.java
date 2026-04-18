@@ -24,8 +24,10 @@ public class AnalysisController {
      */
     @GetMapping("/student/analysis/report")
     @PreAuthorize("hasRole('STUDENT')")
-    public Result<StudentAnalysisVO> getStudentReport(@RequestParam(required = false) Long courseId) {
-        return Result.success(analysisService.getStudentAnalysisReport(courseId));
+    public Result<StudentAnalysisVO> getStudentReport(
+            @RequestParam(required = false) Long courseId,
+            @RequestParam(required = false) String timeRange) {
+        return Result.success(analysisService.getStudentAnalysisReport(courseId, timeRange));
     }
 
     /**

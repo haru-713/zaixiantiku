@@ -10,9 +10,44 @@
           <div class="total-score" v-if="data.totalScore !== null">
             得分：<span class="score-num">{{ data.totalScore }}</span>
             <span class="max-score" v-if="data.maxScore"> / {{ data.maxScore }}</span>
+            <el-tag :type="getScoreTagType(data.totalScore / data.maxScore)" class="rate-tag">
+              {{ Math.round(data.totalScore / data.maxScore * 100) }}%
+            </el-tag>
           </div>
         </div>
       </template>
+
+      <!-- 个人分析部分 -->
+      <el-row :gutter="20" class="analysis-section" v-if="data.knowledgeMastery && data.knowledgeMastery.length">
+        <el-col :span="10">
+          <el-card shadow="never" class="info-card">
+            <div class="info-grid">
+              <div class="info-item">
+                <div class="info-label">班级排名</div>
+                <div class="info-value">第 <span class="rank-num">{{ data.rank }}</span> 名</div>
+                <div class="info-total">共 {{ data.totalStudents }} 人参加</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">本次考试表现</div>
+                <el-progress 
+                  type="circle" 
+                  :percentage="Math.round(data.totalScore / data.maxScore * 100)"
+                  :color="customColors"
+                  :width="120"
+                />
+              </div>
+            </div>
+          </el-card>
+        </el-col>
+        <el-col :span="14">
+          <el-card shadow="never" class="radar-card">
+            <template #header><span class="analysis-title-text">知识点掌握度分析</span></template>
+            <div class="radar-container">
+              <v-chart class="radar-chart" :option="radarOption" autoresize />
+            </div>
+          </el-card>
+        </el-col>
+      </el-row>
 
       <div class="answer-list">
         <div v-for="(item, index) in data.answers" :key="index" class="question-item">
@@ -53,10 +88,27 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import request from '@/utils/request'
 import { ArrowLeft } from '@element-plus/icons-vue'
+import { use } from 'echarts/core'
+import { CanvasRenderer } from 'echarts/renderers'
+import { RadarChart } from 'echarts/charts'
+import {
+  TitleComponent,
+  TooltipComponent,
+  LegendComponent
+} from 'echarts/components'
+import VChart from 'vue-echarts'
+
+use([
+  CanvasRenderer,
+  RadarChart,
+  TitleComponent,
+  TooltipComponent,
+  LegendComponent
+])
 
 const route = useRoute()
 const router = useRouter()
@@ -66,7 +118,67 @@ const loading = ref(false)
 const data = ref({
   examName: '',
   totalScore: 0,
+  maxScore: 100,
+  rank: 0,
+  totalStudents: 0,
+  knowledgeMastery: [],
   answers: []
+})
+
+const customColors = [
+  { color: '#f56c6c', percentage: 60 },
+  { color: '#e6a23c', percentage: 80 },
+  { color: '#67c23a', percentage: 100 }
+]
+
+const getScoreTagType = (rate) => {
+  if (rate >= 0.85) return 'success'
+  if (rate >= 0.6) return 'warning'
+  return 'danger'
+}
+
+const radarOption = computed(() => {
+  if (!data.value.knowledgeMastery || data.value.knowledgeMastery.length === 0) return {}
+  
+  const indicators = data.value.knowledgeMastery.map(k => ({
+    name: k.name,
+    max: 1
+  }))
+  
+  return {
+    tooltip: {
+      trigger: 'item'
+    },
+    radar: {
+      indicator: indicators,
+      radius: '65%',
+      axisName: {
+        color: '#606266',
+        fontSize: 12
+      }
+    },
+    series: [
+      {
+        name: '知识点掌握度',
+        type: 'radar',
+        data: [
+          {
+            value: data.value.knowledgeMastery.map(k => k.accuracy),
+            name: '正确率',
+            areaStyle: {
+              color: 'rgba(64, 158, 255, 0.3)'
+            },
+            lineStyle: {
+              color: '#409eff'
+            },
+            itemStyle: {
+              color: '#409eff'
+            }
+          }
+        ]
+      }
+    ]
+  }
 })
 
 const fetchDetail = async () => {
@@ -123,6 +235,57 @@ onMounted(() => {
   font-size: 16px;
   color: #909399;
   margin-left: 2px;
+}
+.rate-tag {
+  margin-left: 10px;
+  vertical-align: middle;
+}
+.analysis-section {
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+.info-card {
+  height: 300px;
+}
+.info-grid {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  height: 240px;
+  align-items: center;
+  text-align: center;
+}
+.info-label {
+  font-size: 14px;
+  color: #909399;
+  margin-bottom: 8px;
+}
+.info-value {
+  font-size: 20px;
+  color: #303133;
+  margin-bottom: 4px;
+}
+.rank-num {
+  font-size: 32px;
+  font-weight: bold;
+  color: #409eff;
+}
+.info-total {
+  font-size: 12px;
+  color: #c0c4cc;
+}
+.radar-card {
+  height: 300px;
+}
+.analysis-title-text {
+  font-weight: bold;
+  font-size: 15px;
+}
+.radar-container {
+  height: 230px;
+}
+.radar-chart {
+  height: 100%;
 }
 .question-item {
   border-bottom: 1px solid #ebeef5;

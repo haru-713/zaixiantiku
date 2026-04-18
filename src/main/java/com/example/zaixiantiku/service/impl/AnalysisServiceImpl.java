@@ -33,6 +33,7 @@ public class AnalysisServiceImpl implements AnalysisService {
     private final ExamClassMapper examClassMapper;
     private final PaperMapper paperMapper;
     private final PaperQuestionMapper paperQuestionMapper;
+    private final QuestionTypeMapper questionTypeMapper;
 
     private boolean checkCorrect(Object isCorrectObj) {
         if (isCorrectObj == null)
@@ -51,49 +52,37 @@ public class AnalysisServiceImpl implements AnalysisService {
     }
 
     @Override
-    public StudentAnalysisVO getStudentAnalysisReport(Long courseId) {
+    public StudentAnalysisVO getStudentAnalysisReport(Long courseId, String timeRange) {
         Long userId = getUserId();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        java.time.LocalDateTime startTime = null;
 
-        // 1. 获取练习记录
+        if ("week".equals(timeRange)) {
+            startTime = now.minusDays(7);
+        } else if ("month".equals(timeRange)) {
+            startTime = now.minusDays(30);
+        }
+
+        // --- 1. 获取练习数据 ---
         LambdaQueryWrapper<PracticeRecord> practiceQw = new LambdaQueryWrapper<PracticeRecord>()
                 .eq(PracticeRecord::getUserId, userId)
                 .isNotNull(PracticeRecord::getSubmitTime);
-        if (courseId != null) {
+        if (courseId != null)
             practiceQw.eq(PracticeRecord::getCourseId, courseId);
-        }
+        if (startTime != null)
+            practiceQw.ge(PracticeRecord::getSubmitTime, startTime);
+
         List<PracticeRecord> practiceRecords = practiceRecordMapper.selectList(practiceQw);
 
-        // 2. 获取考试记录（包含已提交和已批阅）
-        LambdaQueryWrapper<ExamRecord> examQw = new LambdaQueryWrapper<ExamRecord>()
-                .eq(ExamRecord::getUserId, userId)
-                .ge(ExamRecord::getStatus, 1); // 1-已提交, 2-已批阅
-        List<ExamRecord> examRecords = examRecordMapper.selectList(examQw);
-        // 如果指定了课程，过滤考试记录（ExamRecord 没有 courseId，需通过 Exam 关联）
-        if (courseId != null) {
-            examRecords = examRecords.stream().filter(er -> {
-                Exam exam = examMapper.selectById(er.getExamId());
-                return exam != null && courseId.equals(exam.getCourseId());
-            }).collect(Collectors.toList());
-        }
+        int totalPracticeQuestions = 0;
+        int totalPracticeCorrect = 0;
+        Map<String, List<Boolean>> practiceTrendMap = new TreeMap<>();
+        Map<Long, List<Boolean>> practiceQIdResults = new HashMap<>();
 
-        // 3. 统计基础数据
-        int totalPracticeCount = practiceRecords.size() + examRecords.size();
-        int totalQuestionCount = 0;
-        int totalCorrectCount = 0;
-
-        // 趋势统计: 按日期分组
-        Map<String, List<Boolean>> trendMap = new TreeMap<>();
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-
-        // 知识点掌握度统计
-        Map<Long, List<Boolean>> knowledgeMap = new HashMap<>();
-        // 建立 题目ID -> 是否正确 的快速映射，用于后续关联知识点
-        Map<Long, List<Boolean>> qIdToResults = new HashMap<>();
-
-        // 处理练习记录
         for (PracticeRecord record : practiceRecords) {
             String date = record.getSubmitTime().format(formatter);
-            trendMap.putIfAbsent(date, new ArrayList<>());
+            practiceTrendMap.putIfAbsent(date, new ArrayList<>());
 
             List<Map<String, Object>> answers = record.getAnswers();
             if (answers != null && !answers.isEmpty()) {
@@ -103,113 +92,213 @@ public class AnalysisServiceImpl implements AnalysisService {
                     Long qId = Long.valueOf(ans.get("questionId").toString());
                     boolean isCorrect = checkCorrect(ans.get("isCorrect"));
 
-                    totalQuestionCount++;
+                    totalPracticeQuestions++;
                     if (isCorrect)
-                        totalCorrectCount++;
-                    trendMap.get(date).add(isCorrect);
-
-                    qIdToResults.putIfAbsent(qId, new ArrayList<>());
-                    qIdToResults.get(qId).add(isCorrect);
+                        totalPracticeCorrect++;
+                    practiceTrendMap.get(date).add(isCorrect);
+                    practiceQIdResults.putIfAbsent(qId, new ArrayList<>());
+                    practiceQIdResults.get(qId).add(isCorrect);
                 }
-            } else if (record.getQuestionIds() != null && !record.getQuestionIds().isEmpty()) {
-                int qCount = record.getQuestionIds().size();
-                int score = record.getTotalScore() != null ? record.getTotalScore() : 0;
-                int estCorrect = Math.min(qCount, score / 10); // 估算
-                totalQuestionCount += qCount;
-                totalCorrectCount += estCorrect;
-                for (int i = 0; i < estCorrect; i++)
-                    trendMap.get(date).add(true);
-                for (int i = 0; i < qCount - estCorrect; i++)
-                    trendMap.get(date).add(false);
-
-                // 老数据缺失具体题目对错，无法用于知识点分析，但已计入总数
             }
         }
 
-        // 处理考试记录
-        for (ExamRecord er : examRecords) {
-            String date = er.getSubmitTime().format(formatter);
-            trendMap.putIfAbsent(date, new ArrayList<>());
+        // --- 2. 获取考试数据 ---
+        LambdaQueryWrapper<ExamRecord> examQw = new LambdaQueryWrapper<ExamRecord>()
+                .eq(ExamRecord::getUserId, userId)
+                .ge(ExamRecord::getStatus, 1);
+        if (startTime != null)
+            examQw.ge(ExamRecord::getSubmitTime, startTime);
 
+        List<ExamRecord> examRecords = examRecordMapper.selectList(examQw);
+        if (courseId != null) {
+            examRecords = examRecords.stream().filter(er -> {
+                Exam exam = examMapper.selectById(er.getExamId());
+                return exam != null && courseId.equals(exam.getCourseId());
+            }).collect(Collectors.toList());
+        }
+
+        int totalExamCount = examRecords.size();
+        int maxExamScore = 0;
+        double totalExamScoreSum = 0;
+        double totalMaxScoreSum = 0;
+        int[] scoreDist = new int[5]; // 0-59, 60-69, 70-79, 80-89, 90-100
+        List<StudentAnalysisVO.RankingTrendVO> rankingTrends = new ArrayList<>();
+        List<StudentAnalysisVO.RecentExamVO> recentExams = new ArrayList<>();
+        Map<Long, Integer> examWrongCountMap = new HashMap<>();
+
+        for (ExamRecord er : examRecords) {
+            int score = er.getTotalScore() != null ? er.getTotalScore() : 0;
+            totalExamScoreSum += score;
+            if (score > maxExamScore)
+                maxExamScore = score;
+
+            // 获取考试满分以计算得分率
+            Exam exam = examMapper.selectById(er.getExamId());
+            int maxScore = 100;
+            if (exam != null) {
+                Paper paper = paperMapper.selectById(exam.getPaperId());
+                maxScore = (paper != null && paper.getTotalScore() != null) ? paper.getTotalScore() : 100;
+                totalMaxScoreSum += maxScore;
+
+                // 记录近期考试详情
+                recentExams.add(new StudentAnalysisVO.RecentExamVO(
+                        exam.getExamName(),
+                        score,
+                        maxScore,
+                        (double) score / maxScore,
+                        er.getSubmitTime().format(formatter)));
+            }
+
+            // 分数分布 (这里虽然前端移除了，但后端逻辑可以保留作为统计基础)
+            if (score < 60)
+                scoreDist[0]++;
+            else if (score < 70)
+                scoreDist[1]++;
+            else if (score < 80)
+                scoreDist[2]++;
+            else if (score < 90)
+                scoreDist[3]++;
+            else
+                scoreDist[4]++;
+
+            // 排名趋势
+            if (exam != null) {
+                int rank = examRecordMapper.selectCount(new LambdaQueryWrapper<ExamRecord>()
+                        .eq(ExamRecord::getExamId, er.getExamId())
+                        .ge(ExamRecord::getStatus, 1)
+                        .gt(ExamRecord::getTotalScore, score)).intValue() + 1;
+                int totalStudents = examRecordMapper.selectCount(new LambdaQueryWrapper<ExamRecord>()
+                        .eq(ExamRecord::getExamId, er.getExamId())
+                        .ge(ExamRecord::getStatus, 1)).intValue();
+                rankingTrends.add(new StudentAnalysisVO.RankingTrendVO(exam.getExamName(), rank, totalStudents));
+            }
+
+            // 题目详情
             List<AnswerDetail> details = answerDetailMapper.selectList(
                     new LambdaQueryWrapper<AnswerDetail>().eq(AnswerDetail::getExamRecordId, er.getId()));
-
             for (AnswerDetail detail : details) {
-                boolean isCorrect = detail.getIsCorrect() == 1;
-                totalQuestionCount++;
-                if (isCorrect)
-                    totalCorrectCount++;
-                trendMap.get(date).add(isCorrect);
-
-                qIdToResults.putIfAbsent(detail.getQuestionId(), new ArrayList<>());
-                qIdToResults.get(detail.getQuestionId()).add(isCorrect);
+                if (detail.getIsCorrect() == 0) {
+                    examWrongCountMap.put(detail.getQuestionId(),
+                            examWrongCountMap.getOrDefault(detail.getQuestionId(), 0) + 1);
+                }
+                // 这里可以进一步统计考试中的题型得分率
             }
         }
 
-        // 4. 统计知识点掌握度
-        Set<Long> allParticipatedQuestionIds = qIdToResults.keySet();
-        if (!allParticipatedQuestionIds.isEmpty()) {
-            List<QuestionKnowledge> allQks = questionKnowledgeMapper.selectList(
+        // --- 3. 统计知识点雷达图 (基于练习数据) ---
+        List<StudentAnalysisVO.KnowledgeMasteryVO> knowledgeRadar = new ArrayList<>();
+        if (!practiceQIdResults.isEmpty()) {
+            List<QuestionKnowledge> qks = questionKnowledgeMapper.selectList(
                     new LambdaQueryWrapper<QuestionKnowledge>().in(QuestionKnowledge::getQuestionId,
-                            allParticipatedQuestionIds));
-
-            Map<Long, List<Long>> knowledgeToQuestionMap = allQks.stream()
-                    .collect(Collectors.groupingBy(QuestionKnowledge::getKnowledgePointId,
-                            Collectors.mapping(QuestionKnowledge::getQuestionId, Collectors.toList())));
-
-            for (Map.Entry<Long, List<Long>> entry : knowledgeToQuestionMap.entrySet()) {
-                Long kpId = entry.getKey();
-                knowledgeMap.putIfAbsent(kpId, new ArrayList<>());
-                for (Long qId : entry.getValue()) {
-                    List<Boolean> results = qIdToResults.get(qId);
-                    if (results != null)
-                        knowledgeMap.get(kpId).addAll(results);
+                            practiceQIdResults.keySet()));
+            Map<Long, List<Boolean>> kpResults = new HashMap<>();
+            for (QuestionKnowledge qk : qks) {
+                List<Boolean> results = practiceQIdResults.get(qk.getQuestionId());
+                if (results != null) {
+                    kpResults.putIfAbsent(qk.getKnowledgePointId(), new ArrayList<>());
+                    kpResults.get(qk.getKnowledgePointId()).addAll(results);
                 }
             }
-        }
-
-        // 5. 统计错题本数量
-        LambdaQueryWrapper<MistakeBook> mistakeQw = new LambdaQueryWrapper<MistakeBook>()
-                .eq(MistakeBook::getUserId, userId);
-        if (courseId != null) {
-            mistakeQw.eq(MistakeBook::getCourseId, courseId);
-        }
-        Long mistakeCount = mistakeBookMapper.selectCount(mistakeQw);
-
-        double avgAccuracy = totalQuestionCount == 0 ? 0.0 : (double) totalCorrectCount / totalQuestionCount;
-
-        // 6. 构建 VO
-        List<StudentAnalysisVO.TrendVO> trendVOs = trendMap.entrySet().stream()
-                .map(e -> {
-                    List<Boolean> results = e.getValue();
-                    double accuracy = results.isEmpty() ? 0.0
-                            : (double) results.stream().filter(Boolean.TRUE::equals).count() / results.size();
-                    return new StudentAnalysisVO.TrendVO(e.getKey(), accuracy);
-                })
-                .collect(Collectors.toList());
-
-        List<StudentAnalysisVO.KnowledgeMasteryVO> knowledgeVOs = new ArrayList<>();
-        if (!knowledgeMap.isEmpty()) {
-            List<KnowledgePoint> kps = knowledgePointMapper.selectBatchIds(knowledgeMap.keySet());
-            Map<Long, String> kpNameMap = kps.stream()
-                    .collect(Collectors.toMap(KnowledgePoint::getId, KnowledgePoint::getName));
-
-            for (Map.Entry<Long, List<Boolean>> entry : knowledgeMap.entrySet()) {
-                String name = kpNameMap.getOrDefault(entry.getKey(), "未知知识点");
-                List<Boolean> results = entry.getValue();
-                double accuracy = results.isEmpty() ? 0.0
-                        : (double) results.stream().filter(Boolean.TRUE::equals).count() / results.size();
-                knowledgeVOs.add(new StudentAnalysisVO.KnowledgeMasteryVO(name, accuracy));
+            if (!kpResults.isEmpty()) {
+                Map<Long, String> kpNames = knowledgePointMapper.selectBatchIds(kpResults.keySet()).stream()
+                        .collect(Collectors.toMap(KnowledgePoint::getId, KnowledgePoint::getName));
+                kpResults.forEach((kpId, results) -> {
+                    double acc = (double) results.stream().filter(b -> b).count() / results.size();
+                    knowledgeRadar
+                            .add(new StudentAnalysisVO.KnowledgeMasteryVO(kpNames.get(kpId), acc, results.size()));
+                });
             }
         }
 
+        // --- 4. 统计题型分析 (练习) ---
+        List<StudentAnalysisVO.TypeStatVO> practiceTypeStats = new ArrayList<>();
+        if (!practiceQIdResults.isEmpty()) {
+            List<Question> questions = questionMapper.selectBatchIds(practiceQIdResults.keySet());
+            Map<Integer, List<Boolean>> typeResults = new HashMap<>();
+            for (Question q : questions) {
+                List<Boolean> results = practiceQIdResults.get(q.getId());
+                if (results != null) {
+                    typeResults.putIfAbsent(q.getTypeId(), new ArrayList<>());
+                    typeResults.get(q.getTypeId()).addAll(results);
+                }
+            }
+            if (!typeResults.isEmpty()) {
+                Map<Integer, String> typeNames = questionTypeMapper.selectBatchIds(typeResults.keySet()).stream()
+                        .collect(Collectors.toMap(QuestionType::getId, QuestionType::getTypeName));
+                typeResults.forEach((typeId, results) -> {
+                    double acc = (double) results.stream().filter(b -> b).count() / results.size();
+                    practiceTypeStats
+                            .add(new StudentAnalysisVO.TypeStatVO(typeNames.get(typeId), results.size(), acc, null));
+                });
+            }
+        }
+
+        // --- 5. 错题 Top5 ---
+        LambdaQueryWrapper<MistakeBook> mistakeQw = new LambdaQueryWrapper<MistakeBook>()
+                .eq(MistakeBook::getUserId, userId);
+        if (courseId != null)
+            mistakeQw.eq(MistakeBook::getCourseId, courseId);
+        List<MistakeBook> mistakes = mistakeBookMapper.selectList(mistakeQw);
+        Map<Long, Integer> kpMistakeCount = new HashMap<>();
+        for (MistakeBook m : mistakes) {
+            List<QuestionKnowledge> qks = questionKnowledgeMapper.selectList(
+                    new LambdaQueryWrapper<QuestionKnowledge>().eq(QuestionKnowledge::getQuestionId,
+                            m.getQuestionId()));
+            for (QuestionKnowledge qk : qks) {
+                kpMistakeCount.put(qk.getKnowledgePointId(),
+                        kpMistakeCount.getOrDefault(qk.getKnowledgePointId(), 0) + 1);
+            }
+        }
+        List<StudentAnalysisVO.MistakePointVO> topMistakePoints = new ArrayList<>();
+        if (!kpMistakeCount.isEmpty()) {
+            Map<Long, String> kpNames = knowledgePointMapper.selectBatchIds(kpMistakeCount.keySet()).stream()
+                    .collect(Collectors.toMap(KnowledgePoint::getId, KnowledgePoint::getName));
+            topMistakePoints = kpMistakeCount.entrySet().stream()
+                    .map(e -> new StudentAnalysisVO.MistakePointVO(kpNames.get(e.getKey()), e.getValue()))
+                    .sorted(Comparator.comparing(StudentAnalysisVO.MistakePointVO::getCount).reversed())
+                    .limit(5)
+                    .collect(Collectors.toList());
+        }
+
+        // --- 6. 组装最终结果 ---
         return StudentAnalysisVO.builder()
-                .totalPracticeCount(totalPracticeCount)
-                .totalQuestionCount(totalQuestionCount)
-                .mistakeCount(mistakeCount.intValue())
-                .avgAccuracy(avgAccuracy)
-                .trend(trendVOs)
-                .knowledgeMastery(knowledgeVOs)
+                .totalPracticeCount(practiceRecords.size())
+                .totalPracticeQuestions(totalPracticeQuestions)
+                .avgPracticeAccuracy(
+                        totalPracticeQuestions == 0 ? 0.0 : (double) totalPracticeCorrect / totalPracticeQuestions)
+                .totalExamCount(totalExamCount)
+                .avgExamScore(totalExamCount == 0 ? 0.0 : totalExamScoreSum / totalExamCount)
+                .maxExamScore(maxExamScore)
+                .avgExamScoreRate(totalMaxScoreSum == 0 ? 0.0 : totalExamScoreSum / totalMaxScoreSum)
+                .mistakeCount(mistakes.size())
+                .recentExams(recentExams.stream()
+                        .sorted(Comparator.comparing(StudentAnalysisVO.RecentExamVO::getSubmitTime).reversed())
+                        .limit(10) // 仅返回最近10场
+                        .collect(Collectors.toList()))
+                .practiceTrend(practiceTrendMap.entrySet().stream()
+                        .map(e -> {
+                            double acc = (double) e.getValue().stream().filter(b -> b).count() / e.getValue().size();
+                            return new StudentAnalysisVO.TrendVO(e.getKey(), acc);
+                        }).collect(Collectors.toList()))
+                .knowledgeRadar(knowledgeRadar)
+                .practiceTypeStats(practiceTypeStats)
+                .topMistakePoints(topMistakePoints)
+                .examScoreDist(Arrays.asList(
+                        new StudentAnalysisVO.ScoreDistVO("0-59", scoreDist[0]),
+                        new StudentAnalysisVO.ScoreDistVO("60-69", scoreDist[1]),
+                        new StudentAnalysisVO.ScoreDistVO("70-79", scoreDist[2]),
+                        new StudentAnalysisVO.ScoreDistVO("80-89", scoreDist[3]),
+                        new StudentAnalysisVO.ScoreDistVO("90-100", scoreDist[4])))
+                .rankingTrend(rankingTrends)
+                .examTypeStats(new ArrayList<>()) // 简化，暂不实现复杂的对比
+                .highFreqMistakes(examWrongCountMap.entrySet().stream()
+                        .sorted(Map.Entry.<Long, Integer>comparingByValue().reversed())
+                        .limit(5)
+                        .map(e -> {
+                            Question q = questionMapper.selectById(e.getKey());
+                            return new StudentAnalysisVO.HighFreqMistakeVO(e.getKey(),
+                                    q != null ? q.getContent() : "未知题目", e.getValue());
+                        }).collect(Collectors.toList()))
                 .build();
     }
 
@@ -248,13 +337,13 @@ public class AnalysisServiceImpl implements AnalysisService {
         }
 
         // 3. 统计动态分数分布 (根据每次考试各自的满分比例)
-        int[] distribution = new int[4];
+        int[] distribution = new int[5]; // 90-100, 80-89, 70-79, 60-69, 0-59
         double totalScoreSum = 0;
 
         // 缓存试卷满分，避免重复查询
         Map<Long, Integer> examMaxScoreMap = new HashMap<>();
 
-        // 如果是单场考试，获取其满分用于显示标签
+        // 如果是单场考试，获取其满分
         Integer singleExamMaxScore = null;
         if (examId != null) {
             Exam exam = examMapper.selectById(examId);
@@ -277,32 +366,23 @@ public class AnalysisServiceImpl implements AnalysisService {
             });
 
             double ratio = (double) er.getTotalScore() / maxScore;
-            if (ratio >= 0.85)
+            if (ratio >= 0.9)
                 distribution[0]++;
-            else if (ratio >= 0.7)
+            else if (ratio >= 0.8)
                 distribution[1]++;
-            else if (ratio >= 0.6)
+            else if (ratio >= 0.7)
                 distribution[2]++;
-            else
+            else if (ratio >= 0.6)
                 distribution[3]++;
+            else
+                distribution[4]++;
         }
 
-        // 构建标签，如果单场考试则显示具体分值
-        String[] labels = new String[4];
-        if (singleExamMaxScore != null) {
-            labels[0] = String.format("优秀 (>=%.1f分)", singleExamMaxScore * 0.85);
-            labels[1] = String.format("良好 (%.1f-%.1f分)", singleExamMaxScore * 0.7, singleExamMaxScore * 0.84);
-            labels[2] = String.format("及格 (%.1f-%.1f分)", singleExamMaxScore * 0.6, singleExamMaxScore * 0.69);
-            labels[3] = String.format("不及格 (<%.1f分)", singleExamMaxScore * 0.6);
-        } else {
-            labels[0] = "优秀 (>=85%)";
-            labels[1] = "良好 (70-84%)";
-            labels[2] = "及格 (60-69%)";
-            labels[3] = "不及格 (<60%)";
-        }
+        // 构建标签，显示得分率区间
+        String[] labels = { "90-100%", "80-89%", "70-79%", "60-69%", "0-59%" };
 
         List<ClassAnalysisVO.ScoreDistributionVO> distVOs = new ArrayList<>();
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 5; i++) {
             distVOs.add(new ClassAnalysisVO.ScoreDistributionVO(labels[i], distribution[i]));
         }
 

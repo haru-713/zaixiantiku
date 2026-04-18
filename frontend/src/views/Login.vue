@@ -70,7 +70,7 @@ const handleLogin = async () => {
         userStore.setUserInfo(userInfo)
 
         // 登录成功后跳转到首页或其他页面
-        router.push('/')
+        router.push('/home')
       } catch (error) {
         console.error(error)
       } finally {

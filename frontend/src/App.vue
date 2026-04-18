@@ -20,7 +20,7 @@
       <el-container>
         <el-aside width="220px" class="layout-aside">
           <el-menu :default-active="activeMenu" router class="layout-menu">
-            <el-menu-item index="/">
+            <el-menu-item index="/home">
               首页
             </el-menu-item>
 
@@ -77,8 +77,8 @@
         <el-main class="layout-main">
           <div class="breadcrumb">
             <el-breadcrumb separator="/">
-              <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-              <el-breadcrumb-item v-if="route.path !== '/'">
+              <el-breadcrumb-item :to="{ path: '/home' }">首页</el-breadcrumb-item>
+              <el-breadcrumb-item v-if="route.path !== '/home'">
                 {{ route.meta.title || '页面' }}
               </el-breadcrumb-item>
             </el-breadcrumb>

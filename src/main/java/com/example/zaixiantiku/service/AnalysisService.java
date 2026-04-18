@@ -8,10 +8,11 @@ public interface AnalysisService {
     /**
      * 获取学生学习报告
      * 
-     * @param courseId 课程ID（可选）
+     * @param courseId  课程ID（可选）
+     * @param timeRange 时间范围（可选，如：week, month, all）
      * @return 学习报告数据
      */
-    StudentAnalysisVO getStudentAnalysisReport(Long courseId);
+    StudentAnalysisVO getStudentAnalysisReport(Long courseId, String timeRange);
 
     /**
      * 获取教师班级分析

@@ -38,6 +38,8 @@ public class StudentExamServiceImpl implements StudentExamService {
     private final QuestionTypeMapper questionTypeMapper;
     private final CourseStudentMapper courseStudentMapper;
     private final StudentClassMapper studentClassMapper;
+    private final QuestionKnowledgeMapper questionKnowledgeMapper;
+    private final KnowledgePointMapper knowledgePointMapper;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -415,6 +417,44 @@ public class StudentExamServiceImpl implements StudentExamService {
         Map<Integer, String> typeNameMap = types.stream()
                 .collect(Collectors.toMap(QuestionType::getId, QuestionType::getTypeName));
 
+        // 计算排名
+        int rank = examRecordMapper.selectCount(new LambdaQueryWrapper<ExamRecord>()
+                .eq(ExamRecord::getExamId, record.getExamId())
+                .ge(ExamRecord::getStatus, 1)
+                .gt(ExamRecord::getTotalScore, record.getTotalScore())).intValue() + 1;
+        int totalStudents = examRecordMapper.selectCount(new LambdaQueryWrapper<ExamRecord>()
+                .eq(ExamRecord::getExamId, record.getExamId())
+                .ge(ExamRecord::getStatus, 1)).intValue();
+
+        // 计算知识点掌握度 (针对本次考试)
+        List<ExamRecordDetailVO.KnowledgeMasteryVO> knowledgeMasteryList = new ArrayList<>();
+        if (!questionIds.isEmpty()) {
+            List<QuestionKnowledge> qks = questionKnowledgeMapper.selectList(new LambdaQueryWrapper<QuestionKnowledge>()
+                    .in(QuestionKnowledge::getQuestionId, questionIds));
+
+            Map<Long, List<Boolean>> kpResults = new HashMap<>();
+            Map<Long, Boolean> qIdResultMap = details.stream()
+                    .collect(Collectors.toMap(AnswerDetail::getQuestionId, d -> d.getIsCorrect() == 1, (a, b) -> a));
+
+            for (QuestionKnowledge qk : qks) {
+                Boolean result = qIdResultMap.get(qk.getQuestionId());
+                if (result != null) {
+                    kpResults.putIfAbsent(qk.getKnowledgePointId(), new ArrayList<>());
+                    kpResults.get(qk.getKnowledgePointId()).add(result);
+                }
+            }
+
+            if (!kpResults.isEmpty()) {
+                Map<Long, String> kpNames = knowledgePointMapper.selectBatchIds(kpResults.keySet()).stream()
+                        .collect(Collectors.toMap(KnowledgePoint::getId, KnowledgePoint::getName));
+
+                kpResults.forEach((kpId, results) -> {
+                    double acc = (double) results.stream().filter(b -> b).count() / results.size();
+                    knowledgeMasteryList.add(new ExamRecordDetailVO.KnowledgeMasteryVO(kpNames.get(kpId), acc));
+                });
+            }
+        }
+
         Map<Long, Question> finalQuestionMap = questionMap;
         List<ExamRecordDetailVO.AnswerItemVO> answers = details.stream().map(d -> {
             Question q = finalQuestionMap.get(d.getQuestionId());
@@ -435,6 +475,9 @@ public class StudentExamServiceImpl implements StudentExamService {
                 .examName(exam.getExamName())
                 .totalScore(record.getTotalScore())
                 .maxScore(maxScore)
+                .rank(rank)
+                .totalStudents(totalStudents)
+                .knowledgeMastery(knowledgeMasteryList)
                 .answers(answers)
                 .build();
     }
