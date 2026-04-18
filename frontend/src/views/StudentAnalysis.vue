@@ -74,7 +74,7 @@
             <template #header>
               <div class="card-header">
                 <span>【错题统计】</span>
-                <el-button link type="primary" @click="goToRecords('/study/mistake-book')">查看错题本</el-button>
+                <el-button link type="primary" @click="goToRecords('/study/mistakes')">查看错题本</el-button>
               </div>
             </template>
             <div class="stat-content single">

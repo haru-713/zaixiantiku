@@ -125,7 +125,9 @@ public class PracticeController {
     @Operation(summary = "收藏列表")
     public Result<PageResult<QuestionDetailVO>> getFavorites(
             @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "10") Integer size) {
-        return Result.success(practiceService.getFavorites(page, size));
+            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(required = false) Long courseId,
+            @RequestParam(required = false) Long kpId) {
+        return Result.success(practiceService.getFavorites(page, size, courseId, kpId));
     }
 }

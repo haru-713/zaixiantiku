@@ -4,6 +4,14 @@
       <template #header>
         <div class="card-header">
           <span>我的收藏夹</span>
+          <div class="filter-group">
+            <el-select v-model="query.courseId" placeholder="按课程筛选" clearable @change="handleCourseChange" size="small" style="width: 180px; margin-right: 10px">
+              <el-option v-for="item in courses" :key="item.id" :label="item.name" :value="item.id" />
+            </el-select>
+            <el-select v-model="query.kpId" placeholder="按知识点筛选" clearable @change="fetchList" size="small" style="width: 180px" :disabled="!query.courseId">
+              <el-option v-for="item in knowledgePoints" :key="item.id" :label="item.name" :value="item.id" />
+            </el-select>
+          </div>
         </div>
       </template>
 
@@ -63,14 +71,48 @@ const loading = ref(false)
 const list = ref([])
 const total = ref(0)
 const questionTypes = ref([])
+const courses = ref([])
+const knowledgePoints = ref([])
 
 const query = reactive({
   page: 1,
-  size: 10
+  size: 10,
+  courseId: null,
+  kpId: null
 })
 
 const detailVisible = ref(false)
 const detailData = ref(null)
+
+const fetchCourses = async () => {
+  try {
+    const res = await request.get('/student/analysis/courses')
+    if (res.code === 1) {
+      courses.value = res.data
+    }
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+const handleCourseChange = () => {
+  query.kpId = null
+  fetchKnowledgePoints()
+  fetchList()
+}
+
+const fetchKnowledgePoints = async () => {
+  if (!query.courseId) {
+    knowledgePoints.value = []
+    return
+  }
+  try {
+    const res = await request.get('/knowledge-points', { params: { courseId: query.courseId } })
+    knowledgePoints.value = res.data
+  } catch (e) {
+    console.error('获取知识点失败:', e)
+  }
+}
 
 const fetchList = async () => {
   loading.value = true
@@ -149,11 +191,21 @@ const removeFavorite = (item) => {
 
 onMounted(() => {
   fetchTypes()
+  fetchCourses()
   fetchList()
 })
 </script>
 
 <style scoped>
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.filter-group {
+  display: flex;
+  align-items: center;
+}
 .favorite-book {
   padding: 20px;
 }

@@ -455,12 +455,36 @@ public class PracticeServiceImpl implements PracticeService {
     }
 
     @Override
-    public PageResult<QuestionDetailVO> getFavorites(Integer page, Integer size) {
+    public PageResult<QuestionDetailVO> getFavorites(Integer page, Integer size, Long courseId, Long kpId) {
         LoginUser loginUser = getLoginUser();
         PageHelper.startPage(page, size);
-        List<Favorite> favs = favoriteMapper.selectList(new LambdaQueryWrapper<Favorite>()
-                .eq(Favorite::getUserId, loginUser.getUser().getId())
-                .orderByDesc(Favorite::getCreateTime));
+
+        // 构造 SQL 查询
+        // 由于 MyBatis-Plus 连表查询比较复杂，这里使用 StringBuilder 构造查询或者直接使用 FavoriteMapper 配合自定义 XML
+        // 但本项目看起来更倾向于使用 LambdaQueryWrapper 或 JdbcTemplate。
+        // 为了方便，我们可以通过先过滤 Question 表，再查询 Favorite 表的方式（或者反过来）
+        
+        LambdaQueryWrapper<Favorite> favQw = new LambdaQueryWrapper<Favorite>()
+                .eq(Favorite::getUserId, loginUser.getUser().getId());
+
+        if (courseId != null || kpId != null) {
+            // 需要关联 Question 表
+            // 这里使用一个子查询：WHERE question_id IN (SELECT id FROM question WHERE course_id = ? AND ...)
+            // 如果有 kpId，还需要关联 question_knowledge
+            StringBuilder subQuery = new StringBuilder("id IN (SELECT id FROM question WHERE 1=1 ");
+            if (courseId != null) {
+                subQuery.append("AND course_id = ").append(courseId).append(" ");
+            }
+            if (kpId != null) {
+                subQuery.append("AND id IN (SELECT question_id FROM question_knowledge WHERE knowledge_point_id = ")
+                        .append(kpId).append(") ");
+            }
+            subQuery.append(")");
+            favQw.apply(subQuery.toString());
+        }
+
+        favQw.orderByDesc(Favorite::getCreateTime);
+        List<Favorite> favs = favoriteMapper.selectList(favQw);
         PageInfo<Favorite> pageInfo = new PageInfo<>(favs);
 
         if (favs.isEmpty())
@@ -468,8 +492,22 @@ public class PracticeServiceImpl implements PracticeService {
 
         List<Long> qIds = favs.stream().map(Favorite::getQuestionId).collect(Collectors.toList());
         List<Question> questions = questionMapper.selectBatchIds(qIds);
+        
+        // 保证返回顺序与收藏时间一致
+        Map<Long, Question> qMap = questions.stream().collect(Collectors.toMap(Question::getId, q -> q));
+        List<QuestionDetailVO> voList = favs.stream()
+                .map(f -> {
+                    Question q = qMap.get(f.getQuestionId());
+                    if (q == null) return null;
+                    QuestionDetailVO vo = this.toVO(q);
+                    vo.setCreateTime(f.getCreateTime()); // 这里复用 createTime 字段表示收藏时间
+                    vo.setId(f.getId()); // 注意：这里的 ID 应该是 Favorite 的 ID，方便后续取消收藏
+                    return vo;
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
 
-        return PageResult.of(pageInfo.getTotal(), questions.stream().map(this::toVO).collect(Collectors.toList()));
+        return PageResult.of(pageInfo.getTotal(), voList);
     }
 
     private boolean isAnswerCorrect(String standard, String user) {
