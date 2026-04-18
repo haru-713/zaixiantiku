@@ -111,16 +111,51 @@ public class TeacherExamServiceImpl implements TeacherExamService {
         Map<Long, String> userNameMap = userMapper.selectBatchIds(userIds).stream()
                 .collect(Collectors.toMap(User::getId, u -> u.getName() != null ? u.getName() : u.getUsername()));
 
+        // 获取课程教师和每场考试的批阅统计
+        Map<Long, String> examTeachersMap = new HashMap<>();
+        Map<Long, Integer> examTotalCountMap = new HashMap<>();
+        Map<Long, Integer> examMarkedCountMap = new HashMap<>();
+
+        for (Long examId : recordExamIds) {
+            Exam exam = examMap.get(examId);
+            if (exam != null) {
+                // 获取任课教师
+                List<CourseTeacher> cts = courseTeacherMapper.selectList(
+                        new LambdaQueryWrapper<CourseTeacher>().eq(CourseTeacher::getCourseId, exam.getCourseId()));
+                if (!cts.isEmpty()) {
+                    List<Long> tIds = cts.stream().map(CourseTeacher::getTeacherId).collect(Collectors.toList());
+                    String names = userMapper.selectBatchIds(tIds).stream()
+                            .map(u -> u.getName() != null ? u.getName() : u.getUsername())
+                            .collect(Collectors.joining(","));
+                    examTeachersMap.put(examId, names);
+                }
+
+                // 统计该场考试的批阅情况（所有交卷的学生：状态 1 或 2）
+                Long totalSubmitted = examRecordMapper.selectCount(new LambdaQueryWrapper<ExamRecord>()
+                        .eq(ExamRecord::getExamId, examId)
+                        .in(ExamRecord::getStatus, Arrays.asList(1, 2)));
+                Long marked = examRecordMapper.selectCount(new LambdaQueryWrapper<ExamRecord>()
+                        .eq(ExamRecord::getExamId, examId)
+                        .eq(ExamRecord::getStatus, 2));
+                examTotalCountMap.put(examId, totalSubmitted.intValue());
+                examMarkedCountMap.put(examId, marked.intValue());
+            }
+        }
+
         List<TeacherExamRecordVO> voList = records.stream().map(r -> {
             Exam e = examMap.get(r.getExamId());
             return TeacherExamRecordVO.builder()
                     .id(r.getId())
+                    .examId(r.getExamId())
                     .examName(e != null ? e.getExamName() : "未知考试")
                     .paperName(e != null ? paperNameMap.get(e.getPaperId()) : "未知试卷")
                     .studentName(userNameMap.get(r.getUserId()))
                     .submitTime(r.getSubmitTime())
                     .totalScore(r.getTotalScore())
                     .status(r.getStatus())
+                    .courseTeacherNames(examTeachersMap.get(r.getExamId()))
+                    .totalExamCount(examTotalCountMap.get(r.getExamId()))
+                    .markedExamCount(examMarkedCountMap.get(r.getExamId()))
                     .build();
         }).collect(Collectors.toList());
 

@@ -18,30 +18,70 @@
         <el-button type="primary" @click="handleQuery">查询</el-button>
       </div>
 
-      <el-table v-loading="loading" :data="list" style="width: 100%; margin-top: 16px">
-        <el-table-column prop="examName" label="考试名称" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="paperName" label="试卷名称" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="studentName" label="学生" width="120" />
-        <el-table-column label="提交时间" width="180">
-          <template #default="scope">
-            {{ formatDateTime(scope.row.submitTime) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="状态" width="100">
-          <template #default="scope">
-            <el-tag :type="scope.row.status === 1 ? 'warning' : 'success'">
-              {{ scope.row.status === 1 ? '待阅卷' : '已阅卷' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="120">
-          <template #default="scope">
-            <el-button type="primary" size="small" @click="openMarking(scope.row)">
-              {{ scope.row.status === 1 ? '阅卷' : '查看' }}
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <div v-loading="loading" class="marking-list-container">
+        <div v-if="groupedExams.length === 0" class="empty-tip">
+          <el-empty :description="query.status === 1 ? '暂无待阅卷任务' : '暂无已阅卷记录'" />
+        </div>
+        
+        <el-collapse v-else v-model="activeExams">
+          <el-collapse-item v-for="exam in groupedExams" :key="exam.examId" :name="exam.examId">
+            <template #title>
+              <div class="exam-header">
+                <span class="exam-name">{{ exam.examName }}</span>
+                <el-tag size="small" type="info" class="paper-tag">{{ exam.paperName }}</el-tag>
+                
+                <div class="exam-info">
+                  <span class="teacher-info" v-if="exam.courseTeacherNames">
+                    阅卷人：{{ exam.courseTeacherNames }}
+                  </span>
+                  <div class="progress-info">
+                    <span class="progress-label">阅卷进度：</span>
+                    <el-progress 
+                      :percentage="Math.round((exam.markedExamCount / exam.totalExamCount) * 100)" 
+                      :format="() => `${exam.markedExamCount}/${exam.totalExamCount}`"
+                      style="width: 150px"
+                      :stroke-width="12"
+                      :status="exam.markedExamCount === exam.totalExamCount ? 'success' : ''"
+                    />
+                  </div>
+                </div>
+
+                <div class="exam-stats">
+                  <el-tag v-if="query.status === 1" type="danger" effect="dark" round size="small">
+                    待阅：{{ exam.records.length }} 份
+                  </el-tag>
+                  <el-tag v-else type="success" effect="plain" round size="small">
+                    已阅：{{ exam.records.length }} 份
+                  </el-tag>
+                </div>
+              </div>
+            </template>
+
+            <el-table :data="exam.records" style="width: 100%">
+              <el-table-column prop="studentName" label="学生姓名" width="150" />
+              <el-table-column label="提交时间" width="200">
+                <template #default="scope">
+                  {{ formatDateTime(scope.row.submitTime) }}
+                </template>
+              </el-table-column>
+              <el-table-column label="状态" width="120">
+                <template #default="scope">
+                  <el-tag :type="scope.row.status === 1 ? 'warning' : 'success'" size="small">
+                    {{ scope.row.status === 1 ? '待阅卷' : '已阅卷' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" min-width="120">
+                <template #default="scope">
+                  <el-button type="primary" size="small" @click="openMarking(scope.row)">
+                    {{ scope.row.status === 1 ? '开始阅卷' : '查看详情' }}
+                  </el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </el-collapse-item>
+        </el-collapse>
+      </div>
 
       <div class="pagination-container">
         <el-pagination :current-page="query.page" :page-size="query.size" :page-sizes="[10, 20, 50]"
@@ -108,7 +148,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 
@@ -117,12 +157,33 @@ const list = ref([])
 const total = ref(0)
 const query = reactive({
   page: 1,
-  size: 10,
+  size: 50, // 增加单页数量，方便分组展示更多数据
   courseId: null,
   status: 1
 })
 
+const activeExams = ref([])
 const courseOptions = ref([])
+
+// 按考试 ID 分组数据
+const groupedExams = computed(() => {
+  const groups = {}
+  list.value.forEach(record => {
+    if (!groups[record.examId]) {
+      groups[record.examId] = {
+        examId: record.examId,
+        examName: record.examName,
+        paperName: record.paperName,
+        courseTeacherNames: record.courseTeacherNames,
+        totalExamCount: record.totalExamCount,
+        markedExamCount: record.markedExamCount,
+        records: []
+      }
+    }
+    groups[record.examId].records.push(record)
+  })
+  return Object.values(groups)
+})
 
 const markingVisible = ref(false)
 const markingData = ref(null)
@@ -234,6 +295,46 @@ onMounted(() => {
 }
 .search-bar {
   margin-bottom: 20px;
+}
+.exam-header {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding-right: 20px;
+}
+.exam-name {
+  font-weight: bold;
+  font-size: 16px;
+  margin-right: 15px;
+  color: #303133;
+}
+.paper-tag {
+  margin-right: 20px;
+}
+.exam-info {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+  margin-right: auto;
+  font-size: 14px;
+  color: #606266;
+}
+.teacher-info {
+  color: #409eff;
+  background-color: #ecf5ff;
+  padding: 2px 10px;
+  border-radius: 4px;
+}
+.progress-info {
+  display: flex;
+  align-items: center;
+}
+.progress-label {
+  margin-right: 8px;
+}
+.exam-stats {
+  display: flex;
+  gap: 10px;
 }
 .pagination-container {
   margin-top: 20px;
