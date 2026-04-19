@@ -1,6 +1,13 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import NProgress from 'nprogress'
+import 'nprogress/nprogress.css'
 import { ElMessage } from 'element-plus'
-import Login from '../views/Login.vue'
+import { useUserStore } from '@/store/user'
+
+// 配置 NProgress
+NProgress.configure({ showSpinner: false, speed: 500 })
+
+const Login = () => import('../views/Login.vue')
 import Register from '../views/Register.vue'
 import Home from '../views/Home.vue'
 import AdminUserList from '../views/AdminUserList.vue'
@@ -11,7 +18,7 @@ import QuestionManage from '../views/QuestionManage.vue'
 import KnowledgePointManage from '../views/KnowledgePointManage.vue'
 import PaperManage from '../views/PaperManage.vue'
 import ExamSchedule from '../views/ExamSchedule.vue'
-import Profile from '../views/Profile.vue'
+
 import MyExams from '../views/MyExams.vue'
 import ExamRoom from '../views/ExamRoom.vue'
 import StudyRecord from '../views/StudyRecord.vue'
@@ -27,7 +34,9 @@ import AdminAnalysis from '../views/AdminAnalysis.vue'
 import PracticeReport from '../views/PracticeReport.vue'
 import ShareList from '../views/ShareList.vue'
 import ShareDetail from '../views/ShareDetail.vue'
-import AnnouncementManage from '../views/AnnouncementManage.vue'
+const AnnouncementManage = () => import('../views/AnnouncementManage.vue')
+const LogManage = () => import('../views/LogManage.vue')
+const Profile = () => import('../views/Profile.vue')
 import ClassManage from '../views/ClassManage.vue'
 import CourseStudentManage from '../views/CourseStudentManage.vue'
 
@@ -120,7 +129,7 @@ const routes = [
     path: '/system/classes',
     name: 'ClassManage',
     component: ClassManage,
-    meta: { requiresAuth: true, title: '班级管理', roles: ['ADMIN'] }
+    meta: { requiresAuth: true, title: '班级管理', roles: ['ADMIN', 'TEACHER'] }
   },
   {
     path: '/course/query',
@@ -221,7 +230,7 @@ const routes = [
   {
     path: '/admin/logs',
     name: 'LogManage',
-    component: () => import('../views/LogManage.vue'),
+    component: LogManage,
     meta: { requiresAuth: true, title: '操作日志', roles: ['ADMIN'] }
   },
   // 捕获所有未定义的路由并重定向到首页
@@ -238,78 +247,41 @@ const router = createRouter({
 
 // 路由守卫
 router.beforeEach((to, from, next) => {
-  const rawToken = (localStorage.getItem('token') || '').trim()
-  const token = rawToken && rawToken !== 'null' && rawToken !== 'undefined' ? rawToken : ''
-  
-  let userInfo = {}
-  try {
-    const info = localStorage.getItem('userInfo')
-    if (info && info !== 'null' && info !== 'undefined') {
-      userInfo = JSON.parse(info)
-    }
-  } catch (e) {
-    console.error('解析用户信息失败:', e)
-  }
-  
-  const userRoles = userInfo.roles || []
+  NProgress.start()
+  const userStore = useUserStore()
+  const token = userStore.token
+  const roles = userStore.userInfo?.roles || []
 
-  const isTokenExpired = (jwt) => {
-    try {
-      const parts = String(jwt).split('.')
-      if (parts.length !== 3) return true // 非法格式视为过期
-      const payload = JSON.parse(decodeURIComponent(escape(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))))
-      const exp = payload?.exp
-      if (!exp) return true // 无过期时间视为过期
-      return Date.now() >= Number(exp) * 1000
-    } catch {
-      return true // 解析失败视为过期
-    }
-  }
-
-  const clearAuth = () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('userInfo')
-  }
-
-  const authed = token && !isTokenExpired(token)
-  if (!authed && token) {
-    clearAuth()
-  }
-
-  // 定义根据角色跳转的默认路径
-  const getHomePath = (roles) => {
-    return '/home'
-  }
-
-  // 如果是前往需要认证的路由
-  if (to.meta.requiresAuth) {
-    if (authed) {
-      // 允许所有人访问首页 /home
-      if (to.path === '/home') {
-        next()
-        return
-      }
-
-      const allowRoles = to.meta.roles
-      if (allowRoles && allowRoles.length > 0) {
-        const ok = userRoles.some((r) => allowRoles.includes(r))
-        if (!ok) {
-          ElMessage.error('没有权限访问该页面')
-          next(getHomePath(userRoles))
-          return
-        }
-      }
-      next()
-    } else {
-      // 没有 token，重定向到登录页
-      next('/login')
-    }
-  } else if ((to.path === '/login' || to.path === '/register') && authed) {
-    // 已经登录了还去登录/注册页，直接跳回首页
-    next(getHomePath(userRoles))
-  } else {
+  // 1. 如果是白名单页面，直接放行
+  if (to.meta.public || !to.meta.requiresAuth) {
     next()
+    return
   }
+
+  // 2. 如果没有 token，跳转到登录页
+  if (!token) {
+    next('/login')
+    return
+  }
+
+  // 3. 如果已经登录且去登录页，跳转到首页
+  if (to.path === '/login') {
+    next('/home')
+    return
+  }
+
+  // 4. 权限检查
+  if (to.meta.roles && !to.meta.roles.some(role => roles.includes(role))) {
+    ElMessage.error('您没有权限访问该页面')
+    next('/home')
+    return
+  }
+
+  next()
+})
+
+router.afterEach(() => {
+  NProgress.done()
 })
 
 export default router

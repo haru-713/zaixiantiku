@@ -23,6 +23,7 @@ public class UserVO {
     private String avatar;
     private Integer status;
     private Integer auditStatus;
+    private java.time.LocalDateTime createTime;
     private List<String> roles;
     private List<ClassVO> classes;
 }

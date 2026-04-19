@@ -76,6 +76,9 @@
             </template>
           </template>
         </el-table-column>
+        <template #empty>
+          <el-empty description="未找到相关用户" />
+        </template>
       </el-table>
 
       <!-- 分页 -->
@@ -228,7 +231,7 @@ onMounted(() => {
 
 <style scoped>
 .admin-user-container {
-  padding: 20px;
+  width: 100%;
 }
 
 .search-bar {

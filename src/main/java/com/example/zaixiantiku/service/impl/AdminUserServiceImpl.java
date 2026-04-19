@@ -132,6 +132,7 @@ public class AdminUserServiceImpl extends ServiceImpl<UserMapper, User> implemen
                     .avatar(user.getAvatar())
                     .status(user.getStatus())
                     .auditStatus(user.getAuditStatus())
+                    .createTime(user.getCreateTime())
                     .roleCodes(roleCodes)
                     .classes(classVOList)
                     .build();

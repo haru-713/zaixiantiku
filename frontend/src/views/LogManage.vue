@@ -54,6 +54,9 @@
             <el-button type="danger" link @click="handleDelete(scope.row)">删除</el-button>
           </template>
         </el-table-column>
+        <template #empty>
+          <el-empty description="暂无操作日志" />
+        </template>
       </el-table>
 
       <div class="pagination-container">
@@ -219,7 +222,7 @@ onMounted(fetchList)
 
 <style scoped>
 .log-manage {
-  padding: 20px;
+  width: 100%;
 }
 .search-bar {
   margin-bottom: 20px;

@@ -181,6 +181,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                 .avatar(user.getAvatar())
                 .status(user.getStatus())
                 .auditStatus(user.getAuditStatus())
+                .createTime(user.getCreateTime())
                 .roles(loginUser.getRoleCodes())
                 .classes(classVOList)
                 .build();

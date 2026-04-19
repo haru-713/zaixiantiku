@@ -42,6 +42,9 @@ public class UserAdminVO {
     @Schema(description = "审核状态: 0-待审核, 1-审核通过, 2-审核拒绝")
     private Integer auditStatus;
 
+    @Schema(description = "注册时间")
+    private java.time.LocalDateTime createTime;
+
     @Schema(description = "角色编码列表")
     private List<String> roleCodes;
 

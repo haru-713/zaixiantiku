@@ -1,56 +1,90 @@
 <template>
-  <div class="register-container">
-    <el-card class="register-card">
-      <template #header>
-        <div class="card-header">
-          <span>用户注册</span>
+  <div class="auth-container">
+    <div class="auth-box register-box">
+      <div class="auth-left">
+        <div class="welcome-content">
+          <h1>加入在线题库</h1>
+          <p>开启您的专业学习与测评之旅</p>
+          <div class="features">
+            <div class="feature-item">
+              <el-icon>
+                <Check />
+              </el-icon> 智能化题库管理
+            </div>
+            <div class="feature-item">
+              <el-icon>
+                <Check />
+              </el-icon> 实时成绩反馈
+            </div>
+            <div class="feature-item">
+              <el-icon>
+                <Check />
+              </el-icon> 教师互动交流
+            </div>
+          </div>
         </div>
-      </template>
-      <el-form :model="registerForm" :rules="rules" ref="registerFormRef" label-width="80px">
-        <el-form-item label="用户名" prop="username">
-          <el-input v-model="registerForm.username" placeholder="请输入用户名"></el-input>
-        </el-form-item>
-        <el-form-item label="密码" prop="password">
-          <el-input v-model="registerForm.password" type="password" placeholder="请输入密码" show-password></el-input>
-        </el-form-item>
-        <el-form-item label="确认密码" prop="confirmPassword">
-          <el-input v-model="registerForm.confirmPassword" type="password" placeholder="请再次输入密码"
-            show-password></el-input>
-        </el-form-item>
-        <el-form-item label="姓名" prop="name">
-          <el-input v-model="registerForm.name" placeholder="请输入姓名"></el-input>
-        </el-form-item>
-        <el-form-item label="手机号" prop="phone">
-          <el-input v-model="registerForm.phone" placeholder="请输入手机号"></el-input>
-        </el-form-item>
-        <el-form-item label="邮箱" prop="email">
-          <el-input v-model="registerForm.email" placeholder="请输入邮箱"></el-input>
-        </el-form-item>
-        <el-form-item label="头像URL" prop="avatar">
-          <el-input v-model="registerForm.avatar" placeholder="请输入头像URL"></el-input>
-        </el-form-item>
-        <el-form-item label="角色" prop="roleCode">
-          <el-radio-group v-model="registerForm.roleCode">
-            <el-radio value="STUDENT">学生</el-radio>
-            <el-radio value="TEACHER">教师</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleRegister" :loading="loading">注册</el-button>
-          <el-button @click="resetForm">重置</el-button>
-        </el-form-item>
-        <div class="login-link">
-          已有账号？<router-link to="/login">立即登录</router-link>
-        </div>
-      </el-form>
-    </el-card>
+      </div>
+      <div class="auth-right">
+        <el-card class="auth-card" :body-style="{ padding: '40px 50px' }">
+          <template #header>
+            <div class="card-header">
+              <h3>创建账号</h3>
+              <p class="subtitle">请填写以下信息完成注册</p>
+            </div>
+          </template>
+
+          <el-form ref="registerFormRef" :model="registerForm" :rules="rules" label-width="0">
+            <el-form-item prop="username">
+              <el-input v-model="registerForm.username" placeholder="用户名" prefix-icon="User" size="large" />
+            </el-form-item>
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <el-form-item prop="password">
+                  <el-input v-model="registerForm.password" type="password" placeholder="密码" prefix-icon="Lock"
+                    show-password size="large" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item prop="confirmPassword">
+                  <el-input v-model="registerForm.confirmPassword" type="password" placeholder="确认密码" prefix-icon="Lock"
+                    show-password size="large" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-form-item prop="name">
+              <el-input v-model="registerForm.name" placeholder="真实姓名" prefix-icon="Postcard" size="large" />
+            </el-form-item>
+            <el-form-item prop="phone">
+              <el-input v-model="registerForm.phone" placeholder="手机号" prefix-icon="Phone" size="large" />
+            </el-form-item>
+            <el-form-item prop="email">
+              <el-input v-model="registerForm.email" placeholder="邮箱地址" prefix-icon="Message" size="large" />
+            </el-form-item>
+
+            <el-form-item label="身份选择" label-width="80px" class="role-item">
+              <el-radio-group v-model="registerForm.roleCode" size="large">
+                <el-radio-button label="STUDENT">我是学生</el-radio-button>
+                <el-radio-button label="TEACHER">我是教师</el-radio-button>
+              </el-radio-group>
+            </el-form-item>
+
+            <el-button type="primary" class="submit-btn" :loading="loading" size="large"
+              @click="handleRegister">立即注册</el-button>
+
+            <div class="footer-link">
+              已有账号？<el-button link type="primary" @click="$router.push('/login')">立即登录</el-button>
+            </div>
+          </el-form>
+        </el-card>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
-import axios from 'axios'
+import request from '@/utils/request'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -88,7 +122,11 @@ const rules = reactive({
     { min: 6, message: '密码长度至少 6 位', trigger: 'blur' }
   ],
   confirmPassword: [
+    { required: true, message: '请确认密码', trigger: 'blur' },
     { validator: validatePass2, trigger: 'blur' }
+  ],
+  name: [
+    { required: true, message: '请输入姓名', trigger: 'blur' }
   ],
   phone: [
     { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }
@@ -105,61 +143,144 @@ const handleRegister = async () => {
     if (valid) {
       loading.value = true
       try {
-        const response = await axios.post('/api/auth/register', {
-          username: registerForm.username,
-          password: registerForm.password,
-          name: registerForm.name,
-          phone: registerForm.phone,
-          email: registerForm.email,
-          avatar: registerForm.avatar,
-          roleCode: registerForm.roleCode
-        })
-
-        if (response.data.code === 1) {
-          ElMessage.success(response.data.msg || '注册成功！')
+        const res = await request.post('/auth/register', registerForm)
+        if (res.code === 1 || res.code === 200) {
+          ElMessage.success('注册成功，请登录')
           router.push('/login')
-        } else {
-          ElMessage.error(response.data.msg || '注册失败')
         }
       } catch (error) {
         console.error(error)
-        ElMessage.error('网络错误或服务器异常')
       } finally {
         loading.value = false
       }
     }
   })
 }
-
-const resetForm = () => {
-  if (registerFormRef.value) {
-    registerFormRef.value.resetFields()
-  }
-}
 </script>
 
 <style scoped>
-.register-container {
+.auth-container {
+  height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh;
-  background-color: #f5f7fa;
+  background: #f0f2f5 url('https://gw.alipayobjects.com/zos/rmsportal/TVirbqOXmUbiJpOIhfJk.svg') no-repeat center;
+  background-size: 100%;
 }
 
-.register-card {
-  width: 450px;
+.auth-box {
+  display: flex;
+  width: 1100px;
+  height: 720px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.auth-left {
+  flex: 1;
+  background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 60px;
+  color: #fff;
+}
+
+.welcome-content h1 {
+  font-size: 36px;
+  margin-bottom: 20px;
+  font-family: KaiTi, '楷体', serif;
+}
+
+.welcome-content p {
+  font-size: 18px;
+  opacity: 0.85;
+  margin-bottom: 50px;
+}
+
+.features {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 16px;
+}
+
+.feature-item .el-icon {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 6px;
+  border-radius: 50%;
+  font-size: 14px;
+}
+
+.auth-right {
+  width: 580px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.auth-card {
+  border: none !important;
+  box-shadow: none !important;
 }
 
 .card-header {
-  text-align: center;
-  font-size: 20px;
-  font-weight: bold;
+  text-align: left;
+  margin-bottom: 30px;
 }
 
-.login-link {
-  margin-top: 15px;
+.card-header h3 {
+  font-size: 28px;
+  margin: 0 0 10px 0;
+  color: #303133;
+}
+
+.card-header .subtitle {
+  font-size: 15px;
+  color: #909399;
+  margin: 0;
+}
+
+.role-item {
+  margin-bottom: 30px;
+}
+
+.role-item :deep(.el-form-item__label) {
+  font-weight: 500;
+  color: #606266;
+  font-size: 15px;
+}
+
+.submit-btn {
+  width: 100%;
+  height: 50px;
+  font-size: 18px;
+  border-radius: 10px !important;
+  margin-bottom: 24px;
+}
+
+.footer-link {
   text-align: center;
-  font-size: 14px;
+  font-size: 15px;
+  color: #606266;
+}
+
+/* 响应式适配 */
+@media (max-width: 1100px) {
+  .auth-box {
+    width: 580px;
+  }
+
+  .auth-left {
+    display: none;
+  }
 }
 </style>
