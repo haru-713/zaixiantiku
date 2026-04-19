@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.zaixiantiku.common.annotation.OperationLog;
 import com.example.zaixiantiku.entity.Log;
 import com.example.zaixiantiku.mapper.LogMapper;
+import com.example.zaixiantiku.mapper.UserMapper;
 import com.example.zaixiantiku.security.LoginUser;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ import java.time.LocalDateTime;
 public class LogAspect {
 
     private final LogMapper logMapper;
+    private final UserMapper userMapper;
     private final ObjectMapper objectMapper;
 
     @Pointcut("@annotation(com.example.zaixiantiku.common.annotation.OperationLog)")
@@ -90,10 +92,6 @@ public class LogAspect {
 
                     if (username != null) {
                         try {
-                            // 动态获取 UserMapper 以获取用户 ID
-                            com.example.zaixiantiku.mapper.UserMapper userMapper = org.springframework.web.context.support.WebApplicationContextUtils
-                                    .getRequiredWebApplicationContext(request.getServletContext())
-                                    .getBean(com.example.zaixiantiku.mapper.UserMapper.class);
                             com.example.zaixiantiku.entity.User user = userMapper.selectOne(
                                     new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.example.zaixiantiku.entity.User>()
                                             .eq(com.example.zaixiantiku.entity.User::getUsername, username));

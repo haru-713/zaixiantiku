@@ -1,6 +1,7 @@
 package com.example.zaixiantiku.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.example.zaixiantiku.common.annotation.OperationLog;
 import com.example.zaixiantiku.common.Result;
 import com.example.zaixiantiku.entity.Log;
 import com.example.zaixiantiku.entity.User;
@@ -41,10 +42,10 @@ public class LogController {
     @GetMapping
     public Result<PageResult<LogVO>> getLogs(
             @RequestParam(required = false) String module,
+            @RequestParam(required = false) String username,
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer size) {
 
-        PageHelper.startPage(page, size);
         LambdaQueryWrapper<Log> qw = new LambdaQueryWrapper<Log>()
                 .orderByDesc(Log::getCreateTime);
 
@@ -52,6 +53,27 @@ public class LogController {
             qw.like(Log::getModule, module);
         }
 
+        if (username != null && !username.trim().isEmpty()) {
+            // 1. 根据用户名或姓名查询对应的用户ID列表
+            List<User> users = userMapper.selectList(new LambdaQueryWrapper<User>()
+                    .like(User::getUsername, username)
+                    .or()
+                    .like(User::getName, username));
+
+            // 2. 构造查询条件：要么 user_id 在匹配的 ID 列表中，要么 params 字段中包含该用户名
+            qw.and(wrapper -> {
+                if (!users.isEmpty()) {
+                    List<Long> filteredUserIds = users.stream().map(User::getId).collect(Collectors.toList());
+                    wrapper.in(Log::getUserId, filteredUserIds);
+                }
+                // 同时在 params 字段中模糊匹配用户名，以兼容 user_id 为空的历史日志
+                wrapper.or().like(Log::getParams, "\"username\":\"" + username);
+                // 或者直接模糊匹配 username (针对某些简化的 params 结构)
+                wrapper.or().like(Log::getParams, username);
+            });
+        }
+
+        PageHelper.startPage(page, size);
         List<Log> list = logMapper.selectList(qw);
         PageInfo<Log> pageInfo = new PageInfo<>(list);
 
@@ -63,9 +85,9 @@ public class LogController {
                         .collect(Collectors.toMap(User::getId, User::getName));
 
         List<LogVO> vos = list.stream().map(log -> {
-            String username = "未知";
+            String opUsername = "未知";
             if (log.getUserId() != null) {
-                username = userNameMap.getOrDefault(log.getUserId(), "未知");
+                opUsername = userNameMap.getOrDefault(log.getUserId(), "未知");
             } else if (log.getParams() != null && log.getParams().contains("\"username\":\"")) {
                 // 针对 userId 为空的历史日志，从参数中提取用户名 (用于展示)
                 try {
@@ -73,7 +95,7 @@ public class LogController {
                     int start = p.indexOf("\"username\":\"") + 12;
                     int end = p.indexOf("\"", start);
                     if (start > 11 && end > start) {
-                        username = p.substring(start, end);
+                        opUsername = p.substring(start, end);
                     }
                 } catch (Exception ignored) {
                 }
@@ -88,7 +110,7 @@ public class LogController {
             return LogVO.builder()
                     .id(log.getId())
                     .userId(log.getUserId())
-                    .username(username)
+                    .username(opUsername)
                     .operation(log.getOperation())
                     .module(log.getModule())
                     .params(params)
@@ -98,6 +120,32 @@ public class LogController {
         }).collect(Collectors.toList());
 
         return Result.success(PageResult.of(pageInfo.getTotal(), vos));
+    }
+
+    @Operation(summary = "删除日志")
+    @DeleteMapping("/{id}")
+    @OperationLog(module = "系统日志", operation = "删除单条日志")
+    public Result<Void> deleteLog(@PathVariable Long id) {
+        logMapper.deleteById(id);
+        return Result.success();
+    }
+
+    @Operation(summary = "批量删除日志")
+    @DeleteMapping("/batch")
+    @OperationLog(module = "系统日志", operation = "批量删除日志")
+    public Result<Void> batchDeleteLogs(@RequestBody List<Long> ids) {
+        if (ids != null && !ids.isEmpty()) {
+            logMapper.deleteBatchIds(ids);
+        }
+        return Result.success();
+    }
+
+    @Operation(summary = "清空日志")
+    @DeleteMapping("/clear")
+    @OperationLog(module = "系统日志", operation = "清空所有日志")
+    public Result<Void> clearLogs() {
+        logMapper.delete(null);
+        return Result.success();
     }
 
     @Data

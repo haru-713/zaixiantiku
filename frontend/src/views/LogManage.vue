@@ -12,13 +12,34 @@
           v-model="query.module"
           placeholder="搜索模块名称"
           clearable
-          style="width: 250px; margin-right: 10px"
+          style="width: 200px; margin-right: 10px"
+          @keyup.enter="handleQuery"
+        />
+        <el-input
+          v-model="query.username"
+          placeholder="搜索操作人"
+          clearable
+          style="width: 200px; margin-right: 10px"
           @keyup.enter="handleQuery"
         />
         <el-button type="primary" @click="handleQuery">查询</el-button>
+        <el-button
+          type="danger"
+          plain
+          :disabled="selectedIds.length === 0"
+          @click="handleBatchDelete"
+          >批量删除</el-button
+        >
+        <el-button type="danger" @click="handleClear">清空日志</el-button>
       </div>
 
-      <el-table :data="list" v-loading="loading" style="width: 100%">
+      <el-table
+        :data="list"
+        v-loading="loading"
+        style="width: 100%"
+        @selection-change="handleSelectionChange"
+      >
+        <el-table-column type="selection" width="55" />
         <el-table-column type="index" label="序号" width="80" :index="indexMethod" />
         <el-table-column prop="username" label="操作人" width="120" />
         <el-table-column prop="module" label="模块" width="120" />
@@ -27,9 +48,10 @@
         <el-table-column prop="createTime" label="操作时间" width="180">
           <template #default="scope">{{ formatDateTime(scope.row.createTime) }}</template>
         </el-table-column>
-        <el-table-column label="详情" width="80" fixed="right">
+        <el-table-column label="操作" width="120" fixed="right">
           <template #default="scope">
             <el-button type="primary" link @click="showDetail(scope.row)">详情</el-button>
+            <el-button type="danger" link @click="handleDelete(scope.row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -71,18 +93,21 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import request from '@/utils/request'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const loading = ref(false)
 const list = ref([])
 const total = ref(0)
 const query = reactive({
   module: '',
+  username: '',
   page: 1,
   size: 10
 })
 
 const detailVisible = ref(false)
 const currentLog = ref({})
+const selectedIds = ref([])
 
 const fetchList = async () => {
   loading.value = true
@@ -116,6 +141,68 @@ const handleCurrentChange = () => {
 const showDetail = (row) => {
   currentLog.value = row
   detailVisible.value = true
+}
+
+const handleDelete = async (row) => {
+  try {
+    await ElMessageBox.confirm('确定要删除这条日志吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    const res = await request.delete(`/admin/logs/${row.id}`)
+    if (res.code === 1 || res.code === 200) {
+      ElMessage.success('删除成功')
+      fetchList()
+    }
+  } catch (e) {
+    if (e !== 'cancel') {
+      console.error(e)
+    }
+  }
+}
+
+const handleBatchDelete = async () => {
+  if (selectedIds.value.length === 0) return
+  try {
+    await ElMessageBox.confirm(`确定要删除选中的 ${selectedIds.value.length} 条日志吗？`, '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    const res = await request.delete('/admin/logs/batch', { data: selectedIds.value })
+    if (res.code === 1 || res.code === 200) {
+      ElMessage.success('批量删除成功')
+      fetchList()
+    }
+  } catch (e) {
+    if (e !== 'cancel') {
+      console.error(e)
+    }
+  }
+}
+
+const handleClear = async () => {
+  try {
+    await ElMessageBox.confirm('确定要清空所有日志吗？此操作不可恢复！', '警告', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'error'
+    })
+    const res = await request.delete('/admin/logs/clear')
+    if (res.code === 1 || res.code === 200) {
+      ElMessage.success('日志已清空')
+      fetchList()
+    }
+  } catch (e) {
+    if (e !== 'cancel') {
+      console.error(e)
+    }
+  }
+}
+
+const handleSelectionChange = (selection) => {
+  selectedIds.value = selection.map(item => item.id)
 }
 
 const indexMethod = (index) => {
