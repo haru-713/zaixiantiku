@@ -18,6 +18,7 @@ import com.github.pagehelper.PageInfo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -38,6 +39,7 @@ public class AdminUserServiceImpl extends ServiceImpl<UserMapper, User> implemen
     private final UserMapper userMapper;
     private final StudentClassMapper studentClassMapper;
     private final ClassMapper classMapper;
+    private final PasswordEncoder passwordEncoder;
     private static final Set<String> ALLOWED_ROLE_CODES = Set.of("STUDENT", "TEACHER", "ADMIN");
 
     @Override
@@ -208,5 +210,26 @@ public class AdminUserServiceImpl extends ServiceImpl<UserMapper, User> implemen
         if (rows != 1) {
             throw new RuntimeException("状态更新失败");
         }
+    }
+
+    @Override
+    public void resetPassword(Long userId) {
+        // 1. 获取当前登录用户，防止自重置
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof LoginUser loginUser) {
+            if (Objects.equals(loginUser.getUser().getId(), userId)) {
+                throw new RuntimeException("管理员不能重置自己的密码，请联系其他管理员协助");
+            }
+        }
+
+        // 2. 查询目标用户
+        User user = this.getById(userId);
+        if (user == null) {
+            throw new RuntimeException("用户不存在");
+        }
+
+        // 3. 重置为初始密码 123456
+        user.setPassword(passwordEncoder.encode("123456"));
+        this.updateById(user);
     }
 }

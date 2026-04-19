@@ -23,4 +23,6 @@ public interface AdminUserService extends IService<User> {
     void auditStudent(Long userId, UserAuditDTO auditDTO);
 
     void updateUserStatus(Long userId, UserStatusDTO statusDTO);
+
+    void resetPassword(Long userId);
 }

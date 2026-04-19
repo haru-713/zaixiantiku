@@ -63,11 +63,16 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200">
+        <el-table-column label="操作" width="280">
           <template #default="scope">
             <el-button v-if="isAdmin" :type="scope.row.status === 1 ? 'danger' : 'success'" size="small"
               @click="handleToggleStatus(scope.row.id, scope.row.status)">
               {{ scope.row.status === 1 ? '禁用' : '启用' }}
+            </el-button>
+
+            <el-button v-if="isAdmin" type="warning" size="small" :disabled="scope.row.id === userStore.userInfo?.id"
+              @click="handleResetPassword(scope.row.id, scope.row.username)">
+              重置密码
             </el-button>
 
             <template v-if="isAdmin && scope.row.roleCodes.includes('STUDENT') && scope.row.auditStatus === 0">
@@ -219,6 +224,32 @@ const handleToggleStatus = async (userId, currentStatus) => {
     fetchUserList()
   } catch (e) {
     console.error('状态更新失败:', e)
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleResetPassword = async (userId, username) => {
+  if (!isAdmin.value) {
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(`确定要将用户 [${username}] 的密码重置为初始密码 123456 吗？`, '警告', {
+      confirmButtonText: '确定重置',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+  } catch {
+    return
+  }
+
+  loading.value = true
+  try {
+    await request.put(`/admin/users/${userId}/password/reset`)
+    ElMessage.success('密码已成功重置为 123456')
+  } catch (e) {
+    console.error('重置密码失败:', e)
   } finally {
     loading.value = false
   }

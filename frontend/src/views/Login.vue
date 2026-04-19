@@ -7,13 +7,19 @@
           <p>专业的在线学习与考试平台</p>
           <div class="features">
             <div class="feature-item">
-              <el-icon><Check /></el-icon> 海量题库资源
+              <el-icon>
+                <Check />
+              </el-icon> 海量题库资源
             </div>
             <div class="feature-item">
-              <el-icon><Check /></el-icon> 智能考试评分
+              <el-icon>
+                <Check />
+              </el-icon> 智能考试评分
             </div>
             <div class="feature-item">
-              <el-icon><Check /></el-icon> 详尽数据分析
+              <el-icon>
+                <Check />
+              </el-icon> 详尽数据分析
             </div>
           </div>
         </div>
@@ -26,41 +32,23 @@
               <p class="subtitle">请登录您的账号以开始使用</p>
             </div>
           </template>
-          
+
           <el-form ref="loginFormRef" :model="loginForm" :rules="rules" label-width="0">
             <el-form-item prop="username">
-              <el-input 
-                v-model="loginForm.username" 
-                placeholder="用户名" 
-                prefix-icon="User"
-                size="large"
-              />
+              <el-input v-model="loginForm.username" placeholder="用户名" prefix-icon="User" size="large" />
             </el-form-item>
             <el-form-item prop="password">
-              <el-input 
-                v-model="loginForm.password" 
-                type="password" 
-                placeholder="密码" 
-                prefix-icon="Lock"
-                show-password 
-                size="large"
-                @keyup.enter="handleLogin"
-              />
+              <el-input v-model="loginForm.password" type="password" placeholder="密码" prefix-icon="Lock" show-password
+                size="large" @keyup.enter="handleLogin" />
             </el-form-item>
-            
+
             <div class="form-actions">
-              <el-checkbox v-model="rememberMe">记住我</el-checkbox>
-              <el-button link type="primary">忘记密码？</el-button>
+              <el-button link type="primary" @click="handleForgotPassword">忘记密码？</el-button>
             </div>
 
-            <el-button 
-              type="primary" 
-              class="login-btn" 
-              :loading="loading" 
-              size="large"
-              @click="handleLogin"
-            >立即登录</el-button>
-            
+            <el-button type="primary" class="login-btn" :loading="loading" size="large"
+              @click="handleLogin">立即登录</el-button>
+
             <div class="register-link">
               还没有账号？<el-button link type="primary" @click="$router.push('/register')">立即注册</el-button>
             </div>
@@ -76,14 +64,13 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/store/user'
 import request from '@/utils/request'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const router = useRouter()
 const userStore = useUserStore()
 
 const loginFormRef = ref(null)
 const loading = ref(false)
-const rememberMe = ref(false)
 
 const loginForm = reactive({
   username: '',
@@ -121,6 +108,27 @@ const handleLogin = async () => {
       }
     }
   })
+}
+
+const handleForgotPassword = () => {
+  ElMessageBox.confirm(
+    '请联系管理员重置您的密码。重置后初始密码为 123456，登录后请及时修改。\n\n' +
+    '管理员联系方式：\n' +
+    '📧 邮箱：admin@example.com\n' +
+    '📞 电话：138-0000-0001',
+    '找回密码提示',
+    {
+      confirmButtonText: '我知道了',
+      cancelButtonText: '取消',
+      type: 'info',
+      distinguishCancelAndClose: true,
+      message: '请联系管理员重置您的密码。重置后初始密码为 123456，登录后请及时修改。<br/><br/>' +
+        '<b>管理员联系方式：</b><br/>' +
+        '📧 邮箱：admin@example.com<br/>' +
+        '📞 电话：138-0000-0001',
+      dangerouslyUseHTMLString: true
+    }
+  )
 }
 
 const resetForm = () => {
@@ -223,7 +231,7 @@ const resetForm = () => {
 
 .form-actions {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   margin-bottom: 30px;
 }
@@ -247,6 +255,7 @@ const resetForm = () => {
   .login-box {
     width: 580px;
   }
+
   .login-left {
     display: none;
   }

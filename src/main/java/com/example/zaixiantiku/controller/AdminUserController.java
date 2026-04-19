@@ -60,4 +60,13 @@ public class AdminUserController {
         adminUserService.updateUserStatus(userId, statusDTO);
         return Result.success(1, "状态已更新", null);
     }
+
+    @PutMapping("/{userId}/password/reset")
+    @PreAuthorize("hasRole('ADMIN')")
+    @OperationLog(module = "用户管理", operation = "重置用户密码")
+    @Operation(summary = "重置密码", description = "管理员重置用户密码为初始密码 123456")
+    public Result<Void> resetPassword(@PathVariable Long userId) {
+        adminUserService.resetPassword(userId);
+        return Result.success(1, "密码已重置为 123456", null);
+    }
 }
