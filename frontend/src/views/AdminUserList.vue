@@ -8,76 +8,86 @@
       </template>
 
       <!-- 搜索栏 -->
-      <div class="search-bar">
-        <el-input v-model="queryParams.keyword" placeholder="用户名/姓名/手机号" style="width: 200px; margin-right: 10px"
-          clearable @clear="handleQuery" @keyup.enter="handleQuery" />
-        <el-select v-model="queryParams.roleCode" placeholder="角色" clearable style="width: 120px; margin-right: 10px">
-          <el-option label="管理员" value="ADMIN" />
-          <el-option label="教师" value="TEACHER" />
-          <el-option label="学生" value="STUDENT" />
-        </el-select>
-        <el-select v-model="queryParams.status" placeholder="状态" clearable style="width: 100px; margin-right: 10px">
-          <el-option label="正常" :value="1" />
-          <el-option label="禁用" :value="0" />
-        </el-select>
-        <el-select v-model="queryParams.auditStatus" placeholder="审核状态" clearable
-          style="width: 120px; margin-right: 10px">
-          <el-option label="待审核" :value="0" />
-          <el-option label="审核通过" :value="1" />
-          <el-option label="审核拒绝" :value="2" />
-        </el-select>
-        <el-button type="primary" @click="handleQuery">查询</el-button>
-        <el-button @click="resetQuery">重置</el-button>
-      </div>
+      <el-form :inline="true" :model="queryParams" class="search-form">
+        <el-form-item>
+          <el-input v-model="queryParams.keyword" placeholder="用户名/姓名/手机号" style="width: 200px" clearable
+            @clear="handleQuery" @keyup.enter="handleQuery" />
+        </el-form-item>
+        <el-form-item>
+          <el-select v-model="queryParams.roleCode" placeholder="角色" clearable style="width: 120px">
+            <el-option label="管理员" value="ADMIN" />
+            <el-option label="教师" value="TEACHER" />
+            <el-option label="学生" value="STUDENT" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-select v-model="queryParams.status" placeholder="状态" clearable style="width: 100px">
+            <el-option label="正常" :value="1" />
+            <el-option label="禁用" :value="0" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-select v-model="queryParams.auditStatus" placeholder="审核状态" clearable style="width: 120px">
+            <el-option label="待审核" :value="0" />
+            <el-option label="审核通过" :value="1" />
+            <el-option label="审核拒绝" :value="2" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleQuery">查询</el-button>
+          <el-button @click="resetQuery">重置</el-button>
+        </el-form-item>
+      </el-form>
 
       <!-- 数据表格 -->
-      <el-table :data="userList" v-loading="loading" style="width: 100%; margin-top: 20px">
-        <el-table-column type="index" label="序号" width="80" :index="indexMethod" />
-        <el-table-column label="头像" width="80">
+      <el-table :data="userList" v-loading="loading" stripe border style="width: 100%">
+        <el-table-column type="index" label="序号" width="80" :index="indexMethod" align="center" />
+        <el-table-column label="头像" width="80" align="center">
           <template #default="scope">
-            <el-avatar :size="40" :src="scope.row.avatar" />
+            <el-avatar :size="36" :src="scope.row.avatar" />
           </template>
         </el-table-column>
-        <el-table-column prop="username" label="用户名" />
-        <el-table-column prop="name" label="姓名" />
-        <el-table-column prop="phone" label="手机号" />
-        <el-table-column label="角色">
+        <el-table-column prop="username" label="用户名" min-width="120" />
+        <el-table-column prop="name" label="姓名" min-width="100" />
+        <el-table-column prop="phone" label="手机号" width="130" />
+        <el-table-column label="角色" min-width="150">
           <template #default="scope">
-            <el-tag v-for="role in scope.row.roleCodes" :key="role" style="margin-right: 5px">
+            <el-tag v-for="role in scope.row.roleCodes" :key="role" size="small" class="role-tag">
               {{ role === 'ADMIN' ? '管理员' : (role === 'TEACHER' ? '教师' : '学生') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="100">
+        <el-table-column label="状态" width="100" align="center">
           <template #default="scope">
-            <el-tag :type="scope.row.status === 1 ? 'success' : 'danger'">
+            <el-tag :type="scope.row.status === 1 ? 'success' : 'danger'" size="small">
               {{ scope.row.status === 1 ? '正常' : '禁用' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="审核状态" width="120">
+        <el-table-column label="审核状态" width="120" align="center">
           <template #default="scope">
-            <el-tag v-if="scope.row.roleCodes.includes('STUDENT')" :type="auditStatusType(scope.row.auditStatus)">
+            <el-tag v-if="scope.row.roleCodes.includes('STUDENT')" :type="auditStatusType(scope.row.auditStatus)"
+              size="small">
               {{ auditStatusLabel(scope.row.auditStatus) }}
             </el-tag>
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280">
+        <el-table-column label="操作" width="220" fixed="right">
           <template #default="scope">
-            <el-button v-if="isAdmin" :type="scope.row.status === 1 ? 'danger' : 'success'" size="small"
+            <el-button v-if="isAdmin" link :type="scope.row.status === 1 ? 'danger' : 'success'"
               @click="handleToggleStatus(scope.row.id, scope.row.status)">
               {{ scope.row.status === 1 ? '禁用' : '启用' }}
             </el-button>
 
-            <el-button v-if="isAdmin" type="warning" size="small" :disabled="scope.row.id === userStore.userInfo?.id"
+            <el-button v-if="isAdmin" link type="primary" :disabled="scope.row.id === userStore.userInfo?.id"
               @click="handleResetPassword(scope.row.id, scope.row.username)">
               重置密码
             </el-button>
 
             <template v-if="isAdmin && scope.row.roleCodes.includes('STUDENT') && scope.row.auditStatus === 0">
-              <el-button type="success" size="small" @click="handleAudit(scope.row.id, 1)">通过</el-button>
-              <el-button type="warning" size="small" @click="handleAudit(scope.row.id, 2)">拒绝</el-button>
+              <el-button link type="success" @click="handleAudit(scope.row.id, 1)">通过</el-button>
+              <el-button link type="warning" @click="handleAudit(scope.row.id, 2)">拒绝</el-button>
             </template>
           </template>
         </el-table-column>
@@ -265,10 +275,17 @@ onMounted(() => {
   width: 100%;
 }
 
-.search-bar {
-  display: flex;
-  align-items: center;
+.search-form {
+  background-color: #F8FAFC;
+  padding: 16px 16px 0;
+  border-radius: 8px;
   margin-bottom: 20px;
+  border: 1px solid var(--border-color);
+}
+
+.role-tag {
+  margin-right: 4px;
+  margin-bottom: 4px;
 }
 
 .pagination-container {

@@ -10,20 +10,26 @@
         </div>
       </template>
 
-      <div class="search-bar">
-        <el-input v-model="query.keyword" placeholder="课程名称" clearable style="width: 220px; margin-right: 10px"
-          @clear="handleQuery" @keyup.enter="handleQuery" />
-        <el-select v-model="query.status" placeholder="状态" clearable style="width: 120px; margin-right: 10px">
-          <el-option label="启用" :value="1" />
-          <el-option label="禁用" :value="0" />
-        </el-select>
-        <el-button type="primary" @click="handleQuery">查询</el-button>
-        <el-button @click="resetQuery">重置</el-button>
-      </div>
+      <el-form :inline="true" :model="query" class="search-form">
+        <el-form-item>
+          <el-input v-model="query.keyword" placeholder="课程名称" clearable style="width: 200px" @clear="handleQuery"
+            @keyup.enter="handleQuery" />
+        </el-form-item>
+        <el-form-item>
+          <el-select v-model="query.status" placeholder="状态" clearable style="width: 120px">
+            <el-option label="启用" :value="1" />
+            <el-option label="禁用" :value="0" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleQuery">查询</el-button>
+          <el-button @click="resetQuery">重置</el-button>
+        </el-form-item>
+      </el-form>
 
-      <el-table :data="list" v-loading="loading" style="width: 100%; margin-top: 16px">
-        <el-table-column type="index" label="序号" width="80" :index="indexMethod" />
-        <el-table-column label="封面" width="120">
+      <el-table :data="list" v-loading="loading" stripe border style="width: 100%; margin-top: 10px">
+        <el-table-column type="index" label="序号" width="70" :index="indexMethod" align="center" />
+        <el-table-column label="封面" width="120" align="center">
           <template #default="scope">
             <el-image v-if="scope.row.cover" :src="scope.row.cover"
               style="width: 80px; height: 45px; border-radius: 4px" fit="cover" :preview-src-list="[scope.row.cover]"
@@ -41,35 +47,30 @@
         </el-table-column>
         <el-table-column prop="courseName" label="课程名称" min-width="160" />
         <el-table-column prop="description" label="课程描述" min-width="200" show-overflow-tooltip />
-        <el-table-column label="教师" min-width="160" show-overflow-tooltip>
+        <el-table-column label="教师" min-width="150" show-overflow-tooltip>
           <template #default="scope">
             {{ formatTeachers(scope.row.teachers) }}
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="status" label="状态" width="90" align="center">
           <template #default="scope">
-            <el-tag :type="scope.row.status === 1 ? 'success' : 'danger'">
+            <el-tag :type="scope.row.status === 1 ? 'success' : 'danger'" size="small">
               {{ scope.row.status === 1 ? '启用' : '禁用' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createTime" label="创建时间" width="180">
+        <el-table-column prop="createTime" label="创建时间" width="160">
           <template #default="scope">
             {{ formatDateTime(scope.row.createTime) }}
           </template>
         </el-table-column>
-        <el-table-column prop="updateTime" label="更新时间" width="180">
+        <el-table-column label="操作" width="220" fixed="right">
           <template #default="scope">
-            {{ formatDateTime(scope.row.updateTime) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="280">
-          <template #default="scope">
-            <el-button size="small" @click="openDetail(scope.row)">详情</el-button>
-            <el-button v-if="canManage" size="small" type="success" @click="manageStudents(scope.row)">学生管理</el-button>
-            <el-button v-if="canManage" type="primary" size="small" @click="openEdit(scope.row)">修改</el-button>
-            <el-button v-if="isAdmin" type="danger" size="small" @click="handleDelete(scope.row)">删除</el-button>
-            <el-button v-else-if="isTeacher" type="warning" size="small" @click="handleExit(scope.row)">退出</el-button>
+            <el-button link type="primary" @click="openDetail(scope.row)">详情</el-button>
+            <el-button v-if="canManage" link type="success" @click="manageStudents(scope.row)">学生</el-button>
+            <el-button v-if="canManage" link type="primary" @click="openEdit(scope.row)">修改</el-button>
+            <el-button v-if="isAdmin" link type="danger" @click="handleDelete(scope.row)">删除</el-button>
+            <el-button v-else-if="isTeacher" link type="warning" @click="handleExit(scope.row)">退出</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -328,7 +329,7 @@ const handleDelete = async (row) => {
   const confirmMsg = isAdmin.value
     ? `确定要强制删除课程【${row.courseName}】吗？这将级联删除该课程下的所有教师关联、选课学生、题目、试卷及考试记录，且不可恢复！`
     : `确定要删除课程【${row.courseName}】吗？删除前请确保该课程下已无任何教师、学生、题目和知识点。`
-    
+
   try {
     await ElMessageBox.confirm(confirmMsg, '警告', {
       confirmButtonText: '确定删除',
@@ -433,27 +434,43 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-weight: bold;
+.course-page {
+  width: 100%;
 }
 
-.header-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.search-bar {
-  display: flex;
-  align-items: center;
+.search-form {
+  background-color: #F8FAFC;
+  padding: 16px 16px 0;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  border: 1px solid var(--border-color);
 }
 
 .pagination-container {
   margin-top: 20px;
   display: flex;
   justify-content: flex-end;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cover-row {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+
+.cover-preview {
+  margin-top: 10px;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  overflow: hidden;
+  width: 160px;
+  height: 90px;
 }
 
 .image-slot {
@@ -464,17 +481,5 @@ onMounted(() => {
   height: 100%;
   background: #f5f7fa;
   color: #909399;
-  font-size: 20px;
-}
-
-.cover-row {
-width: 100%;
-display: flex;
-align-items: center;
-gap: 8px;
-}
-
-.cover-preview {
-margin-top: 8px;
 }
 </style>

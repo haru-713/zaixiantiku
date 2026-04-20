@@ -1,82 +1,60 @@
 <template>
-  <div class="auth-container">
-    <div class="auth-box register-box">
-      <div class="auth-left">
-        <div class="welcome-content">
-          <h1>加入在线题库</h1>
-          <p>开启您的专业学习与测评之旅</p>
-          <div class="features">
-            <div class="feature-item">
-              <el-icon>
-                <Check />
-              </el-icon> 智能化题库管理
-            </div>
-            <div class="feature-item">
-              <el-icon>
-                <Check />
-              </el-icon> 实时成绩反馈
-            </div>
-            <div class="feature-item">
-              <el-icon>
-                <Check />
-              </el-icon> 教师互动交流
-            </div>
+  <div class="register-container">
+    <div class="register-box">
+      <div class="register-header">
+        <h1 class="system-title">创建账号</h1>
+        <p class="system-subtitle">加入我们，开启您的专业学习之旅</p>
+      </div>
+
+      <el-card class="register-card">
+        <el-form ref="registerFormRef" :model="registerForm" :rules="rules" label-width="0">
+          <el-form-item prop="username">
+            <el-input v-model="registerForm.username" placeholder="用户名" prefix-icon="User" size="large" />
+          </el-form-item>
+
+          <el-row :gutter="12">
+            <el-col :span="12">
+              <el-form-item prop="password">
+                <el-input v-model="registerForm.password" type="password" placeholder="密码" prefix-icon="Lock"
+                  show-password size="large" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item prop="confirmPassword">
+                <el-input v-model="registerForm.confirmPassword" type="password" placeholder="确认密码" prefix-icon="Lock"
+                  show-password size="large" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+
+          <el-form-item prop="name">
+            <el-input v-model="registerForm.name" placeholder="真实姓名" prefix-icon="Postcard" size="large" />
+          </el-form-item>
+
+          <el-form-item prop="phone">
+            <el-input v-model="registerForm.phone" placeholder="手机号" prefix-icon="Phone" size="large" />
+          </el-form-item>
+
+          <el-form-item prop="email">
+            <el-input v-model="registerForm.email" placeholder="邮箱地址" prefix-icon="Message" size="large" />
+          </el-form-item>
+
+          <div class="role-selection">
+            <span class="role-label">身份选择:</span>
+            <el-radio-group v-model="registerForm.roleCode" size="large">
+              <el-radio label="STUDENT">学生</el-radio>
+              <el-radio label="TEACHER">教师</el-radio>
+            </el-radio-group>
           </div>
-        </div>
-      </div>
-      <div class="auth-right">
-        <el-card class="auth-card" :body-style="{ padding: '40px 50px' }">
-          <template #header>
-            <div class="card-header">
-              <h3>创建账号</h3>
-              <p class="subtitle">请填写以下信息完成注册</p>
-            </div>
-          </template>
 
-          <el-form ref="registerFormRef" :model="registerForm" :rules="rules" label-width="0">
-            <el-form-item prop="username">
-              <el-input v-model="registerForm.username" placeholder="用户名" prefix-icon="User" size="large" />
-            </el-form-item>
-            <el-row :gutter="20">
-              <el-col :span="12">
-                <el-form-item prop="password">
-                  <el-input v-model="registerForm.password" type="password" placeholder="密码" prefix-icon="Lock"
-                    show-password size="large" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <el-form-item prop="confirmPassword">
-                  <el-input v-model="registerForm.confirmPassword" type="password" placeholder="确认密码" prefix-icon="Lock"
-                    show-password size="large" />
-                </el-form-item>
-              </el-col>
-            </el-row>
-            <el-form-item prop="name">
-              <el-input v-model="registerForm.name" placeholder="真实姓名" prefix-icon="Postcard" size="large" />
-            </el-form-item>
-            <el-form-item prop="phone">
-              <el-input v-model="registerForm.phone" placeholder="手机号" prefix-icon="Phone" size="large" />
-            </el-form-item>
-            <el-form-item prop="email">
-              <el-input v-model="registerForm.email" placeholder="邮箱地址" prefix-icon="Message" size="large" />
-            </el-form-item>
+          <el-button type="primary" class="register-btn" :loading="loading" size="large" @click="handleRegister">注
+            册</el-button>
 
-            <el-form-item label="身份选择" label-width="80px" class="role-item">
-              <el-radio-group v-model="registerForm.roleCode" size="large">
-                <el-radio-button label="STUDENT">我是学生</el-radio-button>
-                <el-radio-button label="TEACHER">我是教师</el-radio-button>
-              </el-radio-group>
-            </el-form-item>
-
-            <el-button type="primary" class="submit-btn" :loading="loading" size="large"
-              @click="handleRegister">立即注册</el-button>
-
-            <div class="footer-link">
-              已有账号？<el-button link type="primary" @click="$router.push('/login')">立即登录</el-button>
-            </div>
-          </el-form>
-        </el-card>
-      </div>
+          <div class="login-link">
+            已有账号？<el-button link type="primary" @click="$router.push('/login')">立即登录</el-button>
+          </div>
+        </el-form>
+      </el-card>
     </div>
   </div>
 </template>
@@ -159,128 +137,99 @@ const handleRegister = async () => {
 </script>
 
 <style scoped>
-.auth-container {
-  height: 100vh;
+.register-container {
+  min-height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
-  background: #f0f2f5 url('https://gw.alipayobjects.com/zos/rmsportal/TVirbqOXmUbiJpOIhfJk.svg') no-repeat center;
-  background-size: 100%;
-}
-
-.auth-box {
-  display: flex;
-  width: 1100px;
-  height: 720px;
-  background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.1);
+  background: #F1F5F9;
+  padding: 40px 20px;
+  position: relative;
   overflow: hidden;
 }
 
-.auth-left {
-  flex: 1;
-  background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 60px;
-  color: #fff;
+.register-container::before {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at 0% 0%, #E3F2FD 0%, transparent 50%),
+              radial-gradient(circle at 100% 100%, #F1F8FE 0%, transparent 50%);
 }
 
-.welcome-content h1 {
-  font-size: 36px;
-  margin-bottom: 20px;
-  font-family: KaiTi, '楷体', serif;
+.register-box {
+  width: 500px;
+  z-index: 1;
 }
 
-.welcome-content p {
-  font-size: 18px;
-  opacity: 0.85;
-  margin-bottom: 50px;
+.register-header {
+  text-align: center;
+  margin-bottom: 30px;
 }
 
-.features {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
+.system-title {
+  font-size: 28px;
+  font-weight: bold;
+  color: #1E293B;
+  margin-bottom: 8px;
+  letter-spacing: 1px;
 }
 
-.feature-item {
+.system-subtitle {
+  font-size: 14px;
+  color: #64748B;
+}
+
+.register-card {
+  background: #FFFFFF !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+  padding: 10px;
+  border: 1px solid #E2E8F0 !important;
+}
+
+.role-selection {
   display: flex;
   align-items: center;
-  gap: 16px;
-  font-size: 16px;
-}
-
-.feature-item .el-icon {
-  background: rgba(255, 255, 255, 0.2);
-  padding: 6px;
-  border-radius: 50%;
-  font-size: 14px;
-}
-
-.auth-right {
-  width: 580px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-.auth-card {
-  border: none !important;
-  box-shadow: none !important;
-}
-
-.card-header {
-  text-align: left;
-  margin-bottom: 30px;
-}
-
-.card-header h3 {
-  font-size: 28px;
-  margin: 0 0 10px 0;
-  color: #303133;
-}
-
-.card-header .subtitle {
-  font-size: 15px;
-  color: #909399;
-  margin: 0;
-}
-
-.role-item {
-  margin-bottom: 30px;
-}
-
-.role-item :deep(.el-form-item__label) {
-  font-weight: 500;
-  color: #606266;
-  font-size: 15px;
-}
-
-.submit-btn {
-  width: 100%;
-  height: 50px;
-  font-size: 18px;
-  border-radius: 10px !important;
+  gap: 15px;
   margin-bottom: 24px;
+  padding-left: 4px;
 }
 
-.footer-link {
-  text-align: center;
+.role-label {
+  font-size: 14px;
+  color: #64748B;
+}
+
+.register-btn {
+  width: 100%;
+  height: 44px;
   font-size: 15px;
-  color: #606266;
+  font-weight: 600;
+  border-radius: 8px !important;
 }
 
-/* 响应式适配 */
-@media (max-width: 1100px) {
-  .auth-box {
-    width: 580px;
-  }
+.login-link {
+  text-align: center;
+  margin-top: 20px;
+  font-size: 14px;
+  color: #64748B;
+}
 
-  .auth-left {
-    display: none;
+:deep(.el-input__wrapper) {
+  background-color: #F8FAFC !important;
+  box-shadow: 0 0 0 1px #E2E8F0 inset !important;
+  transition: all 0.2s;
+}
+
+:deep(.el-input__wrapper.is-focus) {
+  background-color: #FFFFFF !important;
+  box-shadow: 0 0 0 1px #1E88E5 inset !important;
+}
+
+@media (max-width: 540px) {
+  .register-box {
+    width: 100%;
   }
 }
 </style>

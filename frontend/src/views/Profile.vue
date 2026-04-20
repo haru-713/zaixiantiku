@@ -45,7 +45,7 @@
         </el-card>
       </el-col>
 
-      <!-- 右侧卡片：详细资料编辑 -->
+      <!-- 右侧卡片：详细资料编辑 & 密码管理 -->
       <el-col :xs="24" :md="16">
         <el-card class="detail-card">
           <template #header>
@@ -69,18 +69,25 @@
             <el-form-item label="电子邮箱">
               <el-input v-model="form.email" placeholder="请输入邮箱" />
             </el-form-item>
-
-            <el-divider content-position="left">账号安全</el-divider>
-            <el-form-item label="密码管理">
-              <el-button type="warning" plain @click="openPasswordDialog">修改登录密码</el-button>
-            </el-form-item>
           </el-form>
+        </el-card>
+
+        <el-card class="password-card" style="margin-top: 20px;">
+          <template #header>
+            <div class="card-header">
+              <span>密码管理</span>
+            </div>
+          </template>
+          <div class="password-content">
+            <p class="password-tip">建议定期更换密码，以提高账号安全性。</p>
+            <el-button type="warning" @click="openPasswordDialog">修改登录密码</el-button>
+          </div>
         </el-card>
       </el-col>
     </el-row>
 
     <!-- 修改密码对话框 -->
-    <el-dialog v-model="passwordDialogVisible" title="修改密码" width="460px" destroy-on-close>
+    <el-dialog v-model="passwordDialogVisible" title="修改密码" width="500px" destroy-on-close center :lock-scroll="false">
       <el-form :model="passwordForm" label-width="100px" label-position="top">
         <el-form-item label="当前密码">
           <el-input v-model="passwordForm.oldPassword" type="password" show-password placeholder="请输入当前登录密码"
@@ -93,7 +100,7 @@
           <!-- 密码强度条 -->
           <div class="password-strength" v-if="passwordForm.newPassword">
             <div class="strength-bar" :class="strengthClass"></div>
-            <span class="strength-text">强度：{{ strengthText }}</span>
+            <span class="strength-text" :class="strengthClass">强度：{{ strengthText }}</span>
           </div>
         </el-form-item>
 
@@ -105,7 +112,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="passwordDialogVisible = false">取消</el-button>
-          <el-button type="primary" :loading="passwordLoading" @click="handleUpdatePassword">立即修改</el-button>
+          <el-button type="primary" :loading="passwordLoading" @click="handleUpdatePassword">确定修改</el-button>
         </span>
       </template>
     </el-dialog>
@@ -303,7 +310,17 @@ onMounted(() => {
 }
 
 .detail-card {
-  min-height: 500px;
+  min-height: 400px;
+}
+
+.password-card .password-content {
+  padding: 10px 0;
+}
+
+.password-tip {
+  font-size: 14px;
+  color: #909399;
+  margin-bottom: 20px;
 }
 
 .card-header {
@@ -326,18 +343,19 @@ onMounted(() => {
 
 /* 密码强度相关样式 */
 .password-strength {
-  margin-top: 8px;
+  margin-top: 12px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 15px;
 }
 
 .strength-bar {
   flex: 1;
-  height: 6px;
-  background-color: #ebeef5;
-  border-radius: 3px;
+  height: 8px;
+  background-color: #f0f2f5;
+  border-radius: 4px;
   position: relative;
+  overflow: hidden;
 }
 
 .strength-bar::before {
@@ -346,29 +364,41 @@ onMounted(() => {
   left: 0;
   top: 0;
   height: 100%;
-  border-radius: 3px;
-  transition: all 0.3s ease;
+  border-radius: 4px;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   width: 0;
 }
 
 .strength-bar.weak::before {
   width: 33.33%;
-  background-color: #f56c6c;
+  background-color: var(--el-color-danger);
 }
 
 .strength-bar.medium::before {
   width: 66.66%;
-  background-color: #e6a23c;
+  background-color: var(--el-color-warning);
 }
 
 .strength-bar.strong::before {
   width: 100%;
-  background-color: #67c23a;
+  background-color: var(--el-color-success);
 }
 
 .strength-text {
-  font-size: 12px;
-  color: #909399;
-  min-width: 60px;
+  font-size: 13px;
+  min-width: 50px;
+  font-weight: 500;
+}
+
+.strength-text.weak {
+  color: var(--el-color-danger);
+}
+
+.strength-text.medium {
+  color: var(--el-color-warning);
+}
+
+.strength-text.strong {
+  color: var(--el-color-success);
 }
 </style>

@@ -1,278 +1,90 @@
 <template>
   <div class="home-container">
-    <div class="welcome-card">
-      <div class="welcome-text">
-        <h2>欢迎回来，{{ userInfo.name || userInfo.username }}</h2>
-        <p class="subtitle">今天是 {{ today }}, 祝您学习愉快！</p>
+    <!-- 欢迎卡片 -->
+    <el-card class="welcome-card" :body-style="{ padding: '24px' }">
+      <div class="welcome-content">
+        <div class="welcome-left">
+          <h2 class="welcome-title">{{ welcomeMessage }}，{{ userInfo.name || userInfo.username }}</h2>
+          <div class="welcome-meta">
+            <span class="date">{{ today }}</span>
+            <span class="divider">|</span>
+            <span class="quote">{{ motivationalQuote }}</span>
+          </div>
+        </div>
+        <div class="welcome-right">
+          <el-avatar :size="64" :src="userInfo.avatar">{{ userInfo.username?.charAt(0).toUpperCase() }}</el-avatar>
+        </div>
       </div>
-      <el-button type="primary" plain @click="$router.push('/profile')">查看个人档案</el-button>
-    </div>
+    </el-card>
 
     <!-- 统计数据展示 -->
     <el-row :gutter="20" class="stat-row">
-      <!-- 学生统计项 -->
-      <template v-if="isStudent">
-        <el-col :xs="24" :sm="12" :md="6">
-          <el-card class="stat-card is-link" shadow="hover" @click="$router.push('/course/query')">
-            <div class="stat-content">
-              <el-icon class="stat-icon color-blue"><Reading /></el-icon>
-              <div class="stat-info">
-                <div class="stat-label">参与课程</div>
-                <div class="stat-value">{{ stats.courseCount || 0 }}</div>
+      <!-- 根据角色展示统计项 -->
+      <el-col :xs="24" :sm="12" :md="6" v-for="item in roleStats" :key="item.label">
+        <el-card class="stat-card" shadow="hover" @click="$router.push(item.path)">
+          <div class="stat-main">
+            <div class="stat-info">
+              <div class="stat-value" :style="{ color: item.valueColor || 'var(--el-color-primary)' }">
+                {{ item.value }}
               </div>
+              <div class="stat-label">{{ item.label }}</div>
             </div>
-          </el-card>
-        </el-col>
-        <el-col :xs="24" :sm="12" :md="6">
-          <el-card class="stat-card is-link" shadow="hover" @click="$router.push('/study/record')">
-            <div class="stat-content">
-              <el-icon class="stat-icon color-green"><EditPen /></el-icon>
-              <div class="stat-info">
-                <div class="stat-label">累计练习</div>
-                <div class="stat-value">{{ stats.practiceCount || 0 }}</div>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :xs="24" :sm="12" :md="6">
-          <el-card class="stat-card is-link" shadow="hover" @click="$router.push('/study/exam-record')">
-            <div class="stat-content">
-              <el-icon class="stat-icon color-orange"><Document /></el-icon>
-              <div class="stat-info">
-                <div class="stat-label">考试记录</div>
-                <div class="stat-value">{{ stats.examCount || 0 }}</div>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :xs="24" :sm="12" :md="6">
-          <el-card class="stat-card is-link" shadow="hover" @click="$router.push('/study/mistakes')">
-            <div class="stat-content">
-              <el-icon class="stat-icon color-red"><Warning /></el-icon>
-              <div class="stat-info">
-                <div class="stat-label">错题统计</div>
-                <div class="stat-value">{{ stats.mistakeCount || 0 }}</div>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-      </template>
-
-      <!-- 教师统计项 -->
-      <template v-else-if="isTeacher">
-        <el-col :xs="24" :sm="12" :md="6">
-          <el-card class="stat-card is-link" shadow="hover" @click="$router.push('/course/list')">
-            <div class="stat-content">
-              <el-icon class="stat-icon color-blue"><Management /></el-icon>
-              <div class="stat-info">
-                <div class="stat-label">管理课程</div>
-                <div class="stat-value">{{ stats.courseCount || 0 }}</div>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :xs="24" :sm="12" :md="6">
-          <el-card class="stat-card is-link" shadow="hover" @click="$router.push('/question/manage')">
-            <div class="stat-content">
-              <el-icon class="stat-icon color-green"><QuestionFilled /></el-icon>
-              <div class="stat-info">
-                <div class="stat-label">试题总量</div>
-                <div class="stat-value">{{ stats.questionCount || 0 }}</div>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :xs="24" :sm="12" :md="6">
-          <el-card class="stat-card is-link" shadow="hover" @click="$router.push('/system/classes')">
-            <div class="stat-content">
-              <el-icon class="stat-icon color-orange"><UserFilled /></el-icon>
-              <div class="stat-info">
-                <div class="stat-label">班级总数</div>
-                <div class="stat-value">{{ stats.classCount || 0 }}</div>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :xs="24" :sm="12" :md="6">
-          <el-card class="stat-card is-link" shadow="hover" @click="$router.push('/exam/marking')">
-            <div class="stat-content">
-              <el-icon class="stat-icon color-red"><Checked /></el-icon>
-              <div class="stat-info">
-                <div class="stat-label">待阅试卷</div>
-                <div class="stat-value">{{ stats.pendingCount || 0 }}</div>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-      </template>
-
-      <!-- 管理员统计项 -->
-      <template v-else-if="isAdmin">
-        <el-col :xs="24" :sm="12" :md="6">
-          <el-card class="stat-card is-link" shadow="hover" @click="$router.push('/course/list')">
-            <div class="stat-content">
-              <el-icon class="stat-icon color-blue"><Management /></el-icon>
-              <div class="stat-info">
-                <div class="stat-label">管理课程</div>
-                <div class="stat-value">{{ stats.courseCount || 0 }}</div>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :xs="24" :sm="12" :md="6">
-          <el-card class="stat-card is-link" shadow="hover" @click="$router.push('/question/manage')">
-            <div class="stat-content">
-              <el-icon class="stat-icon color-green"><QuestionFilled /></el-icon>
-              <div class="stat-info">
-                <div class="stat-label">试题总量</div>
-                <div class="stat-value">{{ stats.questionCount || 0 }}</div>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :xs="24" :sm="12" :md="6">
-          <el-card class="stat-card is-link" shadow="hover" @click="$router.push('/admin/users')">
-            <div class="stat-content">
-              <el-icon class="stat-icon color-orange"><UserFilled /></el-icon>
-              <div class="stat-info">
-                <div class="stat-label">用户总数</div>
-                <div class="stat-value">{{ stats.userCount || 0 }}</div>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :xs="24" :sm="12" :md="6">
-          <el-card class="stat-card is-link" shadow="hover" @click="$router.push('/admin/logs')">
-            <div class="stat-content">
-              <el-icon class="stat-icon color-red"><Operation /></el-icon>
-              <div class="stat-info">
-                <div class="stat-label">操作日志</div>
-                <div class="stat-value">查看</div>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-      </template>
-    </el-row>
-
-    <el-row :gutter="20" class="main-row">
-      <!-- 左侧公告 -->
-      <el-col :xs="24" :md="16">
-        <el-card class="announcement-card">
-          <template #header>
-            <div class="card-header">
-              <div class="header-left">
-                <el-icon><Bell /></el-icon>
-                <span>系统公告</span>
-              </div>
-              <el-button link type="primary" v-if="isAdmin" @click="$router.push('/system/announcements')">管理公告</el-button>
-            </div>
-          </template>
-          
-          <div class="announcement-list" v-if="topAnnouncement || otherAnnouncements.length > 0">
-            <div v-if="topAnnouncement" class="announcement-item is-top" @click="showAnnouncementDetail(topAnnouncement)">
-              <el-tag type="danger" size="small" effect="dark">置顶</el-tag>
-              <span class="title">{{ topAnnouncement.title }}</span>
-              <span class="time">{{ formatDateTime(topAnnouncement.createTime) }}</span>
-            </div>
-            <div v-for="item in otherAnnouncements.slice(0, 5)" :key="item.id" class="announcement-item" @click="showAnnouncementDetail(item)">
-              <span class="dot"></span>
-              <span class="title">{{ item.title }}</span>
-              <span class="time">{{ formatDateTime(item.createTime) }}</span>
-            </div>
-          </div>
-          <el-empty v-else description="暂无公告" :image-size="100" />
-        </el-card>
-      </el-col>
-
-      <!-- 右侧快捷入口 -->
-      <el-col :xs="24" :md="8">
-        <el-card class="quick-access-card">
-          <template #header>
-            <div class="card-header">
-              <div class="header-left">
-                <el-icon><Compass /></el-icon>
-                <span>快捷入口</span>
-              </div>
-            </div>
-          </template>
-          
-          <!-- 学生快捷入口 -->
-          <div class="quick-links" v-if="isStudent">
-            <div class="quick-item" @click="$router.push('/course/query')">
-              <el-icon class="bg-blue"><Search /></el-icon>
-              <span>课程查询</span>
-            </div>
-            <div class="quick-item" @click="$router.push('/study/practice')">
-              <el-icon class="bg-green"><Edit /></el-icon>
-              <span>在线练习</span>
-            </div>
-            <div class="quick-item" @click="$router.push('/study/exam')">
-              <el-icon class="bg-orange"><List /></el-icon>
-              <span>我的考试</span>
-            </div>
-            <div class="quick-item" @click="$router.push('/study/mistakes')">
-              <el-icon class="bg-red"><Notebook /></el-icon>
-              <span>错题本</span>
-            </div>
-          </div>
-
-          <!-- 管理员快捷入口 -->
-          <div class="quick-links" v-else-if="isAdmin">
-            <div class="quick-item" @click="$router.push('/admin/users')">
-              <el-icon class="bg-blue"><User /></el-icon>
-              <span>用户管理</span>
-            </div>
-            <div class="quick-item" @click="$router.push('/question/manage')">
-              <el-icon class="bg-green"><Memo /></el-icon>
-              <span>试题管理</span>
-            </div>
-            <div class="quick-item" @click="$router.push('/exam/paper')">
-              <el-icon class="bg-orange"><Files /></el-icon>
-              <span>试卷管理</span>
-            </div>
-            <div class="quick-item" @click="$router.push('/admin/logs')">
-              <el-icon class="bg-red"><Operation /></el-icon>
-              <span>操作日志</span>
-            </div>
-          </div>
-
-          <!-- 教师快捷入口 -->
-          <div class="quick-links" v-else-if="isTeacher">
-            <div class="quick-item" @click="$router.push('/course/list')">
-              <el-icon class="bg-blue"><Collection /></el-icon>
-              <span>课程管理</span>
-            </div>
-            <div class="quick-item" @click="$router.push('/exam/marking')">
-              <el-icon class="bg-green"><Finished /></el-icon>
-              <span>阅卷管理</span>
-            </div>
-            <div class="quick-item" @click="$router.push('/exam/schedule')">
-              <el-icon class="bg-orange"><Calendar /></el-icon>
-              <span>考试安排</span>
-            </div>
-            <div class="quick-item" @click="$router.push('/teacher/analysis')">
-              <el-icon class="bg-red"><DataAnalysis /></el-icon>
-              <span>成绩分析</span>
+            <div class="stat-icon-wrapper" :style="{ backgroundColor: item.bgColor }">
+              <el-icon :style="{ color: item.color }">
+                <component :is="item.icon" />
+              </el-icon>
             </div>
           </div>
         </el-card>
       </el-col>
     </el-row>
+
+    <!-- 快捷入口 -->
+    <el-card class="quick-entry-card">
+      <template #header>
+        <div class="card-header">
+          <span class="header-title">快捷入口</span>
+        </div>
+      </template>
+      <el-row :gutter="20">
+        <el-col :xs="12" :sm="8" :md="6" v-for="item in quickEntries" :key="item.label">
+          <div class="quick-item" @click="$router.push(item.path)">
+            <el-icon class="quick-icon">
+              <component :is="item.icon" />
+            </el-icon>
+            <span class="quick-label">{{ item.label }}</span>
+          </div>
+        </el-col>
+      </el-row>
+    </el-card>
+
+    <!-- 系统公告 -->
+    <el-card class="announcement-card" :body-style="{ padding: '16px 20px' }">
+      <div class="announcement-content">
+        <div class="announcement-left">
+          <el-tag type="warning" size="small" effect="plain" class="announcement-tag">最新公告</el-tag>
+          <template v-if="latestAnnouncement">
+            <span class="announcement-title" @click="showAnnouncementDetail(latestAnnouncement)">
+              {{ latestAnnouncement.title }}
+            </span>
+            <span class="announcement-time">{{ formatDateTime(latestAnnouncement.createTime) }}</span>
+          </template>
+          <span v-else class="no-announcement">暂无系统公告</span>
+        </div>
+        <el-button link type="primary" @click="handleViewMoreAnnouncements">
+          查看更多 <el-icon class="el-icon--right">
+            <ArrowRight />
+          </el-icon>
+        </el-button>
+      </div>
+    </el-card>
 
     <!-- 公告详情对话框 -->
-    <el-dialog
-      v-model="detailVisible"
-      :title="currentAnnouncement.title"
-      width="50%"
-    >
-      <div class="announcement-detail-content">
-        <p class="meta-info">发布时间：{{ formatDateTime(currentAnnouncement.createTime) }}</p>
-        <div class="content-body">{{ currentAnnouncement.content }}</div>
+    <el-dialog v-model="detailVisible" :title="currentAnnouncement.title" width="500px" center class="custom-dialog">
+      <div class="announcement-detail">
+        <div class="meta">发布时间：{{ formatDateTime(currentAnnouncement.createTime) }}</div>
+        <div class="content">{{ currentAnnouncement.content }}</div>
       </div>
-      <template #footer>
-        <el-button @click="detailVisible = false">关闭</el-button>
-      </template>
     </el-dialog>
   </div>
 </template>
@@ -280,9 +92,11 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useUserStore } from '@/store/user'
+import { useRouter } from 'vue-router'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 
+const router = useRouter()
 const userStore = useUserStore()
 const userInfo = computed(() => userStore.userInfo || {})
 const roles = computed(() => userInfo.value.roles || [])
@@ -291,10 +105,10 @@ const isTeacher = computed(() => roles.value.includes('TEACHER'))
 const isStudent = computed(() => roles.value.includes('STUDENT'))
 
 const loading = ref(true)
-const topAnnouncement = ref(null)
-const otherAnnouncements = ref([])
+const announcementList = ref([])
 const detailVisible = ref(false)
 const currentAnnouncement = ref({})
+const latestAnnouncement = computed(() => announcementList.value[0] || null)
 
 const stats = ref({
   courseCount: 0,
@@ -304,59 +118,108 @@ const stats = ref({
   questionCount: 0,
   userCount: 0,
   pendingCount: 0,
-  classCount: 0
+  activeToday: 42,
+  examSessions: 12
 })
+
+const welcomeMessage = computed(() => {
+  const hour = new Date().getHours()
+  if (hour < 6) return '凌晨好'
+  if (hour < 9) return '早上好'
+  if (hour < 12) return '上午好'
+  if (hour < 14) return '中午好'
+  if (hour < 18) return '下午好'
+  return '晚上好'
+})
+
+const motivationalQuote = ref('祝您学习愉快！')
+const quotes = [
+  '书山有路勤为径，学海无涯苦作舟。',
+  '学而不思则罔，思而不学则殆。',
+  '知识就是力量。',
+  '成功的秘诀在于坚持。',
+  '志当存高远。'
+]
 
 const today = computed(() => {
   const date = new Date()
-  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`
+  const days = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
+  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ${days[date.getDay()]}`
+})
+
+const roleStats = computed(() => {
+  if (isAdmin.value) {
+    return [
+      { label: '用户总数', value: stats.value.userCount, icon: 'UserFilled', color: '#1E88E5', bgColor: '#E3F2FD', path: '/admin/users' },
+      { label: '今日活跃', value: stats.value.activeToday, icon: 'TrendCharts', color: '#10B981', bgColor: '#D1FAE5', path: '/admin/logs', valueColor: '#10B981' },
+      { label: '试题总量', value: stats.value.questionCount, icon: 'Memo', color: '#F97316', bgColor: '#FFEDD5', path: '/question/manage', valueColor: '#F97316' },
+      { label: '考试场次', value: stats.value.examSessions, icon: 'Calendar', color: '#EF4444', bgColor: '#FEE2E2', path: '/exam/schedule', valueColor: '#EF4444' }
+    ]
+  }
+  if (isTeacher.value) {
+    return [
+      { label: '管理课程', value: stats.value.courseCount, icon: 'Collection', color: '#1E88E5', bgColor: '#E3F2FD', path: '/course/list' },
+      { label: '试题总量', value: stats.value.questionCount, icon: 'Memo', color: '#10B981', bgColor: '#D1FAE5', path: '/question/manage', valueColor: '#10B981' },
+      { label: '待阅试卷', value: stats.value.pendingCount, icon: 'Checked', color: '#F97316', bgColor: '#FFEDD5', path: '/exam/marking', valueColor: '#F97316' },
+      { label: '班级总数', value: 8, icon: 'School', color: '#3498db', bgColor: '#EBF5FB', path: '/teacher/analysis' }
+    ]
+  }
+  return [
+    { label: '参与课程', value: stats.value.courseCount, icon: 'Reading', color: '#1E88E5', bgColor: '#E3F2FD', path: '/course/query' },
+    { label: '累计练习', value: stats.value.practiceCount, icon: 'EditPen', color: '#10B981', bgColor: '#D1FAE5', path: '/study/record', valueColor: '#10B981' },
+    { label: '考试记录', value: stats.value.examCount, icon: 'Document', color: '#F97316', bgColor: '#FFEDD5', path: '/study/exam-record', valueColor: '#F97316' },
+    { label: '错题数量', value: stats.value.mistakeCount, icon: 'Warning', color: '#EF4444', bgColor: '#FEE2E2', path: '/study/mistakes', valueColor: '#EF4444' }
+  ]
+})
+
+const quickEntries = computed(() => {
+  if (isAdmin.value) {
+    return [
+      { label: '用户管理', icon: 'User', path: '/admin/users' },
+      { label: '试题管理', icon: 'Memo', path: '/question/manage' },
+      { label: '试卷管理', icon: 'Files', path: '/exam/paper' },
+      { label: '操作日志', icon: 'Operation', path: '/admin/logs' }
+    ]
+  }
+  if (isTeacher.value) {
+    return [
+      { label: '课程管理', icon: 'Collection', path: '/course/list' },
+      { label: '试题管理', icon: 'Memo', path: '/question/manage' },
+      { label: '考试安排', icon: 'Calendar', path: '/exam/schedule' },
+      { label: '阅卷管理', icon: 'Finished', path: '/exam/marking' }
+    ]
+  }
+  return [
+    { label: '课程查询', icon: 'Search', path: '/course/query' },
+    { label: '在线练习', icon: 'Edit', path: '/study/practice' },
+    { label: '我的考试', icon: 'List', path: '/study/exam' },
+    { label: '错题本', icon: 'Notebook', path: '/study/mistakes' }
+  ]
 })
 
 const fetchStats = async () => {
   try {
-    // 1. 学生统计
     if (isStudent.value) {
-      // 课程数量
       const coursesRes = await request.get('/student/analysis/courses')
       stats.value.courseCount = coursesRes.data?.length || 0
-      
       const mistakesRes = await request.get('/mistakes', { params: { size: 1 } })
       stats.value.mistakeCount = mistakesRes.data?.total || 0
-      
       const recordsRes = await request.get('/study/records', { params: { size: 1 } })
       stats.value.practiceCount = recordsRes.data?.total || 0
-
       const examRecordsRes = await request.get('/student/exam-records', { params: { size: 1 } })
       stats.value.examCount = examRecordsRes.data?.total || 0
     }
-    
-    // 2. 教师统计
     if (isTeacher.value) {
-      // 教师管理课程
       const coursesRes = await request.get('/courses/managed')
       stats.value.courseCount = coursesRes.data?.length || 0
-
-      // 试题总量 (分页接口获取总数)
       const questionsRes = await request.get('/questions', { params: { size: 1 } })
       stats.value.questionCount = questionsRes.data?.total || 0
-
-      // 待阅卷数量
       const pendingRes = await request.get('/teacher/exam-records/pending', { params: { size: 1, status: 1 } })
       stats.value.pendingCount = pendingRes.data?.total || 0
-
-      // 班级总数
-      const classesRes = await request.get('/teacher/analysis/classes')
-      stats.value.classCount = classesRes.data?.length || 0
     }
-
-    // 3. 管理员统计
     if (isAdmin.value) {
-      const coursesRes = await request.get('/courses/managed')
-      stats.value.courseCount = coursesRes.data?.length || 0
-
       const usersRes = await request.get('/admin/users', { params: { size: 1 } })
       stats.value.userCount = usersRes.data?.total || 0
-
       const questionsRes = await request.get('/questions', { params: { size: 1 } })
       stats.value.questionCount = questionsRes.data?.total || 0
     }
@@ -365,28 +228,20 @@ const fetchStats = async () => {
   }
 }
 
-const fetchUserInfo = async () => {
-  try {
-    const response = await request.get('/user/me')
-    userStore.setUserInfo(response.data)
-  } catch (error) {
-    console.error('获取用户信息失败:', error)
-  } finally {
-    loading.value = false
-  }
-}
-
 const fetchAnnouncements = async () => {
   try {
-    const res = await request.get('/announcements', { params: { size: 20 } })
+    const res = await request.get('/announcements', { params: { size: 5 } })
     if (res.code === 1) {
-      const all = res.data.list
-      topAnnouncement.value = all.find(a => a.isTop === 1) || null
-      otherAnnouncements.value = all.filter(a => a.isTop !== 1)
+      announcementList.value = res.data.list
     }
   } catch (error) {
     console.error('获取公告失败:', error)
   }
+}
+
+const handleViewMoreAnnouncements = () => {
+  if (isAdmin.value) router.push('/system/announcements')
+  else ElMessage.info('更多公告功能开发中...')
 }
 
 const showAnnouncementDetail = (item) => {
@@ -396,11 +251,11 @@ const showAnnouncementDetail = (item) => {
 
 const formatDateTime = (time) => {
   if (!time) return '-'
-  return time.replace('T', ' ')
+  return time.split('T')[0]
 }
 
-onMounted(async () => {
-  await fetchUserInfo()
+onMounted(() => {
+  motivationalQuote.value = quotes[Math.floor(Math.random() * quotes.length)]
   fetchAnnouncements()
   fetchStats()
 })
@@ -408,254 +263,177 @@ onMounted(async () => {
 
 <style scoped>
 .home-container {
-  width: 100%;
-  padding-bottom: 24px;
-  animation: fadeIn 0.5s ease-in-out;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.stat-card.is-link {
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.stat-card.is-link:hover {
-  transform: translateY(-5px);
-  border-color: #409eff;
-  box-shadow: 0 8px 16px rgba(64, 158, 255, 0.2) !important;
-}
-
-.welcome-card {
-  background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
-  padding: 32px 40px;
-  border-radius: 12px;
-  color: #fff;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-}
-
-.welcome-text h2 {
-  margin: 0 0 8px 0;
-  font-size: 26px;
-  letter-spacing: 1px;
-}
-
-.welcome-text .subtitle {
-  margin: 0;
-  opacity: 0.85;
-  font-size: 15px;
-}
-
-.stat-row {
-  margin-bottom: 8px; /* 补偿 el-col 的 bottom margin */
-}
-
-.stat-row .el-col {
-  margin-bottom: 24px;
-}
-
-.stat-card {
-  border-radius: 12px;
-  height: 100%;
-}
-
-.stat-content {
-  display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 20px;
 }
 
-.stat-icon {
-  font-size: 30px;
-  padding: 14px;
-  border-radius: 12px;
+.welcome-card {
+  border: none;
 }
 
-.color-blue { background: #eef2ff; color: #4f46e5; }
-.color-green { background: #ecfdf5; color: #10b981; }
-.color-orange { background: #fff7ed; color: #f59e0b; }
-.color-red { background: #fef2f2; color: #ef4444; }
+.welcome-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 
-.stat-info {
-  flex: 1;
+.welcome-title {
+  margin: 0 0 8px 0;
+  font-size: 20px;
+  color: var(--text-main);
+}
+
+.welcome-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.welcome-meta .divider {
+  color: var(--border-color);
+}
+
+.stat-row {
+  margin: 0 -10px;
+}
+
+.stat-card {
+  cursor: pointer;
+  border: 1px solid var(--border-color);
+}
+
+.stat-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.stat-value {
+  font-size: 32px;
+  font-weight: bold;
+  line-height: 1;
+  margin-bottom: 8px;
 }
 
 .stat-label {
   font-size: 14px;
-  color: #909399;
-  margin-bottom: 6px;
+  color: var(--text-secondary);
 }
 
-.stat-value {
-  font-size: 26px;
-  font-weight: 700;
-  color: #303133;
-}
-
-.main-row {
-  margin-top: 0;
-}
-
-.announcement-card, .quick-access-card {
-  height: 100%;
+.stat-icon-wrapper {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
   display: flex;
-  flex-direction: column;
-}
-
-.announcement-card :deep(.el-card__body), 
-.quick-access-card :deep(.el-card__body) {
-  flex: 1;
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
+  font-size: 24px;
 }
 
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 600;
+.quick-entry-card {
+  border: 1px solid var(--border-color);
+}
+
+.header-title {
   font-size: 16px;
-  color: #303133;
-}
-
-.announcement-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.announcement-item {
-  display: flex;
-  align-items: center;
-  padding: 12px 16px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.announcement-item:hover {
-  background-color: #f8f9fb;
-  transform: translateX(4px);
-}
-
-.announcement-item.is-top {
-  background-color: #fff5f5;
-}
-
-.announcement-item.is-top:hover {
-  background-color: #ffebeb;
-}
-
-.announcement-item .dot {
-  width: 6px;
-  height: 6px;
-  background-color: #409eff;
-  border-radius: 50%;
-  margin-right: 14px;
-}
-
-.announcement-item .title {
-  flex: 1;
-  font-size: 14.5px;
-  color: #3c4043;
-  margin-right: 15px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.announcement-item .time {
-  font-size: 13px;
-  color: #9aa0a6;
-}
-
-.quick-links {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
-  padding: 4px;
+  font-weight: 600;
 }
 
 .quick-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
-  padding: 24px 10px;
+  gap: 12px;
+  padding: 20px;
   border-radius: 12px;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border: 1px solid #f0f0f0;
-  background-color: #fff;
+  transition: all 0.3s;
 }
 
 .quick-item:hover {
-  border-color: #409eff;
-  background-color: #f0f7ff;
-  transform: translateY(-4px);
-  box-shadow: 0 6px 16px rgba(64, 158, 255, 0.15);
+  background-color: var(--bg-color);
+  transform: translateY(-2px);
 }
 
-.quick-item .el-icon {
-  font-size: 26px;
-  padding: 14px;
-  border-radius: 14px;
-  color: #fff;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+.quick-icon {
+  font-size: 28px;
+  color: var(--el-color-primary);
 }
 
-.bg-blue { background-color: #409eff; }
-.bg-green { background-color: #67c23a; }
-.bg-orange { background-color: #e6a23c; }
-.bg-red { background-color: #f56c6c; }
-
-.quick-item span {
+.quick-label {
   font-size: 14px;
-  color: #444746;
-  font-weight: 500;
+  color: var(--text-regular);
 }
 
-.announcement-detail-content {
-  line-height: 1.8;
+.announcement-card {
+  border: 1px solid var(--border-color);
 }
 
-.meta-info {
-  color: #909399;
+.announcement-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.announcement-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  overflow: hidden;
+}
+
+.announcement-title {
+  font-size: 14px;
+  color: var(--text-main);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.announcement-title:hover {
+  color: var(--el-color-primary);
+}
+
+.announcement-time {
+  font-size: 13px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.no-announcement {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.announcement-detail .meta {
+  text-align: center;
+  color: var(--text-secondary);
   font-size: 13px;
   margin-bottom: 20px;
-  border-bottom: 1px solid #ebeef5;
-  padding-bottom: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
 }
 
-.content-body {
-  white-space: pre-wrap;
+.announcement-detail .content {
   font-size: 15px;
-  color: #606266;
+  line-height: 1.8;
+  white-space: pre-wrap;
 }
 
-/* 移动端适配 */
 @media (max-width: 768px) {
-  .welcome-card {
-    flex-direction: column;
-    text-align: center;
-    gap: 20px;
-    padding: 24px;
+
+  .welcome-meta .divider,
+  .welcome-meta .quote {
+    display: none;
   }
-  
-  .quick-links {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
+
+  .stat-card {
+    margin-bottom: 16px;
   }
 }
 </style>
