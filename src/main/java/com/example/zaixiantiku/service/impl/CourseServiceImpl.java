@@ -583,43 +583,97 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
             throw new RuntimeException("课程不存在");
         }
 
-        requireCourseOwnerOrAdmin(courseId);
+        LoginUser loginUser = requireLoginUser();
+        boolean isAdmin = isAdmin(loginUser);
 
-        // 1. 检查教师关联
-        Long teacherCount = courseTeacherMapper
-                .selectCount(new LambdaQueryWrapper<CourseTeacher>().eq(CourseTeacher::getCourseId, courseId));
-        if (teacherCount != null && teacherCount > 0) {
-            throw new RuntimeException("该课程下有关联的任课教师，请先移除所有教师后再删除课程");
-        }
+        if (!isAdmin) {
+            requireCourseOwnerOrAdmin(courseId);
 
-        // 2. 检查学生关联
-        Long studentCount = courseStudentMapper
-                .selectCount(new LambdaQueryWrapper<CourseStudent>().eq(CourseStudent::getCourseId, courseId));
-        if (studentCount != null && studentCount > 0) {
-            throw new RuntimeException("该课程下有关联的选课学生，请先清退学生后再删除课程");
-        }
-
-        // 3. 检查知识点
-        Integer kpCount = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM knowledge_point WHERE course_id = ?",
-                Integer.class, courseId);
-        if (kpCount != null && kpCount > 0) {
-            throw new RuntimeException("该课程下有关联的知识点，请先删除知识点后再删除课程");
-        }
-
-        // 4. 检查题目
-        Integer questionCount = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM question WHERE course_id = ?",
-                Integer.class, courseId);
-        if (questionCount != null && questionCount > 0) {
-            throw new RuntimeException("该课程下有关联的题目，请先清空题目后再删除课程");
-        }
-
-        // 5. 检查试卷
-        if (existsTable("exam_paper")) {
-            Integer paperCount = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM exam_paper WHERE course_id = ?",
-                    Integer.class, courseId);
-            if (paperCount != null && paperCount > 0) {
-                throw new RuntimeException("该课程下有关联的试卷，请先删除试卷后再删除课程");
+            // 1. 检查教师关联
+            Long teacherCount = courseTeacherMapper
+                    .selectCount(new LambdaQueryWrapper<CourseTeacher>().eq(CourseTeacher::getCourseId, courseId));
+            if (teacherCount != null && teacherCount > 0) {
+                throw new RuntimeException("该课程下有关联的任课教师，请先移除所有教师后再删除课程");
             }
+
+            // 2. 检查学生关联
+            Long studentCount = courseStudentMapper
+                    .selectCount(new LambdaQueryWrapper<CourseStudent>().eq(CourseStudent::getCourseId, courseId));
+            if (studentCount != null && studentCount > 0) {
+                throw new RuntimeException("该课程下有关联的选课学生，请先清退学生后再删除课程");
+            }
+
+            // 3. 检查知识点
+            Integer kpCount = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM knowledge_point WHERE course_id = ?",
+                    Integer.class, courseId);
+            if (kpCount != null && kpCount > 0) {
+                throw new RuntimeException("该课程下有关联的知识点，请先删除知识点后再删除课程");
+            }
+
+            // 4. 检查题目
+            Integer questionCount = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM question WHERE course_id = ?",
+                    Integer.class, courseId);
+            if (questionCount != null && questionCount > 0) {
+                throw new RuntimeException("该课程下有关联的题目，请先清空题目后再删除课程");
+            }
+
+            // 5. 检查试卷
+            if (existsTable("exam_paper")) {
+                Integer paperCount = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM exam_paper WHERE course_id = ?",
+                        Integer.class, courseId);
+                if (paperCount != null && paperCount > 0) {
+                    throw new RuntimeException("该课程下有关联的试卷，请先删除试卷后再删除课程");
+                }
+            }
+        } else {
+            // 管理员强制删除：清理所有关联数据
+
+            // A. 清理考试相关 (从叶子到根)
+            // 1. 答题详情
+            jdbcTemplate.update(
+                    "DELETE FROM answer_detail WHERE exam_record_id IN (SELECT id FROM exam_record WHERE exam_id IN (SELECT id FROM exam WHERE course_id = ?))",
+                    courseId);
+            // 2. 考试记录
+            jdbcTemplate.update("DELETE FROM exam_record WHERE exam_id IN (SELECT id FROM exam WHERE course_id = ?)",
+                    courseId);
+            // 3. 考试范围关联
+            jdbcTemplate.update("DELETE FROM exam_class WHERE exam_id IN (SELECT id FROM exam WHERE course_id = ?)",
+                    courseId);
+            jdbcTemplate.update("DELETE FROM exam_student WHERE exam_id IN (SELECT id FROM exam WHERE course_id = ?)",
+                    courseId);
+            // 4. 考试本身
+            jdbcTemplate.update("DELETE FROM exam WHERE course_id = ?", courseId);
+
+            // B. 清理试卷相关
+            // 1. 试卷题目关联
+            jdbcTemplate.update(
+                    "DELETE FROM paper_question WHERE paper_id IN (SELECT id FROM paper WHERE course_id = ?)",
+                    courseId);
+            // 2. 试卷本身
+            jdbcTemplate.update("DELETE FROM paper WHERE course_id = ?", courseId);
+
+            // C. 清理题目相关
+            // 1. 错题本/收藏夹/知识点关联
+            jdbcTemplate.update(
+                    "DELETE FROM mistake_book WHERE question_id IN (SELECT id FROM question WHERE course_id = ?)",
+                    courseId);
+            jdbcTemplate.update(
+                    "DELETE FROM favorite WHERE question_id IN (SELECT id FROM question WHERE course_id = ?)",
+                    courseId);
+            jdbcTemplate.update(
+                    "DELETE FROM question_knowledge WHERE question_id IN (SELECT id FROM question WHERE course_id = ?)",
+                    courseId);
+            // 2. 题目本身
+            jdbcTemplate.update("DELETE FROM question WHERE course_id = ?", courseId);
+
+            // D. 清理课程基础数据
+            // 1. 练习记录
+            jdbcTemplate.update("DELETE FROM practice_record WHERE course_id = ?", courseId);
+            // 2. 知识点
+            jdbcTemplate.update("DELETE FROM knowledge_point WHERE course_id = ?", courseId);
+            // 3. 师生关联
+            jdbcTemplate.update("DELETE FROM course_teacher WHERE course_id = ?", courseId);
+            jdbcTemplate.update("DELETE FROM course_student WHERE course_id = ?", courseId);
         }
 
         // 6. 删除课程

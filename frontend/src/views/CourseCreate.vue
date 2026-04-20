@@ -325,8 +325,12 @@ const handleEdit = async () => {
 }
 
 const handleDelete = async (row) => {
+  const confirmMsg = isAdmin.value
+    ? `确定要强制删除课程【${row.courseName}】吗？这将级联删除该课程下的所有教师关联、选课学生、题目、试卷及考试记录，且不可恢复！`
+    : `确定要删除课程【${row.courseName}】吗？删除前请确保该课程下已无任何教师、学生、题目和知识点。`
+    
   try {
-    await ElMessageBox.confirm(`确定要删除课程【${row.courseName}】吗？删除前请确保该课程下已无任何教师、学生、题目和知识点。`, '警告', {
+    await ElMessageBox.confirm(confirmMsg, '警告', {
       confirmButtonText: '确定删除',
       cancelButtonText: '取消',
       type: 'error'
