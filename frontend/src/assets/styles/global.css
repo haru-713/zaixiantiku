@@ -1,0 +1,154 @@
+:root {
+  /* 科技蓝配色方案 - 主色调 */
+  --el-color-primary: #1E88E5;
+  --el-color-primary-light-3: #64B5F6;
+  --el-color-primary-light-5: #90CAF9;
+  --el-color-primary-light-7: #BBDEFB;
+  --el-color-primary-light-8: #E3F2FD;
+  --el-color-primary-light-9: #F1F8FE;
+  --el-color-primary-dark-2: #1565C0;
+  
+  /* 辅助色 */
+  --el-color-success: #10B981;
+  --el-color-warning: #F97316; /* 活力橙 */
+  --el-color-danger: #EF4444;
+  --el-color-info: #64748B;
+  
+  /* 强调/点缀色 */
+  --accent-color: #F97316;
+  --stat-value-color: #F97316;
+  
+  /* 背景与边框 */
+  --bg-color: #F1F5F9;
+  --card-bg-color: #FFFFFF;
+  --border-color: #E2E8F0;
+  
+  /* 文字颜色 */
+  --text-main: #1E293B;
+  --text-regular: #475569;
+  --text-secondary: #64748B;
+  
+  /* 圆角 */
+  --radius-card: 12px;
+  --radius-btn: 8px;
+  --radius-input: 6px;
+  
+  /* 阴影 */
+  --shadow-light: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px 0 rgba(0,0,0,0.06);
+  --shadow-hover: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-color);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-main);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Element Plus 覆盖 */
+.el-card {
+  border-radius: var(--radius-card) !important;
+  border: 1px solid var(--border-color) !important;
+  box-shadow: var(--shadow-light) !important;
+  transition: all 0.3s ease !important;
+  color: var(--text-main);
+}
+
+.el-card:hover {
+  box-shadow: var(--shadow-hover) !important;
+}
+
+.el-card__header {
+  color: var(--text-main);
+  font-weight: 600;
+  font-size: 16px;
+  border-bottom: 1px solid var(--border-color) !important;
+  padding: 16px 20px !important;
+}
+
+.el-button {
+  border-radius: var(--radius-btn) !important;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.el-button--primary {
+  --el-button-hover-bg-color: var(--el-color-primary-dark-2);
+  --el-button-hover-border-color: var(--el-color-primary-dark-2);
+}
+
+.el-input__wrapper, .el-select__wrapper, .el-textarea__inner {
+  border-radius: var(--radius-input) !important;
+  box-shadow: 0 0 0 1px var(--border-color) inset !important;
+}
+
+.el-input__wrapper.is-focus, .el-select__wrapper.is-focus {
+  box-shadow: 0 0 0 1px var(--el-color-primary) inset !important;
+}
+
+/* 表格统一样式 */
+.el-table {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  font-size: 14px;
+}
+
+.el-table th.el-table__cell {
+  background-color: #F8FAFC !important;
+  color: var(--text-main);
+  font-weight: bold;
+  height: 48px;
+}
+
+.el-table .el-table__row {
+  height: 56px;
+}
+
+.el-table--striped .el-table__row--striped td {
+  background-color: #F8FAFC !important;
+}
+
+/* 分页样式 */
+.el-pagination {
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+/* 链接/文字按钮 */
+.el-button--link {
+  color: var(--el-color-primary);
+}
+
+.el-button--link:hover {
+  color: var(--el-color-primary-dark-2);
+}
+
+.el-link {
+  --el-link-text-color: var(--el-color-primary);
+  --el-link-hover-text-color: var(--el-color-primary-dark-2);
+}
+
+/* 统一滚动条 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
