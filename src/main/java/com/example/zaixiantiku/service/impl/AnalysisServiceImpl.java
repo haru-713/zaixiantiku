@@ -37,6 +37,8 @@ public class AnalysisServiceImpl implements AnalysisService {
     private final CourseTeacherMapper courseTeacherMapper;
     private final CourseStudentMapper courseStudentMapper;
     private final CourseMapper courseMapper;
+    private final UserMapper userMapper;
+    private final LogMapper logMapper;
 
     private boolean checkCorrect(Object isCorrectObj) {
         if (isCorrectObj == null)
@@ -760,6 +762,34 @@ public class AnalysisServiceImpl implements AnalysisService {
         return GlobalAnalysisVO.builder()
                 .totalExams(totalExams).totalStudents(studentIds.size()).averageScore(avgScore).passRate(passRate)
                 .classPerformance(classPerf).recentExams(recentExams)
+                .build();
+    }
+
+    @Override
+    public GlobalAnalysisVO getAdminDashboardStats() {
+        // 1. 用户总数 (status=1)
+        Integer totalUsers = userMapper.selectCount(new LambdaQueryWrapper<User>().eq(User::getStatus, 1)).intValue();
+
+        // 2. 今日活跃 (今日内有登录行为的用户数)
+        java.time.LocalDateTime todayStart = java.time.LocalDateTime.now().withHour(0).withMinute(0).withSecond(0)
+                .withNano(0);
+        List<Log> todayLogs = logMapper.selectList(new LambdaQueryWrapper<Log>()
+                .ge(Log::getCreateTime, todayStart)
+                .eq(Log::getOperation, "用户登录"));
+        Integer activeToday = (int) todayLogs.stream().map(Log::getUserId).distinct().count();
+
+        // 3. 试题总量 (status=2 已发布)
+        Integer totalQuestions = questionMapper
+                .selectCount(new LambdaQueryWrapper<Question>().eq(Question::getStatus, 2)).intValue();
+
+        // 4. 考试场次 (所有未删除的考试)
+        Integer totalExams = examMapper.selectCount(null).intValue();
+
+        return GlobalAnalysisVO.builder()
+                .totalUsers(totalUsers)
+                .activeToday(activeToday)
+                .totalQuestions(totalQuestions)
+                .totalExams(totalExams)
                 .build();
     }
 

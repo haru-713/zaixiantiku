@@ -118,8 +118,8 @@ const stats = ref({
   questionCount: 0,
   userCount: 0,
   pendingCount: 0,
-  activeToday: 42,
-  examSessions: 12
+  activeToday: 0,
+  examSessions: 0
 })
 
 const welcomeMessage = computed(() => {
@@ -218,10 +218,20 @@ const fetchStats = async () => {
       stats.value.pendingCount = pendingRes.data?.total || 0
     }
     if (isAdmin.value) {
-      const usersRes = await request.get('/admin/users', { params: { size: 1 } })
-      stats.value.userCount = usersRes.data?.total || 0
-      const questionsRes = await request.get('/questions', { params: { size: 1 } })
-      stats.value.questionCount = questionsRes.data?.total || 0
+      const dashboardRes = await request.get('/admin/analysis/dashboard')
+      if (dashboardRes.code === 200 || dashboardRes.code === 1) {
+        const data = dashboardRes.data
+        stats.value.userCount = data.totalUsers || 0
+        stats.value.activeToday = data.activeToday || 0
+        stats.value.questionCount = data.totalQuestions || 0
+        stats.value.examSessions = data.totalExams || 0
+      } else {
+        // 降级方案
+        const usersRes = await request.get('/admin/users', { params: { size: 1 } })
+        stats.value.userCount = usersRes.data?.total || 0
+        const questionsRes = await request.get('/questions', { params: { size: 1 } })
+        stats.value.questionCount = questionsRes.data?.total || 0
+      }
     }
   } catch (e) {
     console.error('获取统计数据失败:', e)

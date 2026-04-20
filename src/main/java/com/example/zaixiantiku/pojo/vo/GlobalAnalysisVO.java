@@ -14,6 +14,9 @@ import java.util.List;
 public class GlobalAnalysisVO {
     private Integer totalExams;
     private Integer totalStudents;
+    private Integer totalUsers;
+    private Integer activeToday;
+    private Integer totalQuestions;
     private Double averageScore;
     private Double passRate;
     private List<ClassPerformanceVO> classPerformance;

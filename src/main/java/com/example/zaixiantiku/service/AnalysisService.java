@@ -53,8 +53,15 @@ public interface AnalysisService {
     /**
      * 获取全校/课程成绩分析概览
      * 
-     * @param courseId 课程ID (可选)
-     * @return 分析数据
+     * @param courseId 课程ID（可选）
+     * @return 成绩分析概览
      */
     GlobalAnalysisVO getGlobalAnalysis(Long courseId);
+
+    /**
+     * 获取管理员首页概览统计数据
+     * 
+     * @return 统计数据
+     */
+    GlobalAnalysisVO getAdminDashboardStats();
 }

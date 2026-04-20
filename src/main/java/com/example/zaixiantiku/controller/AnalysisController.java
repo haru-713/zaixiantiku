@@ -99,4 +99,13 @@ public class AnalysisController {
     public Result<GlobalAnalysisVO> getGlobalAnalysis(@RequestParam(required = false) Long courseId) {
         return Result.success(analysisService.getGlobalAnalysis(courseId));
     }
+
+    /**
+     * 管理员首页概览统计数据
+     */
+    @GetMapping("/admin/analysis/dashboard")
+    @PreAuthorize("hasRole('ADMIN')")
+    public Result<GlobalAnalysisVO> getAdminDashboardStats() {
+        return Result.success(analysisService.getAdminDashboardStats());
+    }
 }
