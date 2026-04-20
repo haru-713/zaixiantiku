@@ -19,6 +19,7 @@
             <template #title>首页</template>
           </el-menu-item>
 
+          <!-- 题库资源分组 -->
           <el-sub-menu v-if="isAdmin || isTeacher" index="qbank">
             <template #title>
               <el-icon>
@@ -26,11 +27,27 @@
               </el-icon>
               <span>题库资源</span>
             </template>
-            <el-menu-item index="/question/manage">试题管理</el-menu-item>
-            <el-menu-item index="/question/category">知识点管理</el-menu-item>
-            <el-menu-item index="/exam/paper">试卷管理</el-menu-item>
+            <el-menu-item index="/question/manage">
+              <el-icon>
+                <Document />
+              </el-icon>
+              <template #title>试题管理</template>
+            </el-menu-item>
+            <el-menu-item index="/question/category">
+              <el-icon>
+                <CollectionTag />
+              </el-icon>
+              <template #title>知识点管理</template>
+            </el-menu-item>
+            <el-menu-item index="/exam/paper">
+              <el-icon>
+                <Notebook />
+              </el-icon>
+              <template #title>试卷管理</template>
+            </el-menu-item>
           </el-sub-menu>
 
+          <!-- 教学管理分组 -->
           <el-sub-menu v-if="isAdmin || isTeacher" index="teaching">
             <template #title>
               <el-icon>
@@ -38,11 +55,27 @@
               </el-icon>
               <span>教学管理</span>
             </template>
-            <el-menu-item index="/course/list">课程管理</el-menu-item>
-            <el-menu-item index="/exam/schedule">考试安排</el-menu-item>
-            <el-menu-item index="/exam/marking">阅卷管理</el-menu-item>
+            <el-menu-item index="/course/list">
+              <el-icon>
+                <School />
+              </el-icon>
+              <template #title>课程管理</template>
+            </el-menu-item>
+            <el-menu-item index="/exam/schedule">
+              <el-icon>
+                <Calendar />
+              </el-icon>
+              <template #title>考试安排</template>
+            </el-menu-item>
+            <el-menu-item index="/exam/marking">
+              <el-icon>
+                <EditPen />
+              </el-icon>
+              <template #title>阅卷管理</template>
+            </el-menu-item>
           </el-sub-menu>
 
+          <!-- 成绩分析分组 -->
           <el-sub-menu v-if="isAdmin || isTeacher" index="analysis">
             <template #title>
               <el-icon>
@@ -50,10 +83,21 @@
               </el-icon>
               <span>成绩分析</span>
             </template>
-            <el-menu-item index="/teacher/analysis">班级分析</el-menu-item>
-            <el-menu-item index="/exam/statistics">成绩统计</el-menu-item>
+            <el-menu-item index="/teacher/analysis">
+              <el-icon>
+                <Box />
+              </el-icon>
+              <template #title>班级分析</template>
+            </el-menu-item>
+            <el-menu-item index="/exam/statistics">
+              <el-icon>
+                <TrendCharts />
+              </el-icon>
+              <template #title>成绩统计</template>
+            </el-menu-item>
           </el-sub-menu>
 
+          <!-- 学习中心分组 (学生) -->
           <el-sub-menu v-if="isStudent" index="study">
             <template #title>
               <el-icon>
@@ -61,12 +105,33 @@
               </el-icon>
               <span>学习中心</span>
             </template>
-            <el-menu-item index="/course/query">课程查询</el-menu-item>
-            <el-menu-item index="/study/practice">在线练习</el-menu-item>
-            <el-menu-item index="/study/exam">我的考试</el-menu-item>
-            <el-menu-item index="/shares">交流分享</el-menu-item>
+            <el-menu-item index="/course/query">
+              <el-icon>
+                <Search />
+              </el-icon>
+              <template #title>课程查询</template>
+            </el-menu-item>
+            <el-menu-item index="/study/practice">
+              <el-icon>
+                <Edit />
+              </el-icon>
+              <template #title>在线练习</template>
+            </el-menu-item>
+            <el-menu-item index="/study/exam">
+              <el-icon>
+                <List />
+              </el-icon>
+              <template #title>我的考试</template>
+            </el-menu-item>
+            <el-menu-item index="/shares">
+              <el-icon>
+                <ChatDotRound />
+              </el-icon>
+              <template #title>交流分享</template>
+            </el-menu-item>
           </el-sub-menu>
 
+          <!-- 个人题库分组 (学生) -->
           <el-sub-menu v-if="isStudent" index="personal">
             <template #title>
               <el-icon>
@@ -74,10 +139,21 @@
               </el-icon>
               <span>个人题库</span>
             </template>
-            <el-menu-item index="/study/mistakes">错题本</el-menu-item>
-            <el-menu-item index="/study/favorites">收藏夹</el-menu-item>
+            <el-menu-item index="/study/mistakes">
+              <el-icon>
+                <Notebook />
+              </el-icon>
+              <template #title>错题本</template>
+            </el-menu-item>
+            <el-menu-item index="/study/favorites">
+              <el-icon>
+                <Star />
+              </el-icon>
+              <template #title>收藏夹</template>
+            </el-menu-item>
           </el-sub-menu>
 
+          <!-- 数据统计分组 (学生) -->
           <el-sub-menu v-if="isStudent" index="records">
             <template #title>
               <el-icon>
@@ -85,11 +161,27 @@
               </el-icon>
               <span>数据统计</span>
             </template>
-            <el-menu-item index="/study/analysis">学习报告</el-menu-item>
-            <el-menu-item index="/study/record">练习记录</el-menu-item>
-            <el-menu-item index="/study/exam-record">考试记录</el-menu-item>
+            <el-menu-item index="/study/analysis">
+              <el-icon>
+                <DataAnalysis />
+              </el-icon>
+              <template #title>学习报告</template>
+            </el-menu-item>
+            <el-menu-item index="/study/record">
+              <el-icon>
+                <Clock />
+              </el-icon>
+              <template #title>练习记录</template>
+            </el-menu-item>
+            <el-menu-item index="/study/exam-record">
+              <el-icon>
+                <Files />
+              </el-icon>
+              <template #title>考试记录</template>
+            </el-menu-item>
           </el-sub-menu>
 
+          <!-- 系统管理分组 -->
           <el-sub-menu v-if="isAdmin || isTeacher" index="system">
             <template #title>
               <el-icon>
@@ -97,9 +189,24 @@
               </el-icon>
               <span>系统管理</span>
             </template>
-            <el-menu-item index="/system/classes">班级管理</el-menu-item>
-            <el-menu-item index="/admin/users">用户管理</el-menu-item>
-            <el-menu-item index="/admin/logs" v-if="isAdmin">操作日志</el-menu-item>
+            <el-menu-item index="/system/classes">
+              <el-icon>
+                <School />
+              </el-icon>
+              <template #title>班级管理</template>
+            </el-menu-item>
+            <el-menu-item index="/admin/users">
+              <el-icon>
+                <User />
+              </el-icon>
+              <template #title>用户管理</template>
+            </el-menu-item>
+            <el-menu-item index="/admin/logs" v-if="isAdmin">
+              <el-icon>
+                <Operation />
+              </el-icon>
+              <template #title>操作日志</template>
+            </el-menu-item>
           </el-sub-menu>
         </el-menu>
       </el-aside>
@@ -365,39 +472,91 @@ onMounted(() => {
 .layout-menu .el-menu-item,
 .layout-menu .el-sub-menu__title {
   color: var(--sidebar-text) !important;
-  font-size: 14px !important;
-  height: 50px !important;
-  line-height: 50px !important;
+  font-size: 15px !important;
+  height: 48px !important;
+  line-height: 48px !important;
+  margin: 4px 12px !important;
+  width: calc(100% - 24px) !important;
+  border-radius: 8px !important;
+  padding: 0 16px !important;
+  transition: all 0.2s ease !important;
+}
+
+/* 针对子菜单内的项单独设置宽度和边距，防止溢出 */
+.layout-menu .el-sub-menu .el-menu-item {
+  width: calc(100% - 24px) !important;
+  margin: 2px 12px !important;
+  padding-left: 48px !important;
+  /* 缩进子菜单内容 */
+}
+
+/* 分组标题样式 (如果仍有需要展示的静态标题) */
+.menu-group-title {
+  padding: 16px 24px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #94A3B8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* 修复 el-sub-menu 展开后的背景和箭头颜色 */
+:deep(.el-sub-menu.is-opened > .el-sub-menu__title) {
+  color: var(--sidebar-active-text) !important;
+}
+
+:deep(.el-sub-menu__icon-arrow) {
+  color: var(--sidebar-text) !important;
+  font-size: 12px !important;
+  right: 16px !important;
 }
 
 /* 图标尺寸优化 */
 .layout-menu .el-icon {
-  font-size: 18px !important;
+  font-size: 20px !important;
   margin-right: 12px !important;
   color: inherit !important;
+  transition: transform 0.2s ease !important;
+}
+
+/* 折叠状态图标优化 */
+.layout-menu.el-menu--collapse .el-menu-item .el-icon,
+.layout-menu.el-menu--collapse .el-sub-menu__title .el-icon {
+  margin: 0 !important;
+  font-size: 22px !important;
+}
+
+.layout-menu.el-menu--collapse .el-menu-item,
+.layout-menu.el-menu--collapse .el-sub-menu__title {
+  padding: 0 !important;
+  display: flex !important;
+  justify-content: center !important;
+  margin: 4px 8px !important;
+  width: calc(100% - 16px) !important;
 }
 
 /* 子菜单背景修复 */
 .layout-menu .el-menu--inline {
-  background-color: rgba(0, 0, 0, 0.2) !important;
-}
-
-.layout-menu .el-sub-menu .el-menu-item {
-  font-size: 14px !important;
-  padding-left: 54px !important;
-  background-color: transparent !important;
+  background-color: rgba(0, 0, 0, 0.15) !important;
+  padding: 4px 0 !important;
+  margin: 0 !important;
 }
 
 .layout-menu .el-menu-item:hover,
 .layout-menu .el-sub-menu__title:hover {
-  background-color: var(--sidebar-hover-bg) !important;
+  background-color: rgba(255, 255, 255, 0.1) !important;
   color: var(--sidebar-active-text) !important;
 }
 
 .layout-menu .el-menu-item.is-active {
-  background-color: var(--sidebar-active-bg) !important;
-  color: var(--sidebar-active-text) !important;
+  background-color: var(--el-color-primary) !important;
+  color: #FFFFFF !important;
   font-weight: 600;
+  box-shadow: 0 4px 12px rgba(30, 136, 229, 0.3);
+}
+
+.layout-menu .el-menu-item.is-active .el-icon {
+  color: #FFFFFF !important;
 }
 
 .layout-main {
