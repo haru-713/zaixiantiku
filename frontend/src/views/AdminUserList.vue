@@ -7,40 +7,51 @@
         </div>
       </template>
 
-      <!-- 搜索栏 -->
-      <el-form :inline="true" :model="queryParams" class="search-form">
-        <el-form-item>
-          <el-input v-model="queryParams.keyword" placeholder="用户名/姓名/手机号" style="width: 200px" clearable
-            @clear="handleQuery" @keyup.enter="handleQuery" />
-        </el-form-item>
-        <el-form-item>
-          <el-select v-model="queryParams.roleCode" placeholder="角色" clearable style="width: 120px">
-            <el-option label="管理员" value="ADMIN" />
-            <el-option label="教师" value="TEACHER" />
-            <el-option label="学生" value="STUDENT" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-select v-model="queryParams.status" placeholder="状态" clearable style="width: 100px">
-            <el-option label="正常" :value="1" />
-            <el-option label="禁用" :value="0" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-select v-model="queryParams.auditStatus" placeholder="审核状态" clearable style="width: 120px">
-            <el-option label="待审核" :value="0" />
-            <el-option label="审核通过" :value="1" />
-            <el-option label="审核拒绝" :value="2" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleQuery">查询</el-button>
-          <el-button @click="resetQuery">重置</el-button>
-        </el-form-item>
-      </el-form>
+      <CommonTable
+        :loading="loading"
+        :data="userList"
+        :total="total"
+        :page="queryParams.page"
+        :size="queryParams.size"
+        @update:page="val => queryParams.page = val"
+        @update:size="val => queryParams.size = val"
+        @pagination="fetchUserList"
+      >
+        <!-- 搜索栏 -->
+        <template #search>
+          <el-form :inline="true" :model="queryParams" class="search-form">
+            <el-form-item>
+              <el-input v-model="queryParams.keyword" placeholder="用户名/姓名/手机号" style="width: 200px" clearable
+                @clear="handleQuery" @keyup.enter="handleQuery" />
+            </el-form-item>
+            <el-form-item>
+              <el-select v-model="queryParams.roleCode" placeholder="角色" clearable style="width: 120px">
+                <el-option label="管理员" value="ADMIN" />
+                <el-option label="教师" value="TEACHER" />
+                <el-option label="学生" value="STUDENT" />
+              </el-select>
+            </el-form-item>
+            <el-form-item>
+              <el-select v-model="queryParams.status" placeholder="状态" clearable style="width: 100px">
+                <el-option label="正常" :value="1" />
+                <el-option label="禁用" :value="0" />
+              </el-select>
+            </el-form-item>
+            <el-form-item>
+              <el-select v-model="queryParams.auditStatus" placeholder="审核状态" clearable style="width: 120px">
+                <el-option label="待审核" :value="0" />
+                <el-option label="审核通过" :value="1" />
+                <el-option label="审核拒绝" :value="2" />
+              </el-select>
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" @click="handleQuery">查询</el-button>
+              <el-button @click="resetQuery">重置</el-button>
+            </el-form-item>
+          </el-form>
+        </template>
 
-      <!-- 数据表格 -->
-      <el-table :data="userList" v-loading="loading" stripe border style="width: 100%">
+        <!-- 表格列 -->
         <el-table-column type="index" label="序号" width="80" :index="indexMethod" align="center" />
         <el-table-column label="头像" width="80" align="center">
           <template #default="scope">
@@ -91,26 +102,17 @@
             </template>
           </template>
         </el-table-column>
-        <template #empty>
-          <el-empty description="未找到相关用户" />
-        </template>
-      </el-table>
-
-      <!-- 分页 -->
-      <div class="pagination-container">
-        <el-pagination :current-page="queryParams.page" :page-size="queryParams.size" :page-sizes="[10, 20, 50, 100]"
-          layout="total, sizes, prev, pager, next, jumper" :total="total" @size-change="handleSizeChange"
-          @current-change="handleCurrentChange" />
-      </div>
+      </CommonTable>
     </el-card>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
-import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/store/user'
+import { adminUserApi } from '@/api/user'
+import CommonTable from '@/components/CommonTable.vue'
 
 const userStore = useUserStore()
 const isAdmin = computed(() => (userStore.userInfo?.roles || []).includes('ADMIN'))
@@ -131,7 +133,7 @@ const queryParams = reactive({
 const fetchUserList = async () => {
   loading.value = true
   try {
-    const response = await request.get('/admin/users', { params: queryParams })
+    const response = await adminUserApi.getUserList(queryParams)
     userList.value = response.data.list
     total.value = response.data.total
   } catch (error) {
@@ -152,16 +154,6 @@ const resetQuery = () => {
   queryParams.status = undefined
   queryParams.auditStatus = undefined
   handleQuery()
-}
-
-const handleSizeChange = (val) => {
-  queryParams.size = val
-  fetchUserList()
-}
-
-const handleCurrentChange = (val) => {
-  queryParams.page = val
-  fetchUserList()
 }
 
 const indexMethod = (index) => {
@@ -200,7 +192,7 @@ const handleAudit = async (userId, auditStatus) => {
 
   loading.value = true
   try {
-    await request.put(`/admin/users/${userId}/audit`, { auditStatus, reason })
+    await adminUserApi.auditUser(userId, { auditStatus, reason })
     ElMessage.success('审核完成')
     fetchUserList()
   } catch (e) {
@@ -229,7 +221,7 @@ const handleToggleStatus = async (userId, currentStatus) => {
 
   loading.value = true
   try {
-    await request.put(`/admin/users/${userId}/status`, { status: nextStatus })
+    await adminUserApi.toggleStatus(userId, nextStatus)
     ElMessage.success('状态已更新')
     fetchUserList()
   } catch (e) {
@@ -256,7 +248,7 @@ const handleResetPassword = async (userId, username) => {
 
   loading.value = true
   try {
-    await request.put(`/admin/users/${userId}/password/reset`)
+    await adminUserApi.resetPassword(userId)
     ElMessage.success('密码已成功重置为 123456')
   } catch (e) {
     console.error('重置密码失败:', e)

@@ -24,7 +24,9 @@ import com.example.zaixiantiku.pojo.vo.CourseTeacherRowVO;
 import com.example.zaixiantiku.pojo.vo.PageResult;
 import com.example.zaixiantiku.pojo.vo.StudentSimpleVO;
 import com.example.zaixiantiku.pojo.vo.TeacherSimpleVO;
+import com.example.zaixiantiku.exception.BusinessException;
 import com.example.zaixiantiku.security.LoginUser;
+import com.example.zaixiantiku.utils.SecurityUtils;
 import com.example.zaixiantiku.service.CourseService;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
@@ -60,17 +62,17 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     @Transactional(rollbackFor = Exception.class)
     public Course createCourse(CourseCreateDTO createDTO) {
         if (createDTO == null) {
-            throw new RuntimeException("请求体不能为空");
+            throw new BusinessException("请求体不能为空");
         }
         if (!StringUtils.hasText(createDTO.getCourseName())) {
-            throw new RuntimeException("courseName 不能为空");
+            throw new BusinessException("courseName 不能为空");
         }
 
         String courseName = createDTO.getCourseName().strip();
         Long nameCount = courseMapper.selectCount(new LambdaQueryWrapper<Course>()
                 .apply("TRIM(course_name) = {0}", courseName));
         if (nameCount != null && nameCount > 0) {
-            throw new RuntimeException("课程名称已存在");
+            throw new BusinessException("课程名称已存在");
         }
 
         Course course = Course.builder()
@@ -85,28 +87,27 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         try {
             int rows = courseMapper.insert(course);
             if (rows != 1) {
-                throw new RuntimeException("创建课程失败");
+                throw new BusinessException("创建课程失败");
             }
         } catch (DuplicateKeyException e) {
-            throw new RuntimeException("课程名称已存在");
+            throw new BusinessException("课程名称已存在");
         }
 
-        LoginUser loginUser = getLoginUser();
-        if (loginUser != null && loginUser.getRoleCodes() != null && loginUser.getRoleCodes().contains("TEACHER")) {
+        if (SecurityUtils.hasRole("TEACHER")) {
             CourseTeacher courseTeacher = CourseTeacher.builder()
                     .courseId(course.getId())
-                    .teacherId(loginUser.getUser().getId())
+                    .teacherId(SecurityUtils.getUserId())
                     .build();
             courseTeacherMapper.insert(courseTeacher);
         }
 
-        return courseMapper.selectById(course.getId());
+        return course;
     }
 
     @Override
     public PageResult<CourseListVO> getCoursePage(CourseQueryDTO queryDTO) {
-        LoginUser loginUser = requireLoginUser();
-        Long userId = loginUser.getUser().getId();
+        LoginUser loginUser = SecurityUtils.requireLoginUser();
+        Long userId = SecurityUtils.getUserId();
         List<String> roles = loginUser.getRoleCodes();
 
         Integer page = queryDTO == null || queryDTO.getPage() == null || queryDTO.getPage() < 1 ? 1
@@ -177,15 +178,15 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     @Override
     public CourseDetailVO getCourseDetail(Long courseId) {
         if (courseId == null) {
-            throw new RuntimeException("courseId 不能为空");
+            throw new BusinessException("courseId 不能为空");
         }
 
         Course course = courseMapper.selectById(courseId);
         if (course == null) {
-            throw new RuntimeException("课程不存在");
+            throw new BusinessException("课程不存在");
         }
 
-        LoginUser loginUser = requireLoginUser();
+        SecurityUtils.requireLoginUser();
         requireCourseMemberOrAdmin(courseId);
 
         List<CourseTeacherRowVO> teacherRows = courseTeacherMapper.findTeachersByCourseIds(List.of(courseId));
@@ -195,17 +196,14 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
                         .collect(Collectors.toList());
 
         List<StudentSimpleVO> students = Collections.emptyList();
-        if (isAdmin(loginUser) || isCourseTeacher(loginUser, courseId)) {
+        if (SecurityUtils.isAdmin(SecurityUtils.getLoginUser()) || isCourseTeacher(courseId)) {
             students = courseStudentMapper.findStudentsByCourseId(courseId);
-            if (students == null) {
-                students = Collections.emptyList();
-            }
         }
 
-        boolean canAddTeacher = isAdmin(loginUser);
-        boolean canRemoveTeacher = isAdmin(loginUser) || isCourseCreator(loginUser, courseId);
-        boolean canAddStudent = isAdmin(loginUser) || isCourseTeacher(loginUser, courseId);
-        boolean canRemoveStudent = isAdmin(loginUser) || isCourseTeacher(loginUser, courseId);
+        boolean canAddTeacher = SecurityUtils.isAdmin(SecurityUtils.getLoginUser());
+        boolean canRemoveTeacher = SecurityUtils.isAdmin(SecurityUtils.getLoginUser()) || isCourseCreator(courseId);
+        boolean canAddStudent = SecurityUtils.isAdmin(SecurityUtils.getLoginUser()) || isCourseTeacher(courseId);
+        boolean canRemoveStudent = SecurityUtils.isAdmin(SecurityUtils.getLoginUser()) || isCourseTeacher(courseId);
 
         return CourseDetailVO.builder()
                 .id(course.getId())
@@ -229,14 +227,14 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     @Override
     public PageResult<TeacherSimpleVO> getTeacherCandidates(Long courseId, Integer page, Integer size, String keyword) {
         if (courseId == null) {
-            throw new RuntimeException("courseId 不能为空");
+            throw new BusinessException("courseId 不能为空");
         }
         Integer p = page == null || page < 1 ? 1 : page;
         Integer s = size == null || size < 1 ? 10 : size;
 
         Course course = courseMapper.selectById(courseId);
         if (course == null) {
-            throw new RuntimeException("课程不存在");
+            throw new BusinessException("课程不存在");
         }
 
         requireAdminOnly();
@@ -272,14 +270,14 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     @Override
     public PageResult<StudentSimpleVO> getStudentCandidates(Long courseId, Integer page, Integer size, String keyword) {
         if (courseId == null) {
-            throw new RuntimeException("courseId 不能为空");
+            throw new BusinessException("courseId 不能为空");
         }
         Integer p = page == null || page < 1 ? 1 : page;
         Integer s = size == null || size < 1 ? 10 : size;
 
         Course course = courseMapper.selectById(courseId);
         if (course == null) {
-            throw new RuntimeException("课程不存在");
+            throw new BusinessException("课程不存在");
         }
 
         requireCourseOwnerOrAdmin(courseId);
@@ -316,8 +314,8 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
 
     @Override
     public PageResult<Course> getMyCourses(CourseQueryDTO queryDTO) {
-        LoginUser loginUser = requireLoginUser();
-        Long userId = loginUser.getUser().getId();
+        LoginUser loginUser = SecurityUtils.requireLoginUser();
+        Long userId = SecurityUtils.getUserId();
         List<String> roles = loginUser.getRoleCodes();
 
         Integer page = queryDTO == null || queryDTO.getPage() == null || queryDTO.getPage() < 1 ? 1
@@ -394,18 +392,18 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     @Transactional(rollbackFor = Exception.class)
     public void auditCourse(Long courseId, CourseAuditDTO auditDTO) {
         if (courseId == null) {
-            throw new RuntimeException("courseId 不能为空");
+            throw new BusinessException("courseId 不能为空");
         }
         if (auditDTO == null || auditDTO.getAuditStatus() == null) {
-            throw new RuntimeException("auditStatus 不能为空");
+            throw new BusinessException("auditStatus 不能为空");
         }
         if (!Objects.equals(auditDTO.getAuditStatus(), 1) && !Objects.equals(auditDTO.getAuditStatus(), 2)) {
-            throw new RuntimeException("auditStatus 参数非法");
+            throw new BusinessException("auditStatus 参数非法");
         }
 
         Course course = courseMapper.selectById(courseId);
         if (course == null) {
-            throw new RuntimeException("课程不存在");
+            throw new BusinessException("课程不存在");
         }
 
         Course update = new Course();
@@ -414,7 +412,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         update.setAuditReason(auditDTO.getReason());
         int rows = courseMapper.updateById(update);
         if (rows != 1) {
-            throw new RuntimeException("审核失败");
+            throw new BusinessException("审核失败");
         }
     }
 
@@ -422,18 +420,18 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     @Transactional(rollbackFor = Exception.class)
     public void updateCourseStatus(Long courseId, CourseStatusDTO statusDTO) {
         if (courseId == null) {
-            throw new RuntimeException("courseId 不能为空");
+            throw new BusinessException("courseId 不能为空");
         }
         if (statusDTO == null || statusDTO.getStatus() == null) {
-            throw new RuntimeException("status 不能为空");
+            throw new BusinessException("status 不能为空");
         }
         if (!Objects.equals(statusDTO.getStatus(), 0) && !Objects.equals(statusDTO.getStatus(), 1)) {
-            throw new RuntimeException("status 参数非法");
+            throw new BusinessException("status 参数非法");
         }
 
         Course course = courseMapper.selectById(courseId);
         if (course == null) {
-            throw new RuntimeException("课程不存在");
+            throw new BusinessException("课程不存在");
         }
 
         Course update = new Course();
@@ -441,7 +439,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         update.setStatus(statusDTO.getStatus());
         int rows = courseMapper.updateById(update);
         if (rows != 1) {
-            throw new RuntimeException("状态更新失败");
+            throw new BusinessException("状态更新失败");
         }
     }
 
@@ -449,14 +447,14 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     @Transactional(rollbackFor = Exception.class)
     public Course updateCourse(Long courseId, CourseUpdateDTO updateDTO) {
         if (courseId == null) {
-            throw new RuntimeException("courseId 不能为空");
+            throw new BusinessException("courseId 不能为空");
         }
         if (updateDTO == null) {
-            throw new RuntimeException("请求体不能为空");
+            throw new BusinessException("请求体不能为空");
         }
         Course course = courseMapper.selectById(courseId);
         if (course == null) {
-            throw new RuntimeException("课程不存在");
+            throw new BusinessException("课程不存在");
         }
 
         requireCourseOwnerOrAdmin(courseId);
@@ -469,7 +467,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
                     .apply("TRIM(course_name) = {0}", courseName)
                     .ne(Course::getId, courseId));
             if (nameCount != null && nameCount > 0) {
-                throw new RuntimeException("课程名称已存在");
+                throw new BusinessException("课程名称已存在");
             }
             update.setCourseName(courseName);
         }
@@ -482,7 +480,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
 
         int rows = courseMapper.updateById(update);
         if (rows != 1) {
-            throw new RuntimeException("更新课程失败");
+            throw new BusinessException("更新课程失败");
         }
         return courseMapper.selectById(courseId);
     }
@@ -491,7 +489,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     public PageResult<StudentSimpleVO> getCourseStudents(Long courseId, Long classId, Integer page, Integer size,
             String keyword) {
         if (courseId == null) {
-            throw new RuntimeException("courseId 不能为空");
+            throw new BusinessException("courseId 不能为空");
         }
         Integer p = page == null || page < 1 ? 1 : page;
         Integer s = size == null || size < 1 ? 10 : size;
@@ -544,7 +542,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     @Transactional(rollbackFor = Exception.class)
     public void batchAddClassStudentsToCourse(Long courseId, Long classId) {
         if (courseId == null || classId == null) {
-            throw new RuntimeException("courseId 和 classId 不能为空");
+            throw new BusinessException("courseId 和 classId 不能为空");
         }
         requireCourseOwnerOrAdmin(courseId);
 
@@ -576,45 +574,42 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     @Transactional(rollbackFor = Exception.class)
     public void deleteCourse(Long courseId) {
         if (courseId == null) {
-            throw new RuntimeException("courseId 不能为空");
+            throw new BusinessException("courseId 不能为空");
         }
         Course course = courseMapper.selectById(courseId);
         if (course == null) {
-            throw new RuntimeException("课程不存在");
+            throw new BusinessException("课程不存在");
         }
 
-        LoginUser loginUser = requireLoginUser();
-        boolean isAdmin = isAdmin(loginUser);
-
-        if (!isAdmin) {
+        if (!SecurityUtils.isAdmin(SecurityUtils.getLoginUser())) {
             requireCourseOwnerOrAdmin(courseId);
 
             // 1. 检查教师关联
             Long teacherCount = courseTeacherMapper
                     .selectCount(new LambdaQueryWrapper<CourseTeacher>().eq(CourseTeacher::getCourseId, courseId));
             if (teacherCount != null && teacherCount > 0) {
-                throw new RuntimeException("该课程下有关联的任课教师，请先移除所有教师后再删除课程");
+                throw new BusinessException("该课程下有关联的任课教师，请先移除所有教师后再删除课程");
             }
 
             // 2. 检查学生关联
             Long studentCount = courseStudentMapper
                     .selectCount(new LambdaQueryWrapper<CourseStudent>().eq(CourseStudent::getCourseId, courseId));
             if (studentCount != null && studentCount > 0) {
-                throw new RuntimeException("该课程下有关联的选课学生，请先清退学生后再删除课程");
+                throw new BusinessException("该课程下有关联的选课学生，请先清退学生后再删除课程");
             }
 
             // 3. 检查知识点
             Integer kpCount = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM knowledge_point WHERE course_id = ?",
                     Integer.class, courseId);
             if (kpCount != null && kpCount > 0) {
-                throw new RuntimeException("该课程下有关联的知识点，请先删除知识点后再删除课程");
+                throw new BusinessException("该课程下有关联的知识点，请先删除知识点后再删除课程");
             }
 
             // 4. 检查题目
             Integer questionCount = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM question WHERE course_id = ?",
                     Integer.class, courseId);
             if (questionCount != null && questionCount > 0) {
-                throw new RuntimeException("该课程下有关联的题目，请先清空题目后再删除课程");
+                throw new BusinessException("该课程下有关联的题目，请先清空题目后再删除课程");
             }
 
             // 5. 检查试卷
@@ -622,7 +617,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
                 Integer paperCount = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM exam_paper WHERE course_id = ?",
                         Integer.class, courseId);
                 if (paperCount != null && paperCount > 0) {
-                    throw new RuntimeException("该课程下有关联的试卷，请先删除试卷后再删除课程");
+                    throw new BusinessException("该课程下有关联的试卷，请先删除试卷后再删除课程");
                 }
             }
         } else {
@@ -755,10 +750,10 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
             throw new RuntimeException("课程不存在");
         }
 
-        LoginUser loginUser = requireLoginUser();
+        LoginUser loginUser = SecurityUtils.requireLoginUser();
 
         // 1. 如果是管理员，允许移除任何教师（包括最后一名）
-        if (isAdmin(loginUser)) {
+        if (SecurityUtils.isAdmin(SecurityUtils.getLoginUser())) {
             courseTeacherMapper.delete(new LambdaQueryWrapper<CourseTeacher>()
                     .eq(CourseTeacher::getCourseId, courseId)
                     .eq(CourseTeacher::getTeacherId, teacherId));
@@ -769,15 +764,15 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         requireCourseOwnerOrAdmin(courseId);
 
         // 校验：普通教师只能移除自己（即退出课程）
-        if (!teacherId.equals(loginUser.getUser().getId())) {
-            throw new RuntimeException("普通教师仅能退出自己教授的课程，无法移除其他教师");
+        if (!teacherId.equals(SecurityUtils.getUserId())) {
+            throw new BusinessException("普通教师仅能退出自己教授的课程，无法移除其他教师");
         }
 
         // 校验：唯一教师限制
         Long teacherCount = courseTeacherMapper.selectCount(new LambdaQueryWrapper<CourseTeacher>()
                 .eq(CourseTeacher::getCourseId, courseId));
         if (teacherCount != null && teacherCount <= 1) {
-            throw new RuntimeException("您是该课程的唯一任课教师。若要不再教授该课程，请联系管理员，或在清空所有关联数据后由管理员删除该课程。");
+            throw new BusinessException("您是该课程的唯一任课教师。若要不再教授该课程，请联系管理员，或在清空所有关联数据后由管理员删除该课程。");
         }
 
         courseTeacherMapper.delete(new LambdaQueryWrapper<CourseTeacher>()
@@ -806,15 +801,15 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     @Transactional(rollbackFor = Exception.class)
     public void addStudents(Long courseId, CourseStudentAddDTO addDTO) {
         if (courseId == null) {
-            throw new RuntimeException("courseId 不能为空");
+            throw new BusinessException("courseId 不能为空");
         }
         if (addDTO == null || addDTO.getStudentIds() == null || addDTO.getStudentIds().isEmpty()) {
-            throw new RuntimeException("studentIds 不能为空");
+            throw new BusinessException("studentIds 不能为空");
         }
 
         Course course = courseMapper.selectById(courseId);
         if (course == null) {
-            throw new RuntimeException("课程不存在");
+            throw new BusinessException("课程不存在");
         }
 
         requireCourseOwnerOrAdmin(courseId);
@@ -826,14 +821,14 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
 
             User student = userMapper.selectById(studentId);
             if (student == null) {
-                throw new RuntimeException("学生不存在: " + studentId);
+                throw new BusinessException("学生不存在: " + studentId);
             }
             List<String> roleCodes = userMapper.findRoleCodesByUserId(studentId);
             if (roleCodes == null || !roleCodes.contains("STUDENT")) {
-                throw new RuntimeException("用户不是学生: " + studentId);
+                throw new BusinessException("用户不是学生: " + studentId);
             }
             if (student.getAuditStatus() == null || !Objects.equals(student.getAuditStatus(), 1)) {
-                throw new RuntimeException("学生未审核通过: " + studentId);
+                throw new BusinessException("学生未审核通过: " + studentId);
             }
 
             Long count = courseStudentMapper.selectCount(new LambdaQueryWrapper<CourseStudent>()
@@ -858,15 +853,15 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     @Transactional(rollbackFor = Exception.class)
     public void removeStudent(Long courseId, Long studentId) {
         if (courseId == null) {
-            throw new RuntimeException("courseId 不能为空");
+            throw new BusinessException("courseId 不能为空");
         }
         if (studentId == null) {
-            throw new RuntimeException("studentId 不能为空");
+            throw new BusinessException("studentId 不能为空");
         }
 
         Course course = courseMapper.selectById(courseId);
         if (course == null) {
-            throw new RuntimeException("课程不存在");
+            throw new BusinessException("课程不存在");
         }
 
         requireCourseOwnerOrAdmin(courseId);
@@ -875,13 +870,13 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
                 .eq(CourseStudent::getCourseId, courseId)
                 .eq(CourseStudent::getStudentId, studentId));
         if (rows <= 0) {
-            throw new RuntimeException("该学生未加入此课程");
+            throw new BusinessException("该学生未加入此课程");
         }
     }
 
     @Override
     public List<Course> getManagedCourses() {
-        LoginUser loginUser = requireLoginUser();
+        LoginUser loginUser = SecurityUtils.requireLoginUser();
         List<String> roles = loginUser.getRoleCodes();
         boolean isAdmin = roles != null && roles.contains("ADMIN");
 
@@ -889,7 +884,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
             return courseMapper.selectList(new LambdaQueryWrapper<Course>().eq(Course::getStatus, 1));
         }
 
-        Long teacherId = loginUser.getUser().getId();
+        Long teacherId = SecurityUtils.getUserId();
         List<Long> managedCourseIds = courseTeacherMapper.selectList(new LambdaQueryWrapper<CourseTeacher>()
                 .eq(CourseTeacher::getTeacherId, teacherId))
                 .stream().map(CourseTeacher::getCourseId).collect(Collectors.toList());
@@ -903,77 +898,39 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
                 .collect(Collectors.toList());
     }
 
-    private static LoginUser getLoginUser() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()) {
-            return null;
-        }
-        Object principal = authentication.getPrincipal();
-        if (principal instanceof LoginUser loginUser) {
-            return loginUser;
-        }
-        return null;
-    }
-
-    private static LoginUser requireLoginUser() {
-        LoginUser loginUser = getLoginUser();
-        if (loginUser == null || loginUser.getUser() == null || loginUser.getUser().getId() == null) {
-            throw new RuntimeException("用户未登录");
-        }
-        return loginUser;
-    }
-
     private void requireCourseOwnerOrAdmin(Long courseId) {
-        LoginUser loginUser = requireLoginUser();
-        List<String> roleCodes = loginUser.getRoleCodes();
-        if (roleCodes != null && roleCodes.contains("ADMIN")) {
+        if (SecurityUtils.isAdmin(SecurityUtils.getLoginUser())) {
             return;
         }
-        if (roleCodes == null || !roleCodes.contains("TEACHER")) {
-            throw new RuntimeException("没有权限操作该课程");
+        if (!SecurityUtils.hasRole("TEACHER")) {
+            throw new BusinessException("没有权限操作该课程");
         }
-        Long teacherId = loginUser.getUser().getId();
+        Long teacherId = SecurityUtils.getUserId();
         Long count = courseTeacherMapper.selectCount(new LambdaQueryWrapper<CourseTeacher>()
                 .eq(CourseTeacher::getCourseId, courseId)
                 .eq(CourseTeacher::getTeacherId, teacherId));
         if (count == null || count <= 0) {
-            throw new RuntimeException("没有权限操作该课程");
+            throw new BusinessException("没有权限操作该课程");
         }
-    }
-
-    private boolean isAdmin(LoginUser loginUser) {
-        List<String> roleCodes = loginUser == null ? null : loginUser.getRoleCodes();
-        return roleCodes != null && roleCodes.contains("ADMIN");
     }
 
     private void requireAdminOnly() {
-        LoginUser loginUser = requireLoginUser();
-        if (!isAdmin(loginUser)) {
-            throw new RuntimeException("仅管理员可操作");
-        }
+        SecurityUtils.requireAdmin();
     }
 
-    private boolean isCourseCreator(LoginUser loginUser, Long courseId) {
-        if (loginUser == null || loginUser.getUser() == null || loginUser.getUser().getId() == null) {
-            return false;
-        }
-        List<String> roleCodes = loginUser.getRoleCodes();
-        if (roleCodes == null || !roleCodes.contains("TEACHER")) {
+    private boolean isCourseCreator(Long courseId) {
+        if (!SecurityUtils.hasRole("TEACHER")) {
             return false;
         }
         Long creatorTeacherId = courseTeacherMapper.findCreatorTeacherIdByCourseId(courseId);
-        return creatorTeacherId != null && creatorTeacherId.equals(loginUser.getUser().getId());
+        return creatorTeacherId != null && creatorTeacherId.equals(SecurityUtils.getUserId());
     }
 
-    private boolean isCourseTeacher(LoginUser loginUser, Long courseId) {
-        if (loginUser == null || loginUser.getUser() == null || loginUser.getUser().getId() == null) {
+    private boolean isCourseTeacher(Long courseId) {
+        if (!SecurityUtils.hasRole("TEACHER")) {
             return false;
         }
-        List<String> roleCodes = loginUser.getRoleCodes();
-        if (roleCodes == null || !roleCodes.contains("TEACHER")) {
-            return false;
-        }
-        Long teacherId = loginUser.getUser().getId();
+        Long teacherId = SecurityUtils.getUserId();
         Long count = courseTeacherMapper.selectCount(new LambdaQueryWrapper<CourseTeacher>()
                 .eq(CourseTeacher::getCourseId, courseId)
                 .eq(CourseTeacher::getTeacherId, teacherId));
@@ -981,14 +938,12 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     }
 
     private void requireCourseMemberOrAdmin(Long courseId) {
-        LoginUser loginUser = requireLoginUser();
-        List<String> roleCodes = loginUser.getRoleCodes();
-        if (roleCodes != null && roleCodes.contains("ADMIN")) {
+        if (SecurityUtils.isAdmin(SecurityUtils.getLoginUser())) {
             return;
         }
 
-        Long userId = loginUser.getUser().getId();
-        if (roleCodes != null && roleCodes.contains("TEACHER")) {
+        Long userId = SecurityUtils.getUserId();
+        if (SecurityUtils.hasRole("TEACHER")) {
             Long count = courseTeacherMapper.selectCount(new LambdaQueryWrapper<CourseTeacher>()
                     .eq(CourseTeacher::getCourseId, courseId)
                     .eq(CourseTeacher::getTeacherId, userId));
@@ -996,8 +951,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
                 return;
             }
         }
-
-        if (roleCodes != null && roleCodes.contains("STUDENT")) {
+        if (SecurityUtils.hasRole("STUDENT")) {
             Long count = courseStudentMapper.selectCount(new LambdaQueryWrapper<CourseStudent>()
                     .eq(CourseStudent::getCourseId, courseId)
                     .eq(CourseStudent::getStudentId, userId));
@@ -1005,7 +959,6 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
                 return;
             }
         }
-
-        throw new RuntimeException("没有权限查看该课程");
+        throw new BusinessException("您未参加该课程，无权访问");
     }
 }

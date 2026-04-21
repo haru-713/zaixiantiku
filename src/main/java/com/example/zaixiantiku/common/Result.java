@@ -17,12 +17,17 @@ public class Result<T> {
 
     // 增删改 成功响应
     public static <T> Result<T> success() {
-        return new Result<>(1, "success", null);
+        return new Result<>(1, "操作成功", null);
     }
 
     // 查询 成功响应
     public static <T> Result<T> success(T data) {
-        return new Result<>(1, "success", data);
+        return new Result<>(1, "查询成功", data);
+    }
+
+    // 带消息的成功响应
+    public static <T> Result<T> success(String msg, T data) {
+        return new Result<>(1, msg, data);
     }
 
     // 自定义成功响应
@@ -33,5 +38,10 @@ public class Result<T> {
     // 失败响应
     public static <T> Result<T> error(String msg) {
         return new Result<>(0, msg, null);
+    }
+
+    // 带错误码的失败响应
+    public static <T> Result<T> error(Integer code, String msg) {
+        return new Result<>(code, msg, null);
     }
 }

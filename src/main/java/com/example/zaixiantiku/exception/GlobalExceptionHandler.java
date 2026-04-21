@@ -13,6 +13,17 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
     /**
+     * 处理业务异常
+     * @param e BusinessException
+     * @return Result
+     */
+    @ExceptionHandler(BusinessException.class)
+    public Result<String> handleBusinessException(BusinessException e) {
+        log.error("业务异常：{}", e.getMessage());
+        return Result.error(e.getCode(), e.getMessage());
+    }
+
+    /**
      * 处理运行时异常
      * @param e Exception
      * @return Result
