@@ -35,6 +35,7 @@ import PracticeReport from '../views/PracticeReport.vue'
 import ShareList from '../views/ShareList.vue'
 import ShareDetail from '../views/ShareDetail.vue'
 const AnnouncementManage = () => import('../views/AnnouncementManage.vue')
+const AnnouncementList = () => import('../views/AnnouncementList.vue')
 const LogManage = () => import('../views/LogManage.vue')
 const Profile = () => import('../views/Profile.vue')
 import ClassManage from '../views/ClassManage.vue'
@@ -220,6 +221,12 @@ const routes = [
     name: 'ShareDetail',
     component: ShareDetail,
     meta: { requiresAuth: true, title: '分享详情' }
+  },
+  {
+    path: '/announcements',
+    name: 'AnnouncementList',
+    component: AnnouncementList,
+    meta: { requiresAuth: true, title: '系统公告' }
   },
   {
     path: '/system/announcements',

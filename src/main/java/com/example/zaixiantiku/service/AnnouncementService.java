@@ -24,7 +24,12 @@ public interface AnnouncementService {
     void deleteAnnouncement(Long id);
     
     /**
-     * 获取公告列表（支持分页和置顶过滤）
+     * 获取公告列表（支持分页和权限过滤）
      */
-    PageResult<Announcement> getAnnouncements(Integer isTop, Integer page, Integer size);
+    PageResult<Announcement> getAnnouncements(Integer isTop, Integer page, Integer size, boolean filterExpired);
+
+    /**
+     * 批量删除过期公告
+     */
+    void deleteExpiredAnnouncements();
 }

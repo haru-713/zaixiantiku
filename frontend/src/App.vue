@@ -207,6 +207,12 @@
               </el-icon>
               <template #title>操作日志</template>
             </el-menu-item>
+            <el-menu-item index="/system/announcements" v-if="isAdmin">
+              <el-icon>
+                <Notification />
+              </el-icon>
+              <template #title>公告管理</template>
+            </el-menu-item>
           </el-sub-menu>
         </el-menu>
       </el-aside>
@@ -508,7 +514,10 @@ onMounted(() => {
 :deep(.el-sub-menu__icon-arrow) {
   color: var(--sidebar-text) !important;
   font-size: 12px !important;
+  position: absolute !important;
   right: 16px !important;
+  top: 50% !important;
+  margin-top: -6px !important;
 }
 
 /* 图标尺寸优化 */
@@ -540,6 +549,10 @@ onMounted(() => {
   background-color: rgba(0, 0, 0, 0.15) !important;
   padding: 4px 0 !important;
   margin: 0 !important;
+}
+
+.layout-menu .el-sub-menu__title {
+  position: relative !important;
 }
 
 .layout-menu .el-menu-item:hover,

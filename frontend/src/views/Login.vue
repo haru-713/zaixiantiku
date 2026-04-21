@@ -18,7 +18,6 @@
           </el-form-item>
 
           <div class="form-options">
-            <el-checkbox v-model="rememberMe">记住我</el-checkbox>
             <el-button link type="primary" @click="handleForgotPassword">忘记密码？</el-button>
           </div>
 
@@ -59,7 +58,6 @@ const userStore = useUserStore()
 
 const loginFormRef = ref(null)
 const loading = ref(false)
-const rememberMe = ref(false)
 
 const loginForm = reactive({
   username: '',

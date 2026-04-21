@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -47,12 +48,33 @@ public class AnnouncementController {
         return Result.success();
     }
 
+    @Operation(summary = "批量删除过期公告")
+    @DeleteMapping("/expired")
+    @PreAuthorize("hasRole('ADMIN')")
+    @OperationLog(module = "公告管理", operation = "批量删除过期公告")
+    public Result<Void> deleteExpiredAnnouncements() {
+        announcementService.deleteExpiredAnnouncements();
+        return Result.success();
+    }
+
     @Operation(summary = "获取公告列表")
     @GetMapping
     public Result<PageResult<Announcement>> getAnnouncements(
             @RequestParam(required = false) Integer isTop,
             @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "10") Integer size) {
-        return Result.success(announcementService.getAnnouncements(isTop, page, size));
+            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(required = false) Boolean publicView) {
+        
+        boolean shouldFilter;
+        if (publicView != null) {
+            shouldFilter = publicView;
+        } else {
+            // 默认逻辑：非管理员必须过滤
+            boolean isAdmin = SecurityContextHolder.getContext().getAuthentication().getAuthorities()
+                    .stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+            shouldFilter = !isAdmin;
+        }
+        
+        return Result.success(announcementService.getAnnouncements(isTop, page, size, shouldFilter));
     }
 }
