@@ -199,6 +199,12 @@ const routes = [
     meta: { requiresAuth: true, title: '学习报告', roles: ['STUDENT'] }
   },
   {
+    path: '/study/exam-report-detail/:recordId',
+    name: 'StudentExamReportDetail',
+    component: () => import('../views/StudentExamReportDetail.vue'),
+    meta: { requiresAuth: true, title: '考试详情报告', roles: ['STUDENT'] }
+  },
+  {
     path: '/study/exam-record',
     name: 'ExamRecord',
     component: ExamRecord,

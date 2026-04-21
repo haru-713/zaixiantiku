@@ -17,9 +17,11 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class StudentExamRecordVO {
     private Long id;
+    private Long examId;
     private String examName;
     private Integer totalScore;
     private Integer maxScore;
+    private Double scoreRate;
     
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime submitTime;

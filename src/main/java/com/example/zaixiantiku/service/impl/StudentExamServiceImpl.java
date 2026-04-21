@@ -47,7 +47,7 @@ public class StudentExamServiceImpl implements StudentExamService {
         LoginUser loginUser = requireLoginUser();
         Long userId = loginUser.getUser().getId();
 
-        // 1. 获取该学生已参加的课程ID (基础过滤：必须参加了课程才能看该课程的考试)
+        // 1. 获取学生选修的所有课程ID
         List<Long> enrolledCourseIds = courseStudentMapper.selectList(new LambdaQueryWrapper<CourseStudent>()
                 .eq(CourseStudent::getStudentId, userId))
                 .stream().map(CourseStudent::getCourseId).collect(Collectors.toList());
@@ -56,74 +56,43 @@ public class StudentExamServiceImpl implements StudentExamService {
             return PageResult.of(0L, new ArrayList<>());
         }
 
-        // 2. 获取该学生所属的所有班级ID
-        List<Long> classIds = studentClassMapper.selectList(new LambdaQueryWrapper<StudentClass>()
-                .eq(StudentClass::getStudentId, userId))
-                .stream().map(StudentClass::getClassId).collect(Collectors.toList());
+        // 2. 查询学生选修课程下的所有考试
+        LambdaQueryWrapper<Exam> examQw = new LambdaQueryWrapper<Exam>()
+                .eq(Exam::getStatus, 1) // 仅显示已发布的考试
+                .in(Exam::getCourseId, enrolledCourseIds);
 
-        // 3. 查询符合课程条件的考试
-        LambdaQueryWrapper<Exam> qw = new LambdaQueryWrapper<>();
-        qw.in(Exam::getCourseId, enrolledCourseIds);
         if (courseId != null) {
-            qw.eq(Exam::getCourseId, courseId);
+            if (!enrolledCourseIds.contains(courseId)) {
+                throw new RuntimeException("您未选修该课程，无权查看其考试");
+            }
+            examQw.eq(Exam::getCourseId, courseId);
         }
-        qw.orderByDesc(Exam::getStartTime);
 
-        List<Exam> exams = examMapper.selectList(qw);
+        List<Exam> exams = examMapper.selectList(examQw);
         if (exams.isEmpty()) {
             return PageResult.of(0L, new ArrayList<>());
         }
 
-        // 4. 权限过滤
+        // 3. 获取学生已提交的考试记录，用于过滤
         List<Long> allExamIds = exams.stream().map(Exam::getId).collect(Collectors.toList());
+        List<ExamRecord> submittedRecords = examRecordMapper.selectList(new LambdaQueryWrapper<ExamRecord>()
+                .eq(ExamRecord::getUserId, userId)
+                .in(ExamRecord::getExamId, allExamIds)
+                .ge(ExamRecord::getStatus, 1)); // 状态 >= 1 表示已提交或已批阅
 
-        // 批量查询有班级关联的考试ID
-        Set<Long> hasClassAssignedExamIds = examClassMapper.selectList(new LambdaQueryWrapper<ExamClass>()
-                .in(ExamClass::getExamId, allExamIds))
-                .stream().map(ExamClass::getExamId).collect(Collectors.toSet());
+        Set<Long> submittedExamIds = submittedRecords.stream().map(ExamRecord::getExamId).collect(Collectors.toSet());
 
-        // 批量查询有个人关联的考试ID
-        Set<Long> hasStudentAssignedExamIds = examStudentMapper.selectList(new LambdaQueryWrapper<ExamStudent>()
-                .in(ExamStudent::getExamId, allExamIds))
-                .stream().map(ExamStudent::getExamId).collect(Collectors.toSet());
+        // 仅显示未提交的考试
+        List<Exam> unsubmittedExams = exams.stream()
+                .filter(e -> !submittedExamIds.contains(e.getId()))
+                .collect(Collectors.toList());
 
-        // 查询当前学生所在班级关联的考试ID
-        Set<Long> myClassExamIds = new HashSet<>();
-        if (!classIds.isEmpty()) {
-            myClassExamIds = examClassMapper.selectList(new LambdaQueryWrapper<ExamClass>()
-                    .in(ExamClass::getExamId, allExamIds)
-                    .in(ExamClass::getClassId, classIds))
-                    .stream().map(ExamClass::getExamId).collect(Collectors.toSet());
+        if (unsubmittedExams.isEmpty()) {
+            return PageResult.of(0L, new ArrayList<>());
         }
 
-        // 查询直接分配给当前学生的考试ID
-        Set<Long> myDirectExamIds = examStudentMapper.selectList(new LambdaQueryWrapper<ExamStudent>()
-                .in(ExamStudent::getExamId, allExamIds)
-                .eq(ExamStudent::getStudentId, userId))
-                .stream().map(ExamStudent::getExamId).collect(Collectors.toSet());
-
-        Set<Long> finalMyClassExamIds = myClassExamIds;
-        List<Exam> filteredExams = exams.stream().filter(e -> {
-            boolean hasClassAssign = hasClassAssignedExamIds.contains(e.getId());
-            boolean hasStudentAssign = hasStudentAssignedExamIds.contains(e.getId());
-
-            // 没有任何分配 -> 全员开放
-            if (!hasClassAssign && !hasStudentAssign) {
-                return true;
-            }
-            // 分配给了我的班级
-            if (finalMyClassExamIds.contains(e.getId())) {
-                return true;
-            }
-            // 直接分配给了我
-            if (myDirectExamIds.contains(e.getId())) {
-                return true;
-            }
-            return false;
-        }).collect(Collectors.toList());
-
-        // 获取试卷名映射
-        List<Long> paperIds = filteredExams.stream().map(Exam::getPaperId).distinct().collect(Collectors.toList());
+        // 4. 获取试卷名映射
+        List<Long> paperIds = unsubmittedExams.stream().map(Exam::getPaperId).distinct().collect(Collectors.toList());
         Map<Long, String> paperNameMap = new HashMap<>();
         if (!paperIds.isEmpty()) {
             paperNameMap = paperMapper.selectBatchIds(paperIds).stream()
@@ -131,8 +100,8 @@ public class StudentExamServiceImpl implements StudentExamService {
         }
 
         Map<Long, String> finalPaperNameMap = paperNameMap;
-        List<ExamVO> voList = filteredExams.stream().map(e -> {
-            ExamVO vo = toExamVO(e);
+        List<ExamVO> voList = unsubmittedExams.stream().map(e -> {
+            ExamVO vo = toExamVO(e, false); // 这里一定是未提交的
             vo.setPaperName(finalPaperNameMap.get(e.getPaperId()));
             return vo;
         }).collect(Collectors.toList());
@@ -291,19 +260,44 @@ public class StudentExamServiceImpl implements StudentExamService {
         LoginUser loginUser = requireLoginUser();
         Long userId = loginUser.getUser().getId();
 
+        // 1. 获取学生选修的所有课程ID
+        List<Long> enrolledCourseIds = courseStudentMapper.selectList(new LambdaQueryWrapper<CourseStudent>()
+                .eq(CourseStudent::getStudentId, userId))
+                .stream().map(CourseStudent::getCourseId).collect(Collectors.toList());
+
+        if (enrolledCourseIds.isEmpty()) {
+            return PageResult.of(0L, new ArrayList<>());
+        }
+
         PageHelper.startPage(page, size);
         LambdaQueryWrapper<ExamRecord> qw = new LambdaQueryWrapper<ExamRecord>()
-                .eq(ExamRecord::getUserId, userId);
+                .eq(ExamRecord::getUserId, userId)
+                .ge(ExamRecord::getStatus, 1); // 仅显示已提交或已批阅的记录
 
+        // 2. 根据选修课程ID获取所有相关考试ID
+        List<Long> examIdsInEnrolledCourses = examMapper.selectList(new LambdaQueryWrapper<Exam>()
+                .in(Exam::getCourseId, enrolledCourseIds))
+                .stream().map(Exam::getId).collect(Collectors.toList());
+
+        if (examIdsInEnrolledCourses.isEmpty()) {
+            return PageResult.of(0L, new ArrayList<>());
+        }
+        qw.in(ExamRecord::getExamId, examIdsInEnrolledCourses);
+
+        // 如果指定了courseId，则进一步过滤
         if (courseId != null) {
-            // 先获取该课程下的所有考试ID
-            List<Long> examIds = examMapper.selectList(new LambdaQueryWrapper<Exam>()
+            // 验证指定的courseId是否在学生已选课程中
+            if (!enrolledCourseIds.contains(courseId)) {
+                throw new RuntimeException("您未选修该课程，无权查看其考试记录");
+            }
+            // 进一步过滤，只包含指定课程的考试ID
+            List<Long> specificCourseExamIds = examMapper.selectList(new LambdaQueryWrapper<Exam>()
                     .eq(Exam::getCourseId, courseId))
                     .stream().map(Exam::getId).collect(Collectors.toList());
-            if (examIds.isEmpty()) {
+            if (specificCourseExamIds.isEmpty()) {
                 return PageResult.of(0L, new ArrayList<>());
             }
-            qw.in(ExamRecord::getExamId, examIds);
+            qw.in(ExamRecord::getExamId, specificCourseExamIds);
         }
 
         qw.orderByDesc(ExamRecord::getId);
@@ -495,15 +489,18 @@ public class StudentExamServiceImpl implements StudentExamService {
                 .build();
     }
 
-    private ExamVO toExamVO(Exam e) {
-        Integer status = e.getStatus();
+    private ExamVO toExamVO(Exam e, boolean isSubmitted) {
+        Integer studentStatus;
         LocalDateTime now = LocalDateTime.now();
-        if (now.isBefore(e.getStartTime())) {
-            status = 0;
+
+        if (isSubmitted) {
+            studentStatus = 3; // 已提交
+        } else if (now.isBefore(e.getStartTime())) {
+            studentStatus = 0; // 未开始
         } else if (now.isAfter(e.getEndTime())) {
-            status = 2;
+            studentStatus = 2; // 已结束
         } else {
-            status = 1;
+            studentStatus = 1; // 进行中
         }
 
         return ExamVO.builder()
@@ -514,7 +511,8 @@ public class StudentExamServiceImpl implements StudentExamService {
                 .startTime(e.getStartTime())
                 .endTime(e.getEndTime())
                 .duration(e.getDuration())
-                .status(status)
+                .status(studentStatus) // 兼容前端，将学生状态传给status
+                .studentStatus(studentStatus)
                 .publishScore(e.getPublishScore().intValue())
                 .createBy(e.getCreateBy())
                 .createTime(e.getCreateTime())

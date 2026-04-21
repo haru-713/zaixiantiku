@@ -3,12 +3,37 @@ package com.example.zaixiantiku.service;
 import com.example.zaixiantiku.pojo.vo.ClassAnalysisVO;
 import com.example.zaixiantiku.pojo.vo.GlobalAnalysisVO;
 import com.example.zaixiantiku.pojo.vo.StudentAnalysisVO;
+import com.example.zaixiantiku.pojo.vo.PageResult;
+import com.example.zaixiantiku.pojo.vo.StudentExamRecordVO;
+import com.example.zaixiantiku.pojo.vo.StudentExamRecordDetailVO;
+
+import java.util.List;
 
 public interface AnalysisService {
     /**
      * 获取学生的分析报告
      */
     StudentAnalysisVO getStudentAnalysisReport(Long courseId, String timeRange);
+
+    /**
+     * 获取学生考试概况汇总
+     */
+    StudentAnalysisVO getStudentExamSummary(Long courseId);
+
+    /**
+     * 获取学生参加的考试记录列表
+     */
+    PageResult<StudentExamRecordVO> getStudentExamRecords(Integer page, Integer size, Long courseId);
+
+    /**
+     * 获取学生单次考试的详细分析报告
+     */
+    StudentExamRecordDetailVO getStudentExamDetail(Long recordId);
+
+    /**
+     * 获取学生历次考试得分率趋势
+     */
+    List<StudentAnalysisVO.TrendVO> getStudentExamScoreTrend(Long courseId);
 
     /**
      * 获取学生选修的课程列表（用于分析筛选）

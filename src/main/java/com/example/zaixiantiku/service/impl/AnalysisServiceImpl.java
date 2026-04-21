@@ -3,14 +3,17 @@ package com.example.zaixiantiku.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.example.zaixiantiku.entity.*;
 import com.example.zaixiantiku.mapper.*;
-import com.example.zaixiantiku.pojo.vo.ClassAnalysisVO;
-import com.example.zaixiantiku.pojo.vo.GlobalAnalysisVO;
-import com.example.zaixiantiku.pojo.vo.StudentAnalysisVO;
+import com.example.zaixiantiku.pojo.vo.*;
 import com.example.zaixiantiku.security.LoginUser;
 import com.example.zaixiantiku.service.AnalysisService;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.pagehelper.PageHelper;
+import com.github.pagehelper.PageInfo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -39,6 +42,7 @@ public class AnalysisServiceImpl implements AnalysisService {
     private final CourseMapper courseMapper;
     private final UserMapper userMapper;
     private final LogMapper logMapper;
+    private final ObjectMapper objectMapper;
 
     private boolean checkCorrect(Object isCorrectObj) {
         if (isCorrectObj == null)
@@ -125,15 +129,27 @@ public class AnalysisServiceImpl implements AnalysisService {
         // --- 2. 获取考试概况 ---
         LambdaQueryWrapper<ExamRecord> examRecordQw = new LambdaQueryWrapper<ExamRecord>()
                 .eq(ExamRecord::getUserId, userId)
-                .ge(ExamRecord::getStatus, 1);
+                .ge(ExamRecord::getStatus, 1); // 状态 >= 1 表示已提交或已批阅
+
+        // 获取该课程下的所有考试ID
+        List<Long> examIdsInCourse = examMapper.selectList(new LambdaQueryWrapper<Exam>()
+                .eq(Exam::getCourseId, courseId))
+                .stream().map(Exam::getId).collect(Collectors.toList());
+
+        if (examIdsInCourse.isEmpty()) {
+            // 如果该课程下没有考试，则直接返回空数据，避免后续查询
+            return StudentAnalysisVO.builder()
+                    .totalPracticeCount(0).totalPracticeQuestions(0).avgPracticeAccuracy(0.0)
+                    .totalExamCount(0).avgExamScoreRate(0.0).maxExamScore(0).maxExamTotalScore(0)
+                    .mistakeCount(0).practiceTrend(new ArrayList<>()).examTypeStats(new ArrayList<>())
+                    .knowledgeRadar(new ArrayList<>()).build();
+        }
+        examRecordQw.in(ExamRecord::getExamId, examIdsInCourse);
+
         if (startTime != null)
             examRecordQw.ge(ExamRecord::getSubmitTime, startTime);
 
-        List<ExamRecord> allUserExamRecords = examRecordMapper.selectList(examRecordQw);
-        List<ExamRecord> courseExamRecords = allUserExamRecords.stream().filter(er -> {
-            Exam exam = examMapper.selectById(er.getExamId());
-            return exam != null && courseId.equals(exam.getCourseId());
-        }).collect(Collectors.toList());
+        List<ExamRecord> courseExamRecords = examRecordMapper.selectList(examRecordQw);
 
         int totalExamCount = courseExamRecords.size();
         int maxExamScore = 0;
@@ -142,14 +158,28 @@ public class AnalysisServiceImpl implements AnalysisService {
         double totalMaxScoreSum = 0;
         Map<Integer, List<Boolean>> typeResults = new HashMap<>();
 
+        // 批量获取所有相关考试和试卷信息，避免循环查询
+        Map<Long, Exam> examMap = new HashMap<>();
+        Map<Long, Paper> paperMap = new HashMap<>();
+        if (!courseExamRecords.isEmpty()) {
+            Set<Long> recordExamIds = courseExamRecords.stream().map(ExamRecord::getExamId).collect(Collectors.toSet());
+            examMap = examMapper.selectBatchIds(recordExamIds).stream()
+                    .collect(Collectors.toMap(Exam::getId, e -> e));
+            Set<Long> paperIds = examMap.values().stream().map(Exam::getPaperId).collect(Collectors.toSet());
+            if (!paperIds.isEmpty()) {
+                paperMap = paperMapper.selectBatchIds(paperIds).stream()
+                        .collect(Collectors.toMap(Paper::getId, p -> p));
+            }
+        }
+
         for (ExamRecord er : courseExamRecords) {
             int score = (er.getTotalScore() != null) ? er.getTotalScore() : 0;
             totalExamScoreSum += score;
 
-            Exam exam = examMapper.selectById(er.getExamId());
+            Exam exam = examMap.get(er.getExamId());
             int maxScore = 100;
             if (exam != null) {
-                Paper paper = paperMapper.selectById(exam.getPaperId());
+                Paper paper = paperMap.get(exam.getPaperId());
                 maxScore = (paper != null && paper.getTotalScore() != null) ? paper.getTotalScore() : 100;
                 totalMaxScoreSum += maxScore;
 
@@ -204,12 +234,12 @@ public class AnalysisServiceImpl implements AnalysisService {
                 long correct = results.stream().filter(b -> b).count();
                 double acc = (double) correct / results.size();
                 examTypeStats.add(
-                        new StudentAnalysisVO.TypeStatVO(typeNames.get(typeId), results.size(), acc, (int) correct));
+                        new StudentAnalysisVO.TypeStatVO(typeNames.get(typeId), acc));
             });
         }
 
         // --- 5. 统计知识点掌握情况 (基于练习数据) ---
-        List<StudentAnalysisVO.KnowledgeMasteryVO> knowledgeRadar = new ArrayList<>();
+        List<StudentAnalysisVO.KnowledgeRadarVO> knowledgeRadar = new ArrayList<>();
         if (!practiceQIdResults.isEmpty()) {
             List<QuestionKnowledge> qks = questionKnowledgeMapper.selectList(
                     new LambdaQueryWrapper<QuestionKnowledge>().in(QuestionKnowledge::getQuestionId,
@@ -228,7 +258,7 @@ public class AnalysisServiceImpl implements AnalysisService {
                 kpResults.forEach((kpId, results) -> {
                     double acc = (double) results.stream().filter(b -> b).count() / results.size();
                     knowledgeRadar
-                            .add(new StudentAnalysisVO.KnowledgeMasteryVO(kpNames.get(kpId), acc, results.size()));
+                            .add(new StudentAnalysisVO.KnowledgeRadarVO(kpNames.get(kpId), acc));
                 });
             }
         }
@@ -816,5 +846,349 @@ public class AnalysisServiceImpl implements AnalysisService {
     private Long getUserId() {
         LoginUser loginUser = (LoginUser) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         return loginUser.getUser().getId();
+    }
+
+    @Override
+    public StudentAnalysisVO getStudentExamSummary(Long courseId) {
+        if (courseId == null) {
+            return StudentAnalysisVO.builder()
+                    .totalExamCount(0).avgExamScoreRate(0.0).maxExamScore(0).maxExamTotalScore(0)
+                    .build();
+        }
+
+        Long userId = getUserId();
+        // 权限校验：学生必须选修了该课程
+        Long enrollCount = courseStudentMapper.selectCount(new LambdaQueryWrapper<CourseStudent>()
+                .eq(CourseStudent::getStudentId, userId)
+                .eq(CourseStudent::getCourseId, courseId));
+        if (enrollCount == null || enrollCount == 0) {
+            throw new RuntimeException("您未选修该课程，无权查看考试概况");
+        }
+
+        // 获取该课程下的所有考试ID
+        List<Long> examIdsInCourse = examMapper.selectList(new LambdaQueryWrapper<Exam>()
+                .eq(Exam::getCourseId, courseId))
+                .stream().map(Exam::getId).collect(Collectors.toList());
+
+        if (examIdsInCourse.isEmpty()) {
+            return StudentAnalysisVO.builder()
+                    .totalExamCount(0).avgExamScoreRate(0.0).maxExamScore(0).maxExamTotalScore(0)
+                    .build();
+        }
+
+        LambdaQueryWrapper<ExamRecord> examRecordQw = new LambdaQueryWrapper<ExamRecord>()
+                .eq(ExamRecord::getUserId, userId)
+                .ge(ExamRecord::getStatus, 1) // 状态 >= 1 表示已提交或已批阅
+                .in(ExamRecord::getExamId, examIdsInCourse);
+
+        List<ExamRecord> courseExamRecords = examRecordMapper.selectList(examRecordQw);
+
+        int totalExamCount = courseExamRecords.size();
+        int maxExamScore = 0;
+        int maxExamTotalScore = 0;
+        double totalExamScoreSum = 0;
+        double totalMaxScoreSum = 0;
+
+        // 批量获取所有相关考试和试卷信息，避免循环查询
+        Map<Long, Exam> examMap = new HashMap<>();
+        Map<Long, Paper> paperMap = new HashMap<>();
+        if (!courseExamRecords.isEmpty()) {
+            Set<Long> recordExamIds = courseExamRecords.stream().map(ExamRecord::getExamId).collect(Collectors.toSet());
+            examMap = examMapper.selectBatchIds(recordExamIds).stream()
+                    .collect(Collectors.toMap(Exam::getId, e -> e));
+            Set<Long> paperIds = examMap.values().stream().map(Exam::getPaperId).collect(Collectors.toSet());
+            if (!paperIds.isEmpty()) {
+                paperMap = paperMapper.selectBatchIds(paperIds).stream()
+                        .collect(Collectors.toMap(Paper::getId, p -> p));
+            }
+        }
+
+        for (ExamRecord er : courseExamRecords) {
+            int score = (er.getTotalScore() != null) ? er.getTotalScore() : 0;
+            totalExamScoreSum += score;
+
+            Exam exam = examMap.get(er.getExamId());
+            int maxScore = 100;
+            if (exam != null) {
+                Paper paper = paperMap.get(exam.getPaperId());
+                maxScore = (paper != null && paper.getTotalScore() != null) ? paper.getTotalScore() : 100;
+                totalMaxScoreSum += maxScore;
+
+                if (score > maxExamScore || (maxExamScore == 0 && maxExamTotalScore == 0)) {
+                    maxExamScore = score;
+                    maxExamTotalScore = maxScore;
+                }
+            }
+        }
+
+        double avgExamScoreRate = totalMaxScoreSum == 0 ? 0.0 : totalExamScoreSum / totalMaxScoreSum;
+
+        return StudentAnalysisVO.builder()
+                .totalExamCount(totalExamCount)
+                .avgExamScoreRate(avgExamScoreRate)
+                .maxExamScore(maxExamScore)
+                .maxExamTotalScore(maxExamTotalScore)
+                .build();
+    }
+
+    @Override
+    public PageResult<StudentExamRecordVO> getStudentExamRecords(Integer page, Integer size, Long courseId) {
+        Long userId = getUserId();
+        PageHelper.startPage(page, size);
+
+        LambdaQueryWrapper<ExamRecord> examRecordQw = new LambdaQueryWrapper<ExamRecord>()
+                .eq(ExamRecord::getUserId, userId)
+                .ge(ExamRecord::getStatus, 1) // 状态 >= 1 表示已提交或已批阅
+                .orderByDesc(ExamRecord::getSubmitTime);
+
+        if (courseId != null) {
+            // 权限校验：学生必须选修了该课程
+            Long enrollCount = courseStudentMapper.selectCount(new LambdaQueryWrapper<CourseStudent>()
+                    .eq(CourseStudent::getStudentId, userId)
+                    .eq(CourseStudent::getCourseId, courseId));
+            if (enrollCount == null || enrollCount == 0) {
+                throw new RuntimeException("您未选修该课程，无权查看考试记录");
+            }
+
+            List<Long> examIdsInCourse = examMapper.selectList(new LambdaQueryWrapper<Exam>()
+                    .eq(Exam::getCourseId, courseId))
+                    .stream().map(Exam::getId).collect(Collectors.toList());
+
+            if (examIdsInCourse.isEmpty()) {
+                return PageResult.of(0L, new ArrayList<>());
+            }
+            examRecordQw.in(ExamRecord::getExamId, examIdsInCourse);
+        }
+
+        List<ExamRecord> records = examRecordMapper.selectList(examRecordQw);
+        PageInfo<ExamRecord> pageInfo = new PageInfo<>(records);
+
+        if (records.isEmpty()) {
+            return PageResult.of(0L, new ArrayList<>());
+        }
+
+        // 批量获取所有相关考试和试卷信息，避免循环查询
+        final Map<Long, Exam> examMap;
+        final Map<Long, Paper> paperMap;
+        if (!records.isEmpty()) {
+            Set<Long> examIds = records.stream().map(ExamRecord::getExamId).collect(Collectors.toSet());
+            examMap = examMapper.selectBatchIds(examIds).stream()
+                    .collect(Collectors.toMap(Exam::getId, e -> e));
+            Set<Long> paperIds = examMap.values().stream().map(Exam::getPaperId).collect(Collectors.toSet());
+            if (!paperIds.isEmpty()) {
+                paperMap = paperMapper.selectBatchIds(paperIds).stream()
+                        .collect(Collectors.toMap(Paper::getId, p -> p));
+            } else {
+                paperMap = new HashMap<>();
+            }
+        } else {
+            examMap = new HashMap<>();
+            paperMap = new HashMap<>();
+        }
+
+        List<StudentExamRecordVO> voList = records.stream().map(er -> {
+            Exam exam = examMap.get(er.getExamId());
+            Paper paper = (exam != null) ? paperMap.get(exam.getPaperId()) : null;
+            int totalScore = (paper != null && paper.getTotalScore() != null) ? paper.getTotalScore() : 100;
+            double scoreRate = (double) er.getTotalScore() / totalScore;
+
+            return StudentExamRecordVO.builder()
+                    .id(er.getId())
+                    .examId(er.getExamId())
+                    .examName((exam != null) ? exam.getExamName() : "未知考试")
+                    .submitTime(er.getSubmitTime())
+                    .totalScore(er.getTotalScore())
+                    .maxScore(totalScore)
+                    .scoreRate(scoreRate)
+                    .status(er.getStatus())
+                    .build();
+        }).collect(Collectors.toList());
+
+        return PageResult.of(pageInfo.getTotal(), voList);
+    }
+
+    @Override
+    public StudentExamRecordDetailVO getStudentExamDetail(Long recordId) {
+        Long userId = getUserId();
+        ExamRecord examRecord = examRecordMapper.selectById(recordId);
+        if (examRecord == null || !examRecord.getUserId().equals(userId)) {
+            throw new RuntimeException("考试记录不存在或无权查看");
+        }
+        if (examRecord.getStatus() < 1) {
+            throw new RuntimeException("考试未完成或未提交，无法查看详情");
+        }
+
+        Exam exam = examMapper.selectById(examRecord.getExamId());
+        if (exam == null) {
+            throw new RuntimeException("考试信息不存在");
+        }
+        Paper paper = paperMapper.selectById(exam.getPaperId());
+        if (paper == null) {
+            throw new RuntimeException("试卷信息不存在");
+        }
+
+        // 1. 考试基本信息
+        StudentExamRecordDetailVO detailVO = StudentExamRecordDetailVO.builder()
+                .recordId(examRecord.getId())
+                .examId(exam.getId())
+                .examName(exam.getExamName())
+                .courseId(exam.getCourseId())
+                .courseName(courseMapper.selectById(exam.getCourseId()).getCourseName())
+                .submitTime(examRecord.getSubmitTime())
+                .totalScore(examRecord.getTotalScore())
+                .maxScore(paper.getTotalScore())
+                .scoreRate((double) examRecord.getTotalScore() / paper.getTotalScore())
+                .status(examRecord.getStatus())
+                .build();
+
+        // 2. 题目详情
+        List<AnswerDetail> answerDetails = answerDetailMapper.selectList(
+                new LambdaQueryWrapper<AnswerDetail>().eq(AnswerDetail::getExamRecordId, recordId));
+
+        final Map<Long, Question> questionMap;
+        final Map<Long, PaperQuestion> paperQuestionMap;
+
+        if (!answerDetails.isEmpty()) {
+            Set<Long> questionIds = answerDetails.stream().map(AnswerDetail::getQuestionId).collect(Collectors.toSet());
+            questionMap = questionMapper.selectBatchIds(questionIds).stream()
+                    .collect(Collectors.toMap(Question::getId, q -> q));
+            paperQuestionMap = paperQuestionMapper.selectList(
+                    new LambdaQueryWrapper<PaperQuestion>().eq(PaperQuestion::getPaperId, paper.getId())
+                            .in(PaperQuestion::getQuestionId, questionIds))
+                    .stream().collect(Collectors.toMap(PaperQuestion::getQuestionId, pq -> pq));
+        } else {
+            questionMap = new HashMap<>();
+            paperQuestionMap = new HashMap<>();
+        }
+
+        List<StudentExamRecordDetailVO.QuestionDetail> qDetails = answerDetails.stream().map(ad -> {
+            Question q = questionMap.get(ad.getQuestionId());
+            PaperQuestion pq = paperQuestionMap.get(ad.getQuestionId());
+            if (q == null || pq == null)
+                return null;
+
+            return StudentExamRecordDetailVO.QuestionDetail.builder()
+                    .questionId(q.getId())
+                    .questionContent(q.getContent())
+                    .questionType(questionTypeMapper.selectById(q.getTypeId()).getTypeName())
+                    .options(parseOptions(q.getOptions()))
+                    .correctAnswer(q.getAnswer())
+                    .analysis(q.getAnalysis())
+                    .score(pq.getScore())
+                    .userAnswer(ad.getUserAnswer())
+                    .userScore(ad.getScore())
+                    .isCorrect(ad.getIsCorrect() == 1)
+                    .build();
+        }).filter(Objects::nonNull).collect(Collectors.toList());
+        detailVO.setQuestionDetails(qDetails);
+
+        // 3. 知识点掌握情况雷达图 (基于本次考试题目)
+        Map<Long, List<Boolean>> knowledgePointResults = new HashMap<>();
+        for (StudentExamRecordDetailVO.QuestionDetail qd : qDetails) {
+            List<Long> kpIds = questionKnowledgeMapper.selectList(new LambdaQueryWrapper<QuestionKnowledge>()
+                    .eq(QuestionKnowledge::getQuestionId, qd.getQuestionId()))
+                    .stream().map(QuestionKnowledge::getKnowledgePointId).collect(Collectors.toList());
+            for (Long kpId : kpIds) {
+                knowledgePointResults.putIfAbsent(kpId, new ArrayList<>());
+                knowledgePointResults.get(kpId).add(qd.getIsCorrect());
+            }
+        }
+
+        List<StudentAnalysisVO.KnowledgeRadarVO> knowledgeRadar = new ArrayList<>();
+        if (!knowledgePointResults.isEmpty()) {
+            Map<Long, String> knowledgePointNameMap = knowledgePointMapper
+                    .selectBatchIds(knowledgePointResults.keySet()).stream()
+                    .collect(Collectors.toMap(KnowledgePoint::getId, KnowledgePoint::getName));
+            for (Map.Entry<Long, List<Boolean>> entry : knowledgePointResults.entrySet()) {
+                Long kpId = entry.getKey();
+                List<Boolean> results = entry.getValue();
+                long correctCount = results.stream().filter(Boolean::booleanValue).count();
+                double accuracy = results.isEmpty() ? 0.0 : (double) correctCount / results.size();
+                knowledgeRadar.add(new StudentAnalysisVO.KnowledgeRadarVO(
+                        knowledgePointNameMap.getOrDefault(kpId, "未知"), accuracy));
+            }
+            knowledgeRadar.sort(Comparator.comparingDouble(StudentAnalysisVO.KnowledgeRadarVO::getValue));
+        }
+        detailVO.setKnowledgeRadar(knowledgeRadar);
+
+        return detailVO;
+    }
+
+    private List<String> parseOptions(String json) {
+        if (!StringUtils.hasText(json))
+            return new ArrayList<>();
+        try {
+            return objectMapper.readValue(json, new TypeReference<List<String>>() {
+            });
+        } catch (Exception e) {
+            return new ArrayList<>();
+        }
+    }
+
+    @Override
+    public List<StudentAnalysisVO.TrendVO> getStudentExamScoreTrend(Long courseId) {
+        if (courseId == null) {
+            return Collections.emptyList();
+        }
+
+        Long userId = getUserId();
+        // 权限校验：学生必须选修了该课程
+        Long enrollCount = courseStudentMapper.selectCount(new LambdaQueryWrapper<CourseStudent>()
+                .eq(CourseStudent::getStudentId, userId)
+                .eq(CourseStudent::getCourseId, courseId));
+        if (enrollCount == null || enrollCount == 0) {
+            throw new RuntimeException("您未选修该课程，无权查看考试成绩趋势");
+        }
+
+        // 获取该课程下的所有考试ID
+        List<Long> examIdsInCourse = examMapper.selectList(new LambdaQueryWrapper<Exam>()
+                .eq(Exam::getCourseId, courseId))
+                .stream().map(Exam::getId).collect(Collectors.toList());
+
+        if (examIdsInCourse.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        LambdaQueryWrapper<ExamRecord> examRecordQw = new LambdaQueryWrapper<ExamRecord>()
+                .eq(ExamRecord::getUserId, userId)
+                .ge(ExamRecord::getStatus, 1) // 状态 >= 1 表示已提交或已批阅
+                .in(ExamRecord::getExamId, examIdsInCourse)
+                .orderByAsc(ExamRecord::getSubmitTime); // 按提交时间升序排列，用于趋势图
+
+        List<ExamRecord> courseExamRecords = examRecordMapper.selectList(examRecordQw);
+
+        if (courseExamRecords.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 知识点趋势
+        final Map<Long, Exam> examMap;
+        final Map<Long, Paper> paperMap;
+        if (!courseExamRecords.isEmpty()) {
+            Set<Long> recordExamIds = courseExamRecords.stream().map(ExamRecord::getExamId).collect(Collectors.toSet());
+            examMap = examMapper.selectBatchIds(recordExamIds).stream()
+                    .collect(Collectors.toMap(Exam::getId, e -> e));
+            Set<Long> paperIds = examMap.values().stream().map(Exam::getPaperId).collect(Collectors.toSet());
+            if (!paperIds.isEmpty()) {
+                paperMap = paperMapper.selectBatchIds(paperIds).stream()
+                        .collect(Collectors.toMap(Paper::getId, p -> p));
+            } else {
+                paperMap = new HashMap<>();
+            }
+        } else {
+            examMap = new HashMap<>();
+            paperMap = new HashMap<>();
+        }
+
+        List<StudentAnalysisVO.TrendVO> trendList = courseExamRecords.stream().map(er -> {
+            Exam exam = examMap.get(er.getExamId());
+            Paper paper = (exam != null) ? paperMap.get(exam.getPaperId()) : null;
+            int totalScore = (paper != null && paper.getTotalScore() != null) ? paper.getTotalScore() : 100;
+            double scoreRate = (double) er.getTotalScore() / totalScore;
+            String examName = (exam != null) ? exam.getExamName() : "未知考试";
+            return new StudentAnalysisVO.TrendVO(examName, scoreRate);
+        }).collect(Collectors.toList());
+
+        return trendList;
     }
 }

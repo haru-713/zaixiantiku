@@ -29,23 +29,22 @@ public class StudentAnalysisVO {
     // 4. 图表数据
     private List<TrendVO> practiceTrend; // 学习正确率趋势 (近7天)
     private List<TypeStatVO> examTypeStats; // 题型分布统计 (按正确率)
-    private List<KnowledgeMasteryVO> knowledgeRadar; // 知识点掌握情况 (雷达图/柱状图)
+    private List<KnowledgeRadarVO> knowledgeRadar; // 知识点掌握情况 (雷达图/柱状图)
 
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
     public static class TrendVO {
         private String date;
-        private Double accuracy;
+        private Double value; // 改为 value 以便复用，既可以存正确率也可以存得分率
     }
 
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
-    public static class KnowledgeMasteryVO {
+    public static class KnowledgeRadarVO {
         private String name;
         private Double value;
-        private Integer count;
     }
 
     @Data
@@ -53,8 +52,6 @@ public class StudentAnalysisVO {
     @NoArgsConstructor
     public static class TypeStatVO {
         private String typeName;
-        private Integer count;
         private Double accuracy;
-        private Integer correctCount;
     }
 }

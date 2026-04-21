@@ -8,9 +8,9 @@
       </template>
 
       <div class="search-bar">
-        <el-select v-model="query.courseId" filterable remote clearable :remote-method="fetchCourseOptions"
-          :loading="courseLoading" placeholder="筛选课程" style="width: 240px; margin-right: 10px"
-          @visible-change="handleCourseDropdown">
+        <el-select v-model="query.courseId" clearable placeholder="筛选课程（默认全部）" style="width: 240px; margin-right: 10px"
+          @change="fetchList">
+          <el-option label="全部参与课程" :value="null" />
           <el-option v-for="c in courseOptions" :key="c.id" :label="c.courseName" :value="c.id" />
         </el-select>
         <el-button type="primary" @click="fetchList">刷新</el-button>
@@ -72,11 +72,15 @@ const fetchList = async () => {
   }
 }
 
-const fetchCourseOptions = async (keyword) => {
+const fetchCourseOptions = async () => {
   courseLoading.value = true
   try {
-    const res = await request.get('/courses', { params: { keyword, page: 1, size: 50 } })
-    courseOptions.value = res.data.list
+    const res = await request.get('/student/analysis/courses')
+    // 后端返回的是 [{id: 1, name: 'xxx'}]，需要转换或直接使用
+    courseOptions.value = res.data.map(c => ({
+      id: c.id,
+      courseName: c.name || c.courseName
+    }))
   } catch (e) {
     console.error(e)
   } finally {
@@ -84,21 +88,17 @@ const fetchCourseOptions = async (keyword) => {
   }
 }
 
-const handleCourseDropdown = (visible) => {
-  if (visible && courseOptions.value.length === 0) {
-    fetchCourseOptions()
-  }
-}
-
 const getStatusType = (status) => {
   if (status === 0) return 'info'
-  if (status === 2) return 'warning'
-  return 'success'
+  if (status === 2) return 'danger'
+  if (status === 3) return 'success'
+  return 'primary'
 }
 
 const getStatusLabel = (status) => {
   if (status === 0) return '未开始'
-  if (status === 2) return '已结束'
+  if (status === 2) return '已结束(未参加)'
+  if (status === 3) return '已提交'
   return '进行中'
 }
 
@@ -118,6 +118,7 @@ const formatDateTime = (value) => {
 
 onMounted(() => {
   fetchList()
+  fetchCourseOptions()
 })
 </script>
 

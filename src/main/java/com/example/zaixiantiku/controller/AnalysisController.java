@@ -3,6 +3,9 @@ package com.example.zaixiantiku.controller;
 import com.example.zaixiantiku.pojo.vo.ClassAnalysisVO;
 import com.example.zaixiantiku.pojo.vo.GlobalAnalysisVO;
 import com.example.zaixiantiku.pojo.vo.StudentAnalysisVO;
+import com.example.zaixiantiku.pojo.vo.PageResult;
+import com.example.zaixiantiku.pojo.vo.StudentExamRecordVO;
+import com.example.zaixiantiku.pojo.vo.StudentExamRecordDetailVO;
 import com.example.zaixiantiku.service.AnalysisService;
 import com.example.zaixiantiku.entity.Exam;
 import com.example.zaixiantiku.common.Result;
@@ -27,6 +30,35 @@ public class AnalysisController {
             @RequestParam(required = false) Long courseId,
             @RequestParam(required = false) String timeRange) {
         return Result.success(analysisService.getStudentAnalysisReport(courseId, timeRange));
+    }
+
+    @GetMapping("/student/analysis/exam-summary")
+    @PreAuthorize("hasRole('STUDENT')")
+    public Result<StudentAnalysisVO> getStudentExamSummary(
+            @RequestParam(required = false) Long courseId) {
+        return Result.success(analysisService.getStudentExamSummary(courseId));
+    }
+
+    @GetMapping("/student/analysis/exam-records")
+    @PreAuthorize("hasRole('STUDENT')")
+    public Result<PageResult<StudentExamRecordVO>> getStudentExamRecords(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(required = false) Long courseId) {
+        return Result.success(analysisService.getStudentExamRecords(page, size, courseId));
+    }
+
+    @GetMapping("/student/analysis/exam-records/{recordId}/detail")
+    @PreAuthorize("hasRole('STUDENT')")
+    public Result<StudentExamRecordDetailVO> getStudentExamDetail(@PathVariable Long recordId) {
+        return Result.success(analysisService.getStudentExamDetail(recordId));
+    }
+
+    @GetMapping("/student/analysis/exam-score-trend")
+    @PreAuthorize("hasRole('STUDENT')")
+    public Result<List<StudentAnalysisVO.TrendVO>> getStudentExamScoreTrend(
+            @RequestParam(required = false) Long courseId) {
+        return Result.success(analysisService.getStudentExamScoreTrend(courseId));
     }
 
     /**

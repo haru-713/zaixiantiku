@@ -37,6 +37,8 @@ public class ExamVO {
 
     private Integer status;
 
+    private Integer studentStatus; // 0: 未开始, 1: 进行中, 2: 已结束, 3: 已提交/已批阅
+
     private Integer publishScore;
 
     private Long createBy;
