@@ -317,11 +317,22 @@ const handleUpdatePassword = async () => {
   }
 }
 
+const fetchUserInfo = async () => {
+  try {
+    const res = await request.get('/user/me');
+    userStore.setUserInfo(res.data);
+    form.name = res.data.name || '';
+    form.phone = res.data.phone || '';
+    form.email = res.data.email || '';
+  } catch (error) {
+    console.error('获取用户最新信息失败:', error);
+    ElMessage.error('获取用户最新信息失败');
+  }
+};
+
 onMounted(() => {
-  form.name = userInfo.value.name || ''
-  form.phone = userInfo.value.phone || ''
-  form.email = userInfo.value.email || ''
-})
+  fetchUserInfo();
+});
 </script>
 
 <style scoped>
