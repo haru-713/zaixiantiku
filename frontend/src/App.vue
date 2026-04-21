@@ -466,7 +466,7 @@ onMounted(() => {
   flex: 1;
 }
 
-.layout-menu:not(.el-menu--collapse) {
+.layout-aside:not(.el-menu--collapse) {
   width: 240px;
 }
 
@@ -474,102 +474,58 @@ onMounted(() => {
   border-right: none;
 }
 
-/* 侧边栏字号与颜色优化 */
+/* 侧边栏样式重置与优化 */
 .layout-menu .el-menu-item,
 .layout-menu .el-sub-menu__title {
-  color: var(--sidebar-text) !important;
-  font-size: 15px !important;
-  height: 48px !important;
-  line-height: 48px !important;
-  margin: 4px 12px !important;
-  width: calc(100% - 24px) !important;
-  border-radius: 8px !important;
-  padding: 0 16px !important;
-  transition: all 0.2s ease !important;
+  height: 48px;
+  line-height: 48px;
+  color: var(--sidebar-text);
+  transition: all 0.3s;
+  padding: 0 20px; /* 恢复默认或微调，不使用 !important 覆盖 Element 原生逻辑 */
 }
 
-/* 针对子菜单内的项单独设置宽度和边距，防止溢出 */
-.layout-menu .el-sub-menu .el-menu-item {
-  width: calc(100% - 24px) !important;
-  margin: 2px 12px !important;
-  padding-left: 48px !important;
-  /* 缩进子菜单内容 */
+/* 限制菜单文字长度，防止挤占箭头 */
+.layout-menu .el-menu-item span,
+.layout-menu .el-sub-menu__title span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-/* 分组标题样式 (如果仍有需要展示的静态标题) */
-.menu-group-title {
-  padding: 16px 24px 8px;
-  font-size: 13px;
-  font-weight: 700;
-  color: #94A3B8;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-/* 修复 el-sub-menu 展开后的背景和箭头颜色 */
-:deep(.el-sub-menu.is-opened > .el-sub-menu__title) {
-  color: var(--sidebar-active-text) !important;
-}
-
-:deep(.el-sub-menu__icon-arrow) {
-  color: var(--sidebar-text) !important;
-  font-size: 12px !important;
-  position: absolute !important;
-  right: 16px !important;
-  top: 50% !important;
-  margin-top: -6px !important;
-}
-
-/* 图标尺寸优化 */
-.layout-menu .el-icon {
-  font-size: 20px !important;
-  margin-right: 12px !important;
-  color: inherit !important;
-  transition: transform 0.2s ease !important;
-}
-
-/* 折叠状态图标优化 */
-.layout-menu.el-menu--collapse .el-menu-item .el-icon,
-.layout-menu.el-menu--collapse .el-sub-menu__title .el-icon {
-  margin: 0 !important;
-  font-size: 22px !important;
-}
-
-.layout-menu.el-menu--collapse .el-menu-item,
-.layout-menu.el-menu--collapse .el-sub-menu__title {
-  padding: 0 !important;
-  display: flex !important;
-  justify-content: center !important;
-  margin: 4px 8px !important;
-  width: calc(100% - 16px) !important;
-}
-
-/* 子菜单背景修复 */
-.layout-menu .el-menu--inline {
-  background-color: rgba(0, 0, 0, 0.15) !important;
-  padding: 4px 0 !important;
-  margin: 0 !important;
-}
-
-.layout-menu .el-sub-menu__title {
-  position: relative !important;
-}
-
+/* 仅保留必要的背景色和文字颜色逻辑 */
 .layout-menu .el-menu-item:hover,
 .layout-menu .el-sub-menu__title:hover {
   background-color: rgba(255, 255, 255, 0.1) !important;
-  color: var(--sidebar-active-text) !important;
+  color: var(--sidebar-active-text);
 }
 
 .layout-menu .el-menu-item.is-active {
   background-color: var(--el-color-primary) !important;
   color: #FFFFFF !important;
   font-weight: 600;
-  box-shadow: 0 4px 12px rgba(30, 136, 229, 0.3);
 }
 
-.layout-menu .el-menu-item.is-active .el-icon {
-  color: #FFFFFF !important;
+/* 修复 el-sub-menu 展开后的文字颜色 */
+:deep(.el-sub-menu.is-active > .el-sub-menu__title),
+:deep(.el-sub-menu.is-opened > .el-sub-menu__title) {
+  color: var(--sidebar-active-text) !important;
+}
+
+/* 子菜单缩进微调 */
+.layout-menu .el-menu--inline .el-menu-item {
+  padding-left: 48px !important;
+}
+
+/* 子菜单背景色微调 */
+.layout-menu .el-menu--inline {
+  background-color: rgba(0, 0, 0, 0.15);
+}
+
+/* 图标间距与大小微调 */
+.layout-menu .el-icon {
+  margin-right: 12px;
+  font-size: 18px;
+  vertical-align: middle;
 }
 
 .layout-main {

@@ -5,11 +5,23 @@
       <el-col :xs="24" :md="8">
         <el-card class="profile-card">
           <div class="user-profile">
-            <el-avatar :size="100" icon="UserFilled" class="profile-avatar" />
+            <el-upload
+              class="avatar-uploader"
+              action="#"
+              :show-file-list="false"
+              :http-request="handleAvatarUpload"
+              :before-upload="beforeAvatarUpload"
+            >
+              <el-avatar :size="100" :src="userInfo.avatar" icon="UserFilled" class="profile-avatar" />
+              <div class="avatar-mask">
+                <el-icon><Camera /></el-icon>
+                <span>更换头像</span>
+              </div>
+            </el-upload>
             <h2 class="user-name">{{ userInfo.name || '未设置姓名' }}</h2>
             <p class="user-role">
               <el-tag v-for="role in userInfo.roles" :key="role" size="small" effect="plain" class="role-tag">
-                {{ role }}
+                {{ getRoleName(role) }}
               </el-tag>
             </p>
             <div class="user-status">
@@ -23,6 +35,12 @@
           </div>
 
           <div class="profile-meta">
+            <div class="meta-item" v-if="userInfo.classes && userInfo.classes.length > 0">
+              <el-icon>
+                <Collection />
+              </el-icon>
+              <span>{{ isTeacher ? '管辖班级' : '所属班级' }}：{{ userInfo.classes.map(c => c.className).join(', ') }}</span>
+            </div>
             <div class="meta-item">
               <el-icon>
                 <Calendar />
@@ -125,10 +143,15 @@ import { useUserStore } from '@/store/user'
 import { useRouter } from 'vue-router'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
+import { Camera, Collection, Calendar, Phone, Message, Lock, UserFilled, ArrowUp, ArrowDown } from '@element-plus/icons-vue'
 
 const userStore = useUserStore()
 const router = useRouter()
 const userInfo = computed(() => userStore.userInfo || {})
+const roles = computed(() => userInfo.value.roles || [])
+const isAdmin = computed(() => roles.value.includes('ADMIN'))
+const isTeacher = computed(() => roles.value.includes('TEACHER'))
+const isStudent = computed(() => roles.value.includes('STUDENT'))
 const saving = ref(false)
 
 const form = reactive({
@@ -167,6 +190,18 @@ const strengthText = computed(() => {
   return ''
 })
 
+const getRoleName = (role) => {
+  const map = {
+    'ADMIN': '管理员',
+    'TEACHER': '教师',
+    'STUDENT': '学生',
+    'ROLE_ADMIN': '管理员',
+    'ROLE_TEACHER': '教师',
+    'ROLE_STUDENT': '学生'
+  }
+  return map[role] || role
+}
+
 const auditStatusLabel = computed(() => {
   const labels = { 0: '待审核', 1: '审核通过', 2: '审核拒绝' }
   return labels[userInfo.value.auditStatus] || '未知状态'
@@ -196,6 +231,41 @@ const handleUpdate = async () => {
     console.error('更新资料失败:', e)
   } finally {
     saving.value = false
+  }
+}
+
+const beforeAvatarUpload = (file) => {
+  const isJPGorPNG = file.type === 'image/jpeg' || file.type === 'image/png'
+  const isLt2M = file.size / 1024 / 1024 < 2
+
+  if (!isJPGorPNG) {
+    ElMessage.error('上传头像图片只能是 JPG 或 PNG 格式!')
+  }
+  if (!isLt2M) {
+    ElMessage.error('上传头像图片大小不能超过 2MB!')
+  }
+  return isJPGorPNG && isLt2M
+}
+
+const handleAvatarUpload = async (options) => {
+  const { file } = options
+  const formData = new FormData()
+  formData.append('file', file)
+
+  try {
+    const res = await request.post('/upload/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    if (res.code === 1) {
+      // 上传成功后，更新用户信息中的头像字段
+      const updatedInfo = { ...userInfo.value, avatar: res.data }
+      await request.put('/user/me', { ...form, avatar: res.data })
+      userStore.setUserInfo(updatedInfo)
+      ElMessage.success('头像修改成功')
+    }
+  } catch (e) {
+    console.error('头像上传失败:', e)
+    ElMessage.error('头像上传失败')
   }
 }
 
@@ -267,7 +337,42 @@ onMounted(() => {
 .profile-avatar {
   border: 4px solid #fff;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.avatar-uploader {
+  position: relative;
+  display: inline-block;
+  cursor: pointer;
+  border-radius: 50%;
+  overflow: hidden;
   margin-bottom: 16px;
+}
+
+.avatar-mask {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s;
+  border-radius: 50%;
+  font-size: 12px;
+  gap: 4px;
+}
+
+.avatar-uploader:hover .avatar-mask {
+  opacity: 1;
+}
+
+.avatar-mask .el-icon {
+  font-size: 20px;
 }
 
 .user-name {

@@ -177,6 +177,7 @@ const stats = ref({
   questionCount: 0,
   userCount: 0,
   pendingCount: 0,
+  classCount: 0,
   activeToday: 0,
   examSessions: 0
 })
@@ -220,7 +221,7 @@ const roleStats = computed(() => {
       { label: '管理课程', value: stats.value.courseCount, icon: 'Collection', color: '#1E88E5', bgColor: '#E3F2FD', path: '/course/list' },
       { label: '试题总量', value: stats.value.questionCount, icon: 'Memo', color: '#10B981', bgColor: '#D1FAE5', path: '/question/manage', valueColor: '#10B981' },
       { label: '待阅试卷', value: stats.value.pendingCount, icon: 'Checked', color: '#F97316', bgColor: '#FFEDD5', path: '/exam/marking', valueColor: '#F97316' },
-      { label: '班级总数', value: 8, icon: 'School', color: '#3498db', bgColor: '#EBF5FB', path: '/teacher/analysis' }
+      { label: '管辖班级', value: stats.value.classCount, icon: 'School', color: '#3498db', bgColor: '#EBF5FB', path: '/teacher/analysis' }
     ]
   }
   return [
@@ -258,24 +259,7 @@ const quickEntries = computed(() => {
 
 const fetchStats = async () => {
   try {
-    if (isStudent.value) {
-      const coursesRes = await request.get('/student/analysis/courses')
-      stats.value.courseCount = coursesRes.data?.length || 0
-      const mistakesRes = await request.get('/mistakes', { params: { size: 1 } })
-      stats.value.mistakeCount = mistakesRes.data?.total || 0
-      const recordsRes = await request.get('/study/records', { params: { size: 1 } })
-      stats.value.practiceCount = recordsRes.data?.total || 0
-      const examRecordsRes = await request.get('/student/exam-records', { params: { size: 1 } })
-      stats.value.examCount = examRecordsRes.data?.total || 0
-    }
-    if (isTeacher.value) {
-      const coursesRes = await request.get('/courses/managed')
-      stats.value.courseCount = coursesRes.data?.length || 0
-      const questionsRes = await request.get('/questions', { params: { size: 1 } })
-      stats.value.questionCount = questionsRes.data?.total || 0
-      const pendingRes = await request.get('/teacher/exam-records/pending', { params: { size: 1, status: 1 } })
-      stats.value.pendingCount = pendingRes.data?.total || 0
-    }
+    // 按角色优先级获取数据，避免数据冲突
     if (isAdmin.value) {
       const dashboardRes = await request.get('/admin/analysis/dashboard')
       if (dashboardRes.code === 200 || dashboardRes.code === 1) {
@@ -285,12 +269,29 @@ const fetchStats = async () => {
         stats.value.questionCount = data.totalQuestions || 0
         stats.value.examSessions = data.totalExams || 0
       } else {
-        // 降级方案
         const usersRes = await request.get('/admin/users', { params: { size: 1 } })
         stats.value.userCount = usersRes.data?.total || 0
         const questionsRes = await request.get('/questions', { params: { size: 1 } })
         stats.value.questionCount = questionsRes.data?.total || 0
       }
+    } else if (isTeacher.value) {
+      const coursesRes = await request.get('/courses/managed')
+      stats.value.courseCount = coursesRes.data?.length || 0
+      const questionsRes = await request.get('/questions', { params: { size: 1 } })
+      stats.value.questionCount = questionsRes.data?.total || 0
+      const pendingRes = await request.get('/teacher/exam-records/pending', { params: { size: 1, status: 1 } })
+      stats.value.pendingCount = pendingRes.data?.total || 0
+      const classesRes = await request.get('/teacher/analysis/classes')
+      stats.value.classCount = classesRes.data?.length || 0
+    } else if (isStudent.value) {
+      const coursesRes = await request.get('/student/analysis/courses')
+      stats.value.courseCount = coursesRes.data?.length || 0
+      const mistakesRes = await request.get('/student/mistake-book')
+      stats.value.mistakeCount = mistakesRes.data?.length || 0
+      const recordsRes = await request.get('/student/practice-records', { params: { page: 1, size: 1 } })
+      stats.value.practiceCount = recordsRes.data?.total || 0
+      const examRecordsRes = await request.get('/student/exam-records', { params: { page: 1, size: 1 } })
+      stats.value.examCount = examRecordsRes.data?.total || 0
     }
   } catch (e) {
     console.error('获取统计数据失败:', e)

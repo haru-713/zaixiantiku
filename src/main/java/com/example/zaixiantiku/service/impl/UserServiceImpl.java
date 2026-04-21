@@ -154,7 +154,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         LoginUser loginUser = (LoginUser) authentication.getPrincipal();
         User user = loginUser.getUser();
 
-        // 获取学生的班级列表
+        // 获取用户的班级列表
         List<ClassVO> classVOList = new ArrayList<>();
         if (loginUser.getRoleCodes().contains("STUDENT")) {
             List<Long> classIds = studentClassMapper.selectList(new LambdaQueryWrapper<StudentClass>()
@@ -169,6 +169,17 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                         .createTime(c.getCreateTime())
                         .build()).collect(Collectors.toList());
             }
+        } else if (loginUser.getRoleCodes().contains("TEACHER")) {
+            // 教师：获取其管辖的班级
+            classVOList = classMapper.selectList(new LambdaQueryWrapper<com.example.zaixiantiku.entity.Class>()
+                    .eq(com.example.zaixiantiku.entity.Class::getTeacherId, user.getId()))
+                    .stream().map(c -> ClassVO.builder()
+                            .id(c.getId())
+                            .className(c.getClassName())
+                            .grade(c.getGrade())
+                            .teacherId(c.getTeacherId())
+                            .createTime(c.getCreateTime())
+                            .build()).collect(Collectors.toList());
         }
 
         // 2. 封装 VO 返回
