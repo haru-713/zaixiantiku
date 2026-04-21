@@ -396,7 +396,6 @@ public class AnalysisServiceImpl implements AnalysisService {
 
             // 获取所有题目的满分
             Set<Long> qIds = qMap.keySet();
-            Map<Long, Integer> qMaxScoreMap = new HashMap<>();
             if (!qIds.isEmpty()) {
                 // 找到这些题目所属的所有试卷
                 List<Long> examIds = examRecords.stream().map(ExamRecord::getExamId).distinct()

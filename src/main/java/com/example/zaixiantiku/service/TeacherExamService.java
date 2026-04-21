@@ -4,6 +4,7 @@ import com.example.zaixiantiku.pojo.dto.ExamMarkDTO;
 import com.example.zaixiantiku.pojo.vo.PageResult;
 import com.example.zaixiantiku.pojo.vo.TeacherExamRecordVO;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -20,4 +21,9 @@ public interface TeacherExamService {
      * 阅卷
      */
     Map<String, Object> markExamRecord(Long recordId, ExamMarkDTO markDTO);
+
+    /**
+     * 获取某考试下所有待批阅记录的ID列表（按学生学号排序）
+     */
+    List<Long> getPendingMarkingRecordIds(Long examId);
 }

@@ -94,7 +94,31 @@
     <el-dialog v-model="markingVisible" title="考卷阅卷" width="1000px" fullscreen>
       <div v-if="markingData" class="marking-container">
         <div class="marking-header">
-          <span class="m-title">{{ markingData.examName }} - {{ currentRecord.studentName }}</span>
+          <div class="header-left">
+            <span class="m-title">{{ markingData.examName }} - {{ currentRecord.studentName }}</span>
+            <div class="marking-nav" v-if="pendingRecordIds.length > 0">
+              <el-button-group>
+                <el-button 
+                  type="primary" 
+                  plain 
+                  icon="ArrowLeft" 
+                  :disabled="currentNavIndex <= 0"
+                  @click="handlePrevMarking"
+                >上一份</el-button>
+                <el-button 
+                  type="primary" 
+                  plain 
+                  :disabled="currentNavIndex >= pendingRecordIds.length - 1"
+                  @click="handleNextMarking"
+                >
+                  下一份 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
+                </el-button>
+              </el-button-group>
+              <span class="nav-progress">
+                进度：第 {{ currentNavIndex + 1 }} 份 / 共 {{ pendingRecordIds.length }} 份
+              </span>
+            </div>
+          </div>
           <div class="m-score">当前得分：<span class="score-num">{{ markingData.totalScore }}</span></div>
         </div>
 
@@ -148,9 +172,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
 import request from '@/utils/request'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 
 const loading = ref(false)
 const list = ref([])
@@ -189,6 +214,13 @@ const markingVisible = ref(false)
 const markingData = ref(null)
 const currentRecord = ref(null)
 const submitting = ref(false)
+
+// 导航逻辑
+const pendingRecordIds = ref([])
+const currentNavIndex = computed(() => {
+  if (!currentRecord.value) return -1
+  return pendingRecordIds.value.indexOf(currentRecord.value.id)
+})
 
 // 存储评分和评语
 const markScores = reactive({})
@@ -234,19 +266,57 @@ const handleCurrentChange = (val) => {
 const openMarking = async (row) => {
   currentRecord.value = row
   try {
-    // 复用学生详情接口获取考卷内容
-    const res = await request.get(`/student/exam-records/${row.id}`)
-    markingData.value = res.data
+    // 获取同场考试的所有待阅ID列表用于导航
+    const idsRes = await request.get(`/teacher/exams/${row.examId}/pending-ids`)
+    pendingRecordIds.value = idsRes.data
     
-    // 初始化评分和评语
-    markingData.value.answers.forEach(ans => {
-      markScores[ans.questionId] = ans.score || 0
-      markComments[ans.questionId] = ''
-    })
-    
+    await loadMarkingData(row.id)
     markingVisible.value = true
   } catch (e) {
     console.error('获取详情失败:', e)
+  }
+}
+
+const loadMarkingData = async (recordId) => {
+  loading.value = true
+  try {
+    const res = await request.get(`/student/exam-records/${recordId}`)
+    markingData.value = res.data
+    
+    // 初始化评分和评语
+    // 清空旧数据
+    Object.keys(markScores).forEach(key => delete markScores[key])
+    Object.keys(markComments).forEach(key => delete markComments[key])
+    
+    markingData.value.answers.forEach(ans => {
+      markScores[ans.questionId] = ans.score || 0
+      markComments[ans.questionId] = ans.comment || ''
+    })
+  } finally {
+    loading.value = false
+  }
+}
+
+const handlePrevMarking = async () => {
+  if (currentNavIndex.value > 0) {
+    const prevId = pendingRecordIds.value[currentNavIndex.value - 1]
+    // 找到对应的记录对象用于更新当前显示的学生姓名等信息
+    const prevRecord = list.value.find(r => r.id === prevId)
+    if (prevRecord) {
+      currentRecord.value = prevRecord
+      await loadMarkingData(prevId)
+    }
+  }
+}
+
+const handleNextMarking = async () => {
+  if (currentNavIndex.value < pendingRecordIds.value.length - 1) {
+    const nextId = pendingRecordIds.value[currentNavIndex.value + 1]
+    const nextRecord = list.value.find(r => r.id === nextId)
+    if (nextRecord) {
+      currentRecord.value = nextRecord
+      await loadMarkingData(nextId)
+    }
   }
 }
 
@@ -260,8 +330,15 @@ const submitMark = async () => {
     }))
     
     await request.put(`/teacher/exam-records/${currentRecord.value.id}/mark`, { scores })
-    ElMessage.success('阅卷成功')
-    markingVisible.value = false
+    ElMessage.success('批阅保存成功')
+    
+    // 判断是否有下一份
+    if (currentNavIndex.value < pendingRecordIds.value.length - 1) {
+      await handleNextMarking()
+    } else {
+      ElMessage.info('所有试卷已批阅完成')
+      markingVisible.value = false
+    }
     fetchList()
   } catch (e) {
     console.error('阅卷失败:', e)
@@ -356,6 +433,21 @@ onMounted(() => {
   top: 0;
   background: white;
   z-index: 10;
+}
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+}
+.marking-nav {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+.nav-progress {
+  font-size: 14px;
+  color: #909399;
+  font-weight: normal;
 }
 .m-title {
   font-size: 20px;

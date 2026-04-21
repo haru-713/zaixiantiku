@@ -402,7 +402,7 @@ public class KnowledgePointServiceImpl implements KnowledgePointService {
 
         sql.append("ORDER BY kp.course_id ASC, kp.sort_order ASC, kp.id ASC ");
 
-        List<KnowledgePointPageVO> list = jdbcTemplate.query(sql.toString(), (rs, rowNum) -> KnowledgePointPageVO.builder()
+        List<KnowledgePointPageVO> list = jdbcTemplate.query(sql.toString(), (java.sql.ResultSet rs, int rowNum) -> KnowledgePointPageVO.builder()
                         .id(rs.getLong("id"))
                         .courseId(rs.getLong("courseId"))
                         .courseName(rs.getString("courseName"))

@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -40,5 +41,13 @@ public class TeacherExamController {
             @RequestBody ExamMarkDTO markDTO) {
         Map<String, Object> data = teacherExamService.markExamRecord(recordId, markDTO);
         return Result.success(1, "批阅成功", data);
+    }
+
+    @GetMapping("/teacher/exams/{examId}/pending-ids")
+    @PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")
+    @Operation(summary = "教师：获取某考试下所有待批阅记录的ID列表")
+    public Result<List<Long>> getPendingMarkingRecordIds(@PathVariable Long examId) {
+        List<Long> ids = teacherExamService.getPendingMarkingRecordIds(examId);
+        return Result.success(ids);
     }
 }

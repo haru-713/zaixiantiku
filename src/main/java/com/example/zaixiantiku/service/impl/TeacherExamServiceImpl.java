@@ -162,6 +162,18 @@ public class TeacherExamServiceImpl implements TeacherExamService {
         return PageResult.of(pageInfo.getTotal(), voList);
     }
 
+    @Override
+    public List<Long> getPendingMarkingRecordIds(Long examId) {
+        // 查询该考试下所有状态为1（待阅卷）的记录，并按用户ID（通常关联学号）排序
+        return examRecordMapper.selectList(new LambdaQueryWrapper<ExamRecord>()
+                .eq(ExamRecord::getExamId, examId)
+                .eq(ExamRecord::getStatus, 1)
+                .orderByAsc(ExamRecord::getUserId))
+                .stream()
+                .map(ExamRecord::getId)
+                .collect(Collectors.toList());
+    }
+
     private LoginUser requireLoginUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {

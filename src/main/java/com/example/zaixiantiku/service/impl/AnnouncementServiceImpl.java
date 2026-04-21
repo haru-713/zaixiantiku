@@ -1,7 +1,6 @@
 package com.example.zaixiantiku.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.example.zaixiantiku.entity.Announcement;
 import com.example.zaixiantiku.mapper.AnnouncementMapper;
 import com.example.zaixiantiku.pojo.vo.PageResult;

@@ -4,7 +4,6 @@ import com.example.zaixiantiku.pojo.vo.ClassAnalysisVO;
 import com.example.zaixiantiku.pojo.vo.GlobalAnalysisVO;
 import com.example.zaixiantiku.pojo.vo.StudentAnalysisVO;
 import com.example.zaixiantiku.service.AnalysisService;
-import com.example.zaixiantiku.entity.Class;
 import com.example.zaixiantiku.entity.Exam;
 import com.example.zaixiantiku.common.Result;
 import lombok.RequiredArgsConstructor;
