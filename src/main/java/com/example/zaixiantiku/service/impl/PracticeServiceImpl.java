@@ -42,52 +42,31 @@ public class PracticeServiceImpl implements PracticeService {
         LoginUser loginUser = getLoginUser();
         Long userId = loginUser.getUser().getId();
 
-        // 1. 根据配置筛选题目
-        LambdaQueryWrapper<Question> qw = new LambdaQueryWrapper<Question>()
-                .eq(Question::getCourseId, startDTO.getCourseId())
-                .eq(Question::getStatus, 2); // 已发布
+        PracticeStartDTO.PracticeConfig config = startDTO.getConfig();
+        List<Integer> typeIds = (config != null && config.getTypeIds() != null) ? config.getTypeIds()
+                : new ArrayList<>();
+        List<Integer> difficulties = (config != null && config.getDifficulties() != null) ? config.getDifficulties()
+                : new ArrayList<>();
+        List<Long> knowledgeIds = (config != null && config.getKnowledgeIds() != null) ? config.getKnowledgeIds()
+                : new ArrayList<>();
 
-        if (startDTO.getConfig() != null) {
-            if (startDTO.getConfig().getTypeIds() != null && !startDTO.getConfig().getTypeIds().isEmpty()) {
-                qw.in(Question::getTypeId, startDTO.getConfig().getTypeIds());
-            }
-            if (startDTO.getConfig().getDifficulties() != null && !startDTO.getConfig().getDifficulties().isEmpty()) {
-                qw.in(Question::getDifficulty, startDTO.getConfig().getDifficulties());
-            }
-            if (startDTO.getConfig().getKnowledgeIds() != null && !startDTO.getConfig().getKnowledgeIds().isEmpty()) {
-                // 通过关联表查询题目ID
-                List<QuestionKnowledge> qkList = questionKnowledgeMapper.selectList(
-                        new LambdaQueryWrapper<QuestionKnowledge>()
-                                .in(QuestionKnowledge::getKnowledgePointId, startDTO.getConfig().getKnowledgeIds()));
+        int requestedCount = (config != null && config.getQuestionCount() != null) ? config.getQuestionCount() : 10;
+        int count = Math.max(5, Math.min(50, requestedCount));
 
-                if (qkList.isEmpty()) {
-                    // 如果选了知识点但没找到题目，直接抛异常或让后续查询查不到
-                    qw.in(Question::getId, Collections.singletonList(-1L));
-                } else {
-                    List<Long> qIds = qkList.stream().map(QuestionKnowledge::getQuestionId)
-                            .collect(Collectors.toList());
-                    qw.in(Question::getId, qIds);
-                }
-            }
-        }
+        int availableCount = questionMapper.countRandomQuestions(
+                startDTO.getCourseId(), typeIds, difficulties, knowledgeIds);
 
-        List<Question> questions = questionMapper.selectList(qw);
-        if (questions.isEmpty()) {
+        if (availableCount == 0) {
             throw new RuntimeException("未找到符合条件的题目");
         }
-        Collections.shuffle(questions);
 
-        // 限制最大题目数量为 50，最小为 1
-        int requestedCount = (startDTO.getConfig() != null && startDTO.getConfig().getQuestionCount() != null)
-                ? startDTO.getConfig().getQuestionCount()
-                : 10;
+        int actualCount = Math.min(count, availableCount);
 
-        int count = Math.max(1, Math.min(Math.min(requestedCount, 50), questions.size()));
+        List<Question> selected = questionMapper.selectRandomQuestions(
+                startDTO.getCourseId(), typeIds, difficulties, knowledgeIds, actualCount);
 
-        List<Question> selected = questions.subList(0, count);
         List<Long> questionIds = selected.stream().map(Question::getId).collect(Collectors.toList());
 
-        // 2. 创建练习记录
         PracticeRecord record = PracticeRecord.builder()
                 .userId(userId)
                 .courseId(startDTO.getCourseId())
@@ -97,9 +76,13 @@ public class PracticeServiceImpl implements PracticeService {
                 .build();
         practiceRecordMapper.insert(record);
 
-        // 3. 返回题目信息（脱敏答案）
         Map<String, Object> res = new HashMap<>();
         res.put("practiceId", record.getId());
+        res.put("actualCount", actualCount);
+        res.put("availableCount", availableCount);
+        if (actualCount < requestedCount) {
+            res.put("message", "符合条件的题目只有" + availableCount + "道，已全部抽取");
+        }
         res.put("questions", selected.stream().map(this::toVO).collect(Collectors.toList()));
         return res;
     }
@@ -460,16 +443,18 @@ public class PracticeServiceImpl implements PracticeService {
         PageHelper.startPage(page, size);
 
         // 构造 SQL 查询
-        // 由于 MyBatis-Plus 连表查询比较复杂，这里使用 StringBuilder 构造查询或者直接使用 FavoriteMapper 配合自定义 XML
+        // 由于 MyBatis-Plus 连表查询比较复杂，这里使用 StringBuilder 构造查询或者直接使用 FavoriteMapper 配合自定义
+        // XML
         // 但本项目看起来更倾向于使用 LambdaQueryWrapper 或 JdbcTemplate。
         // 为了方便，我们可以通过先过滤 Question 表，再查询 Favorite 表的方式（或者反过来）
-        
+
         LambdaQueryWrapper<Favorite> favQw = new LambdaQueryWrapper<Favorite>()
                 .eq(Favorite::getUserId, loginUser.getUser().getId());
 
         if (courseId != null || kpId != null) {
             // 需要关联 Question 表
-            // 这里使用一个子查询：WHERE question_id IN (SELECT id FROM question WHERE course_id = ? AND ...)
+            // 这里使用一个子查询：WHERE question_id IN (SELECT id FROM question WHERE course_id = ?
+            // AND ...)
             // 如果有 kpId，还需要关联 question_knowledge
             StringBuilder subQuery = new StringBuilder("id IN (SELECT id FROM question WHERE 1=1 ");
             if (courseId != null) {
@@ -492,13 +477,14 @@ public class PracticeServiceImpl implements PracticeService {
 
         List<Long> qIds = favs.stream().map(Favorite::getQuestionId).collect(Collectors.toList());
         List<Question> questions = questionMapper.selectBatchIds(qIds);
-        
+
         // 保证返回顺序与收藏时间一致
         Map<Long, Question> qMap = questions.stream().collect(Collectors.toMap(Question::getId, q -> q));
         List<QuestionDetailVO> voList = favs.stream()
                 .map(f -> {
                     Question q = qMap.get(f.getQuestionId());
-                    if (q == null) return null;
+                    if (q == null)
+                        return null;
                     QuestionDetailVO vo = this.toVO(q);
                     vo.setCreateTime(f.getCreateTime()); // 这里复用 createTime 字段表示收藏时间
                     vo.setId(f.getId()); // 注意：这里的 ID 应该是 Favorite 的 ID，方便后续取消收藏
@@ -557,6 +543,7 @@ public class PracticeServiceImpl implements PracticeService {
     private QuestionDetailVO toVO(Question q) {
         if (q == null)
             return null;
+        List<Long> kpIds = getKnowledgeIdsByQuestionId(q.getId());
         return QuestionDetailVO.builder()
                 .id(q.getId())
                 .courseId(q.getCourseId())
@@ -568,7 +555,17 @@ public class PracticeServiceImpl implements PracticeService {
                 .analysis(q.getAnalysis())
                 .status(q.getStatus().intValue())
                 .createTime(q.getCreateTime())
+                .knowledgeIds(kpIds)
                 .build();
+    }
+
+    private List<Long> getKnowledgeIdsByQuestionId(Long questionId) {
+        return questionKnowledgeMapper.selectList(
+                new LambdaQueryWrapper<QuestionKnowledge>()
+                        .eq(QuestionKnowledge::getQuestionId, questionId))
+                .stream()
+                .map(QuestionKnowledge::getKnowledgePointId)
+                .collect(Collectors.toList());
     }
 
     private List<String> parseOptions(String json) {
