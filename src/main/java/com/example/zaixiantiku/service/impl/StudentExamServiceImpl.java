@@ -3,10 +3,12 @@ package com.example.zaixiantiku.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.example.zaixiantiku.entity.*;
 import com.example.zaixiantiku.mapper.*;
+import com.example.zaixiantiku.pojo.dto.CheatRecordDTO;
 import com.example.zaixiantiku.pojo.dto.ExamSubmitDTO;
 import com.example.zaixiantiku.pojo.vo.*;
 import com.example.zaixiantiku.security.LoginUser;
 import com.example.zaixiantiku.service.StudentExamService;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.pagehelper.PageHelper;
@@ -40,7 +42,27 @@ public class StudentExamServiceImpl implements StudentExamService {
     private final StudentClassMapper studentClassMapper;
     private final QuestionKnowledgeMapper questionKnowledgeMapper;
     private final KnowledgePointMapper knowledgePointMapper;
+    private final LogMapper logMapper;
     private final ObjectMapper objectMapper;
+
+    @Override
+    public void recordCheat(CheatRecordDTO cheatDTO) {
+        LoginUser loginUser = requireLoginUser();
+        Long userId = loginUser.getUser().getId();
+
+        try {
+            Log log = Log.builder()
+                    .userId(userId)
+                    .operation("切屏")
+                    .module("考试")
+                    .params(objectMapper.writeValueAsString(cheatDTO))
+                    .createTime(LocalDateTime.now())
+                    .build();
+            logMapper.insert(log);
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+        }
+    }
 
     @Override
     public PageResult<ExamVO> getStudentExams(Long courseId) {
@@ -246,6 +268,16 @@ public class StudentExamServiceImpl implements StudentExamService {
         record.setSubmitTime(LocalDateTime.now());
         record.setTotalScore(totalScore);
         record.setStatus(1); // 已交卷
+
+        // 保存作弊元数据
+        Map<String, Object> meta = new HashMap<>();
+        meta.put("cheatCount", submitDTO.getCheatCount());
+        meta.put("forceSubmit", submitDTO.getForceSubmit());
+        if (submitDTO.getCheatCount() != null && submitDTO.getCheatCount() >= 3) {
+            meta.put("suspicious", true);
+        }
+        record.setAnswers(meta);
+
         examRecordMapper.updateById(record);
 
         Map<String, Object> result = new HashMap<>();

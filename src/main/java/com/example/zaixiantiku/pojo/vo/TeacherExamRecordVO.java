@@ -27,6 +27,9 @@ public class TeacherExamRecordVO {
 
     private Integer totalScore;
     private Integer status; // 0-考试中, 1-已交卷(待阅卷), 2-已阅卷
+    
+    private Integer cheatCount;
+    private Boolean forceSubmit;
 
     private String courseTeacherNames; // 该课程下的所有任课教师（阅卷人）
     private Integer totalExamCount; // 该场考试的总交卷人数

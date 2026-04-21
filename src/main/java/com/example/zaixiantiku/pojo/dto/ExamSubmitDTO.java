@@ -16,6 +16,8 @@ import java.util.List;
 @AllArgsConstructor
 public class ExamSubmitDTO {
     private List<AnswerItem> answers;
+    private Integer cheatCount;
+    private Boolean forceSubmit;
 
     @Data
     @NoArgsConstructor

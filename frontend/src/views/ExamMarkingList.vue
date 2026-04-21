@@ -71,6 +71,19 @@
                   </el-tag>
                 </template>
               </el-table-column>
+              <el-table-column label="防作弊异常" width="200">
+                <template #default="scope">
+                  <div v-if="scope.row.cheatCount > 0" class="cheat-info">
+                    <el-tag type="warning" size="small" class="cheat-tag">
+                      切屏: {{ scope.row.cheatCount }} 次
+                    </el-tag>
+                    <el-tag v-if="scope.row.forceSubmit" type="danger" size="small" class="cheat-tag">
+                      强制交卷
+                    </el-tag>
+                  </div>
+                  <span v-else class="normal-status">无异常</span>
+                </template>
+              </el-table-column>
               <el-table-column label="操作" min-width="120">
                 <template #default="scope">
                   <el-button type="primary" size="small" @click="openMarking(scope.row)">
@@ -423,6 +436,22 @@ onMounted(() => {
   max-width: 1200px;
   margin: 0 auto;
 }
+
+.cheat-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.cheat-tag {
+  margin-right: 2px;
+}
+
+.normal-status {
+  color: #909399;
+  font-size: 12px;
+}
+
 .marking-header {
   display: flex;
   justify-content: space-between;

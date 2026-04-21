@@ -1,6 +1,7 @@
 package com.example.zaixiantiku.controller;
 
 import com.example.zaixiantiku.common.Result;
+import com.example.zaixiantiku.pojo.dto.CheatRecordDTO;
 import com.example.zaixiantiku.pojo.dto.ExamSubmitDTO;
 import com.example.zaixiantiku.pojo.vo.ExamEnterVO;
 import com.example.zaixiantiku.pojo.vo.ExamRecordDetailVO;
@@ -25,6 +26,14 @@ import java.util.Map;
 public class StudentExamController {
 
     private final StudentExamService studentExamService;
+
+    @PostMapping("/student/exam/cheat")
+    @PreAuthorize("hasRole('STUDENT')")
+    @Operation(summary = "记录作弊行为（如切屏）")
+    public Result<Void> recordCheat(@RequestBody CheatRecordDTO cheatDTO) {
+        studentExamService.recordCheat(cheatDTO);
+        return Result.success();
+    }
 
     @GetMapping("/student/exams")
     @PreAuthorize("hasRole('STUDENT')")

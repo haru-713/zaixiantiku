@@ -1,5 +1,6 @@
 package com.example.zaixiantiku.service;
 
+import com.example.zaixiantiku.pojo.dto.CheatRecordDTO;
 import com.example.zaixiantiku.pojo.dto.ExamSubmitDTO;
 import com.example.zaixiantiku.pojo.vo.*;
 
@@ -9,6 +10,11 @@ import java.util.Map;
  * 学生考试服务接口
  */
 public interface StudentExamService {
+
+    /**
+     * 记录作弊行为（如切屏）
+     */
+    void recordCheat(CheatRecordDTO cheatDTO);
 
     /**
      * 获取学生可参加的考试列表

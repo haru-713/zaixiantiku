@@ -65,7 +65,64 @@ const loading = ref(true)
 const examData = ref(null)
 const remainingSeconds = ref(0)
 const answers = reactive({})
+const cheatCount = ref(0)
+const maxCheatCount = 3
 let timer = null
+
+const handleVisibilityChange = () => {
+  if (document.visibilityState === 'hidden') {
+    cheatCount.value++
+    recordCheat()
+    
+    if (cheatCount.value >= maxCheatCount) {
+      ElMessageBox.alert('您已切屏超过 3 次，考试被强制提交！', '作弊警告', {
+        confirmButtonText: '确定',
+        type: 'error',
+        callback: () => {
+          submit(true)
+        }
+      })
+    } else {
+      ElMessage.warning(`警告：切屏记录一次！切屏超过 3 次将自动交卷。当前切屏次数：${cheatCount.value}`)
+    }
+  }
+}
+
+const recordCheat = async () => {
+  try {
+    await request.post('/student/exam/cheat', {
+      examId: Number(examId),
+      cheatCount: cheatCount.value
+    })
+  } catch (e) {
+    console.error('记录切屏失败', e)
+  }
+}
+
+const preventCopy = (e) => {
+  e.preventDefault()
+  ElMessage.warning('考试期间禁止复制内容')
+}
+
+const preventPaste = (e) => {
+  e.preventDefault()
+  ElMessage.warning('考试期间禁止粘贴内容')
+}
+
+const preventContextMenu = (e) => {
+  e.preventDefault()
+}
+
+const enterFullscreen = () => {
+  const element = document.documentElement
+  if (element.requestFullscreen) {
+    element.requestFullscreen()
+  } else if (element.webkitRequestFullscreen) {
+    element.webkitRequestFullscreen()
+  } else if (element.msRequestFullscreen) {
+    element.msRequestFullscreen()
+  }
+}
 
 const fetchExam = async () => {
   try {
@@ -119,20 +176,28 @@ const confirmSubmit = () => {
 
 const autoSubmit = () => {
   ElMessage.warning('考试时间已到，系统正在为您自动交卷...')
-  submit()
+  submit(true)
 }
 
-const submit = async () => {
+const submit = async (isForce = false) => {
   try {
     const submitData = {
       answers: examData.value.paper.questions.map(q => ({
         questionId: q.id,
         answer: answers[q.id] || '',
         timeSpent: 0 // 暂不统计单题耗时
-      }))
+      })),
+      cheatCount: cheatCount.value,
+      forceSubmit: isForce
     }
     await request.post(`/exams/${examId}/submit`, submitData)
     ElMessage.success('提交成功！')
+    
+    // 退出全屏
+    if (document.fullscreenElement) {
+      document.exitFullscreen()
+    }
+    
     router.push('/study/record')
   } catch (e) {
     console.error(e)
@@ -141,10 +206,29 @@ const submit = async () => {
 
 onMounted(() => {
   fetchExam()
+  
+  // 防作弊监听
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+  document.addEventListener('copy', preventCopy)
+  document.addEventListener('paste', preventPaste)
+  document.addEventListener('contextmenu', preventContextMenu)
+  
+  // 提醒全屏
+  ElMessageBox.confirm('为了考试公平，建议进入全屏模式。考试期间切屏将被记录。', '考试须知', {
+    confirmButtonText: '进入全屏',
+    cancelButtonText: '取消',
+    type: 'info'
+  }).then(() => {
+    enterFullscreen()
+  }).catch(() => {})
 })
 
 onUnmounted(() => {
   if (timer) clearInterval(timer)
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+  document.removeEventListener('copy', preventCopy)
+  document.removeEventListener('paste', preventPaste)
+  document.removeEventListener('contextmenu', preventContextMenu)
 })
 </script>
 

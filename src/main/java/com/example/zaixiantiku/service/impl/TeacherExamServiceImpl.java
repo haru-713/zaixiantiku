@@ -144,7 +144,7 @@ public class TeacherExamServiceImpl implements TeacherExamService {
 
         List<TeacherExamRecordVO> voList = records.stream().map(r -> {
             Exam e = examMap.get(r.getExamId());
-            return TeacherExamRecordVO.builder()
+            TeacherExamRecordVO vo = TeacherExamRecordVO.builder()
                     .id(r.getId())
                     .examId(r.getExamId())
                     .examName(e != null ? e.getExamName() : "未知考试")
@@ -157,6 +157,18 @@ public class TeacherExamServiceImpl implements TeacherExamService {
                     .totalExamCount(examTotalCountMap.get(r.getExamId()))
                     .markedExamCount(examMarkedCountMap.get(r.getExamId()))
                     .build();
+
+            // 解析作弊信息
+            if (r.getAnswers() != null) {
+                Map<String, Object> meta = r.getAnswers();
+                if (meta.get("cheatCount") != null) {
+                    vo.setCheatCount((Integer) meta.get("cheatCount"));
+                }
+                if (meta.get("forceSubmit") != null) {
+                    vo.setForceSubmit((Boolean) meta.get("forceSubmit"));
+                }
+            }
+            return vo;
         }).collect(Collectors.toList());
 
         return PageResult.of(pageInfo.getTotal(), voList);
