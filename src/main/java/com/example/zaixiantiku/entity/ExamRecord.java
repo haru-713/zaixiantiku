@@ -42,8 +42,8 @@ public class ExamRecord {
     private Integer status;
 
     /**
-     * 存放元数据，如作弊记录
+     * 存放元数据，如作弊记录（注意：若数据库无此字段，需标记为 exist = false）
      */
-    @TableField(typeHandler = JacksonTypeHandler.class)
+    @TableField(exist = false)
     private Map<String, Object> answers;
 }

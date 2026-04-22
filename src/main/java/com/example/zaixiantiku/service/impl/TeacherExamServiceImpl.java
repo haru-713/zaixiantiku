@@ -11,6 +11,7 @@ import com.example.zaixiantiku.service.TeacherExamService;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -21,6 +22,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class TeacherExamServiceImpl implements TeacherExamService {
 
     private final ExamRecordMapper examRecordMapper;
@@ -29,6 +31,7 @@ public class TeacherExamServiceImpl implements TeacherExamService {
     private final UserMapper userMapper;
     private final AnswerDetailMapper answerDetailMapper;
     private final CourseTeacherMapper courseTeacherMapper;
+    private final LogMapper logMapper;
 
     @Override
     public PageResult<TeacherExamRecordVO> getPendingMarkingRecords(Long courseId, Integer status, Integer page,
@@ -158,15 +161,27 @@ public class TeacherExamServiceImpl implements TeacherExamService {
                     .markedExamCount(examMarkedCountMap.get(r.getExamId()))
                     .build();
 
-            // 解析作弊信息
-            if (r.getAnswers() != null) {
-                Map<String, Object> meta = r.getAnswers();
-                if (meta.get("cheatCount") != null) {
-                    vo.setCheatCount((Integer) meta.get("cheatCount"));
+            // 从日志表查询作弊信息（因为 exam_record 表中没有 answers 字段）
+            try {
+                String examIdStr = "\"examId\":" + r.getExamId();
+                // 1. 统计切屏次数
+                Long cheatCount = logMapper.selectCount(new LambdaQueryWrapper<Log>()
+                        .eq(Log::getUserId, r.getUserId())
+                        .eq(Log::getOperation, "切屏")
+                        .like(Log::getParams, examIdStr));
+                vo.setCheatCount(cheatCount.intValue());
+
+                // 2. 检查是否有强制交卷记录
+                Long forceSubmitCount = logMapper.selectCount(new LambdaQueryWrapper<Log>()
+                        .eq(Log::getUserId, r.getUserId())
+                        .eq(Log::getOperation, "强制交卷")
+                        .like(Log::getParams, examIdStr));
+
+                if (forceSubmitCount > 0 || cheatCount >= 3) {
+                    vo.setForceSubmit(true);
                 }
-                if (meta.get("forceSubmit") != null) {
-                    vo.setForceSubmit((Boolean) meta.get("forceSubmit"));
-                }
+            } catch (Exception ex) {
+                log.error("查询切屏日志失败", ex);
             }
             return vo;
         }).collect(Collectors.toList());

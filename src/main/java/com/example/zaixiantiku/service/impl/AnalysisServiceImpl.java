@@ -934,7 +934,6 @@ public class AnalysisServiceImpl implements AnalysisService {
     @Override
     public PageResult<StudentExamRecordVO> getStudentExamRecords(Integer page, Integer size, Long courseId) {
         Long userId = getUserId();
-        PageHelper.startPage(page, size);
 
         LambdaQueryWrapper<ExamRecord> examRecordQw = new LambdaQueryWrapper<ExamRecord>()
                 .eq(ExamRecord::getUserId, userId)
@@ -960,6 +959,7 @@ public class AnalysisServiceImpl implements AnalysisService {
             examRecordQw.in(ExamRecord::getExamId, examIdsInCourse);
         }
 
+        PageHelper.startPage(page, size);
         List<ExamRecord> records = examRecordMapper.selectList(examRecordQw);
         PageInfo<ExamRecord> pageInfo = new PageInfo<>(records);
 

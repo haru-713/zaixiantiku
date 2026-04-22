@@ -269,14 +269,24 @@ public class StudentExamServiceImpl implements StudentExamService {
         record.setTotalScore(totalScore);
         record.setStatus(1); // 已交卷
 
-        // 保存作弊元数据
-        Map<String, Object> meta = new HashMap<>();
-        meta.put("cheatCount", submitDTO.getCheatCount());
-        meta.put("forceSubmit", submitDTO.getForceSubmit());
-        if (submitDTO.getCheatCount() != null && submitDTO.getCheatCount() >= 3) {
-            meta.put("suspicious", true);
+        // 记录交卷日志（包含防作弊元数据，替代缺失的 exam_record.answers 字段）
+        try {
+            Map<String, Object> meta = new HashMap<>();
+            meta.put("examId", examId);
+            meta.put("cheatCount", submitDTO.getCheatCount());
+            meta.put("forceSubmit", submitDTO.getForceSubmit());
+            
+            Log submitLog = Log.builder()
+                    .userId(userId)
+                    .operation(submitDTO.getForceSubmit() ? "强制交卷" : "正常交卷")
+                    .module("考试")
+                    .params(objectMapper.writeValueAsString(meta))
+                    .createTime(LocalDateTime.now())
+                    .build();
+            logMapper.insert(submitLog);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
-        record.setAnswers(meta);
 
         examRecordMapper.updateById(record);
 
@@ -301,7 +311,6 @@ public class StudentExamServiceImpl implements StudentExamService {
             return PageResult.of(0L, new ArrayList<>());
         }
 
-        PageHelper.startPage(page, size);
         LambdaQueryWrapper<ExamRecord> qw = new LambdaQueryWrapper<ExamRecord>()
                 .eq(ExamRecord::getUserId, userId)
                 .ge(ExamRecord::getStatus, 1); // 仅显示已提交或已批阅的记录
@@ -332,6 +341,7 @@ public class StudentExamServiceImpl implements StudentExamService {
             qw.in(ExamRecord::getExamId, specificCourseExamIds);
         }
 
+        PageHelper.startPage(page, size);
         qw.orderByDesc(ExamRecord::getId);
         List<ExamRecord> records = examRecordMapper.selectList(qw);
 
