@@ -10,14 +10,14 @@
 
       <!-- 搜索栏 -->
       <div class="search-bar">
-        <el-input v-model="queryParams.keyword" placeholder="搜索班级/年级" style="width: 300px; margin-right: 15px"
-          clearable @clear="handleQuery" @keyup.enter="handleQuery" />
+        <el-input v-model="queryParams.keyword" placeholder="搜索班级/年级" style="width: 300px; margin-right: 15px" clearable
+          @clear="handleQuery" @keyup.enter="handleQuery" />
         <el-button type="primary" @click="handleQuery">查询</el-button>
       </div>
 
       <!-- 数据表格 -->
       <el-table :data="classList" v-loading="loading" style="width: 100%; margin-top: 20px">
-        <el-table-column prop="id" label="ID" width="80" />
+        <el-table-column type="index" :index="indexMethod" label="序号" width="80" />
         <el-table-column prop="className" label="班级名称" min-width="150" />
         <el-table-column prop="grade" label="年级" width="120" />
         <el-table-column label="操作" width="280" fixed="right">
@@ -31,9 +31,9 @@
 
       <!-- 分页 -->
       <div class="pagination-container">
-        <el-pagination :current-page="queryParams.page" :page-size="queryParams.size"
-          :page-sizes="[10, 20, 50]" layout="total, sizes, prev, pager, next, jumper" :total="total"
-          @size-change="handleSizeChange" @current-change="handleCurrentChange" />
+        <el-pagination :current-page="queryParams.page" :page-size="queryParams.size" :page-sizes="[10, 20, 50]"
+          layout="total, sizes, prev, pager, next, jumper" :total="total" @size-change="handleSizeChange"
+          @current-change="handleCurrentChange" />
       </div>
     </el-card>
 
@@ -80,8 +80,7 @@
             <el-button icon="Search" @click="fetchPickerStudents" />
           </template>
         </el-input>
-        <el-table :data="pickerList" v-loading="pickerLoading" @selection-change="handleSelectionChange"
-          height="400px">
+        <el-table :data="pickerList" v-loading="pickerLoading" @selection-change="handleSelectionChange" height="400px">
           <el-table-column type="selection" width="55" />
           <el-table-column prop="username" label="学号" />
           <el-table-column prop="name" label="姓名" />
@@ -148,6 +147,10 @@ const fetchList = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const indexMethod = (index) => {
+  return (queryParams.page - 1) * queryParams.size + index + 1
 }
 
 const handleQuery = () => {
