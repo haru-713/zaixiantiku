@@ -5,16 +5,13 @@
       <el-col :xs="24" :md="8">
         <el-card class="profile-card">
           <div class="user-profile">
-            <el-upload
-              class="avatar-uploader"
-              action="#"
-              :show-file-list="false"
-              :http-request="handleAvatarUpload"
-              :before-upload="beforeAvatarUpload"
-            >
+            <el-upload class="avatar-uploader" action="#" :show-file-list="false" :http-request="handleAvatarUpload"
+              :before-upload="beforeAvatarUpload">
               <el-avatar :size="100" :src="userInfo.avatar" icon="UserFilled" class="profile-avatar" />
               <div class="avatar-mask">
-                <el-icon><Camera /></el-icon>
+                <el-icon>
+                  <Camera />
+                </el-icon>
                 <span>更换头像</span>
               </div>
             </el-upload>
@@ -28,7 +25,7 @@
               <el-tag :type="userInfo.status === 1 ? 'success' : 'danger'" size="small">
                 {{ userInfo.status === 1 ? '账号正常' : '已禁用' }}
               </el-tag>
-              <el-tag :type="auditStatusType" size="small" class="ml-2">
+              <el-tag v-if="isStudent" :type="auditStatusType" size="small" class="ml-2">
                 {{ auditStatusLabel }}
               </el-tag>
             </div>
@@ -39,7 +36,7 @@
               <el-icon>
                 <Collection />
               </el-icon>
-              <span>{{ isTeacher ? '管辖班级' : '所属班级' }}：{{ userInfo.classes.map(c => c.className).join(', ') }}</span>
+              <span>{{ isTeacher ? '管辖班级' : '所属班级' }}：{{userInfo.classes.map(c => c.className).join(', ')}}</span>
             </div>
             <div class="meta-item">
               <el-icon>
@@ -149,9 +146,9 @@ const userStore = useUserStore()
 const router = useRouter()
 const userInfo = computed(() => userStore.userInfo || {})
 const roles = computed(() => userInfo.value.roles || [])
-const isAdmin = computed(() => roles.value.includes('ADMIN'))
-const isTeacher = computed(() => roles.value.includes('TEACHER'))
-const isStudent = computed(() => roles.value.includes('STUDENT'))
+const isAdmin = computed(() => roles.value.some(r => r === 'ADMIN' || r === 'ROLE_ADMIN'))
+const isTeacher = computed(() => roles.value.some(r => r === 'TEACHER' || r === 'ROLE_TEACHER'))
+const isStudent = computed(() => roles.value.some(r => r === 'STUDENT' || r === 'ROLE_STUDENT'))
 const saving = ref(false)
 
 const form = reactive({

@@ -20,4 +20,7 @@ public interface UserMapper extends BaseMapper<User> {
             "JOIN user_role ur ON r.id = ur.role_id " +
             "WHERE ur.user_id = #{userId}")
     List<String> findRoleCodesByUserId(Long userId);
+
+    @Select("${sql}")
+    Long selectCountBySql(String sql);
 }

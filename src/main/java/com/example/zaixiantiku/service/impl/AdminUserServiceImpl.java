@@ -194,6 +194,12 @@ public class AdminUserServiceImpl extends ServiceImpl<UserMapper, User> implemen
             throw new RuntimeException("用户不存在");
         }
 
+        // 限制：管理员账号不能被禁用
+        List<String> targetRoles = userMapper.findRoleCodesByUserId(userId);
+        if (targetRoles.contains("ADMIN")) {
+            throw new RuntimeException("管理员账号不能被禁用");
+        }
+
         if (Objects.equals(statusDTO.getStatus(), 0)) {
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             if (authentication != null && authentication.getPrincipal() instanceof LoginUser loginUser) {
@@ -228,8 +234,54 @@ public class AdminUserServiceImpl extends ServiceImpl<UserMapper, User> implemen
             throw new RuntimeException("用户不存在");
         }
 
+        // 限制：管理员之间不能互相重置密码
+        List<String> targetRoles = userMapper.findRoleCodesByUserId(userId);
+        if (targetRoles.contains("ADMIN")) {
+            throw new RuntimeException("不能重置其他管理员的密码");
+        }
+
         // 3. 重置为初始密码 123456
         user.setPassword(passwordEncoder.encode("123456"));
         this.updateById(user);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteUser(Long userId) {
+        if (userId == null) {
+            throw new RuntimeException("userId 不能为空");
+        }
+
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new RuntimeException("用户不存在");
+        }
+
+        // 1. 限制：不能删除管理员
+        List<String> targetRoles = userMapper.findRoleCodesByUserId(userId);
+        if (targetRoles.contains("ADMIN")) {
+            throw new RuntimeException("管理员账号禁止通过界面删除，请通过数据库操作");
+        }
+
+        // 2. 限制：不能删除自己
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof LoginUser loginUser) {
+            if (Objects.equals(loginUser.getUser().getId(), userId)) {
+                throw new RuntimeException("不能删除当前登录账号");
+            }
+        }
+
+        // 3. 业务校验：如果是教师，检查是否有课程关联
+        if (targetRoles.contains("TEACHER")) {
+            // 这里可以根据实际表结构增加更多校验，如 paper, question 等
+            // 为简化演示，仅校验 course_teacher
+            Long courseCount = userMapper.selectCountBySql("SELECT COUNT(1) FROM course_teacher WHERE teacher_id = " + userId);
+            if (courseCount != null && courseCount > 0) {
+                throw new RuntimeException("该教师名下有关联课程，请先转移或删除课程后再删除用户");
+            }
+        }
+
+        // 4. 执行删除 (user_role 等关联表已设置级联删除)
+        userMapper.deleteById(userId);
     }
 }

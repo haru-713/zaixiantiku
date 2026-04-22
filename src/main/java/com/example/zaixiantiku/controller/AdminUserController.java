@@ -69,4 +69,13 @@ public class AdminUserController {
         adminUserService.resetPassword(userId);
         return Result.success(1, "密码已重置为 123456", null);
     }
+
+    @org.springframework.web.bind.annotation.DeleteMapping("/{userId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @OperationLog(module = "用户管理", operation = "删除用户")
+    @Operation(summary = "删除用户", description = "管理员彻底删除用户")
+    public Result<Void> deleteUser(@PathVariable Long userId) {
+        adminUserService.deleteUser(userId);
+        return Result.success(1, "删除成功", null);
+    }
 }

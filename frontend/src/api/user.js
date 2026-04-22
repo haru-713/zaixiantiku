@@ -69,6 +69,13 @@ export const adminUserApi = {
    * 重置密码
    */
   resetPassword(userId) {
-    return request.post(`/admin/users/${userId}/reset-password`)
+    return request.put(`/admin/users/${userId}/password/reset`)
+  },
+
+  /**
+   * 删除用户
+   */
+  deleteUser(userId) {
+    return request.delete(`/admin/users/${userId}`)
   }
 }

@@ -7,16 +7,9 @@
         </div>
       </template>
 
-      <CommonTable
-        :loading="loading"
-        :data="userList"
-        :total="total"
-        :page="queryParams.page"
-        :size="queryParams.size"
-        @update:page="val => queryParams.page = val"
-        @update:size="val => queryParams.size = val"
-        @pagination="fetchUserList"
-      >
+      <CommonTable :loading="loading" :data="userList" :total="total" :page="queryParams.page" :size="queryParams.size"
+        @update:page="val => queryParams.page = val" @update:size="val => queryParams.size = val"
+        @pagination="fetchUserList">
         <!-- 搜索栏 -->
         <template #search>
           <el-form :inline="true" :model="queryParams" class="search-form">
@@ -84,21 +77,35 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column label="操作" width="280" fixed="right">
           <template #default="scope">
-            <el-button v-if="isAdmin" link :type="scope.row.status === 1 ? 'danger' : 'success'"
+            <!-- 只有非管理员账号可以被禁用/启用 -->
+            <el-button v-if="isAdmin && !scope.row.roleCodes.includes('ADMIN')" link
+              :type="scope.row.status === 1 ? 'danger' : 'success'"
               @click="handleToggleStatus(scope.row.id, scope.row.status)">
               {{ scope.row.status === 1 ? '禁用' : '启用' }}
             </el-button>
 
-            <el-button v-if="isAdmin" link type="primary" :disabled="scope.row.id === userStore.userInfo?.id"
+            <!-- 管理员之间不能互相重置密码，也不能重置自己的 -->
+            <el-button
+              v-if="isAdmin && (!scope.row.roleCodes.includes('ADMIN') || scope.row.id !== userStore.userInfo?.id)" link
+              type="primary" :disabled="scope.row.roleCodes.includes('ADMIN')"
               @click="handleResetPassword(scope.row.id, scope.row.username)">
               重置密码
             </el-button>
 
-            <template v-if="isAdmin && scope.row.roleCodes.includes('STUDENT') && scope.row.auditStatus === 0">
-              <el-button link type="success" @click="handleAudit(scope.row.id, 1)">通过</el-button>
-              <el-button link type="warning" @click="handleAudit(scope.row.id, 2)">拒绝</el-button>
+            <!-- 只有非管理员账号可以被删除 -->
+            <el-button v-if="isAdmin && !scope.row.roleCodes.includes('ADMIN')" link type="danger"
+              @click="handleDeleteUser(scope.row)">
+              删除
+            </el-button>
+
+            <!-- 学生账号审核逻辑：支持初始审核和重新审核 -->
+            <template v-if="isAdmin && scope.row.roleCodes.includes('STUDENT')">
+              <el-button v-if="scope.row.auditStatus !== 1" link type="success"
+                @click="handleAudit(scope.row.id, 1)">通过</el-button>
+              <el-button v-if="scope.row.auditStatus !== 2" link type="warning"
+                @click="handleAudit(scope.row.id, 2)">拒绝</el-button>
             </template>
           </template>
         </el-table-column>
@@ -252,6 +259,35 @@ const handleResetPassword = async (userId, username) => {
     ElMessage.success('密码已成功重置为 123456')
   } catch (e) {
     console.error('重置密码失败:', e)
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleDeleteUser = async (row) => {
+  if (!isAdmin.value) return
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要永久删除用户 [${row.username}] 吗？此操作不可恢复，且会清除该用户的所有关联数据。`,
+      '永久删除警告',
+      {
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+        type: 'error'
+      }
+    )
+  } catch {
+    return
+  }
+
+  loading.value = true
+  try {
+    await adminUserApi.deleteUser(row.id)
+    ElMessage.success('用户已删除')
+    fetchUserList()
+  } catch (e) {
+    console.error('删除用户失败:', e)
   } finally {
     loading.value = false
   }

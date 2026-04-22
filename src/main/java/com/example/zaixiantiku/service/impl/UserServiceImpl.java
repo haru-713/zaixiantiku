@@ -121,7 +121,22 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         LoginUser loginUser = (LoginUser) authentication.getPrincipal();
         User user = loginUser.getUser();
 
-        // 3. 生成 JWT Token
+        // 3. 校验账号状态
+        if (user.getStatus() == null || user.getStatus() == 0) {
+            throw new RuntimeException("账号已被禁用，请联系管理员");
+        }
+
+        // 4. 校验审核状态 (仅学生需要审核)
+        if (loginUser.getRoleCodes().contains("STUDENT")) {
+            if (user.getAuditStatus() == null || user.getAuditStatus() == 0) {
+                throw new RuntimeException("账号正在审核中，请耐心等待");
+            }
+            if (user.getAuditStatus() == 2) {
+                throw new RuntimeException("账号审核未通过，请联系管理员");
+            }
+        }
+
+        // 5. 生成 JWT Token
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", user.getId());
         claims.put("sub", user.getUsername());
