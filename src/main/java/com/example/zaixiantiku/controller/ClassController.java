@@ -63,6 +63,13 @@ public class ClassController {
         return Result.success(classService.getClassStudents(id));
     }
 
+    @GetMapping("/by-course")
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
+    @Operation(summary = "根据课程获取班级列表", description = "返回选修了该课程的学生所属的班级")
+    public Result<List<Class>> getClassesByCourse(@RequestParam Long courseId) {
+        return Result.success(classService.getClassesByCourse(courseId));
+    }
+
     @PostMapping("/{id}/students")
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER')")
     @Operation(summary = "向班级批量添加学生")

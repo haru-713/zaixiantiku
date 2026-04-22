@@ -163,6 +163,7 @@ public class PaperServiceImpl implements PaperService {
         requireTeacherOfCourseOrAdmin(loginUser, saveDTO.getCourseId());
 
         validatePaperName(saveDTO.getPaperName(), null, saveDTO.getCourseId());
+        validatePaperScores(saveDTO);
 
         Paper paper = Paper.builder()
                 .paperName(saveDTO.getPaperName())
@@ -201,6 +202,7 @@ public class PaperServiceImpl implements PaperService {
         requireTeacherOfCourseOrAdmin(loginUser, paper.getCourseId());
 
         validatePaperName(saveDTO.getPaperName(), id, paper.getCourseId());
+        validatePaperScores(saveDTO);
 
         paper.setPaperName(saveDTO.getPaperName());
         paper.setTotalScore(saveDTO.getTotalScore());
@@ -223,6 +225,33 @@ public class PaperServiceImpl implements PaperService {
         }
 
         return getPaperDetail(id);
+    }
+
+    private void validatePaperScores(PaperSaveDTO saveDTO) {
+        if (saveDTO.getTotalScore() == null || saveDTO.getTotalScore() <= 0) {
+            throw new RuntimeException("试卷总分必须大于0");
+        }
+
+        if (saveDTO.getQuestions() == null || saveDTO.getQuestions().isEmpty()) {
+            throw new RuntimeException("试卷题目不能为空");
+        }
+
+        int questionCount = saveDTO.getQuestions().size();
+        if (saveDTO.getTotalScore() < questionCount) {
+            throw new RuntimeException("试卷总分(" + saveDTO.getTotalScore() + ")过小，每题至少1分，总分至少应为" + questionCount);
+        }
+
+        int sum = 0;
+        for (PaperQuestionDTO q : saveDTO.getQuestions()) {
+            if (q.getScore() == null || q.getScore() <= 0) {
+                throw new RuntimeException("每道题目的分值必须大于0");
+            }
+            sum += q.getScore();
+        }
+
+        if (sum != saveDTO.getTotalScore()) {
+            throw new RuntimeException("试卷总分(" + saveDTO.getTotalScore() + ")与各题分值总和(" + sum + ")不符");
+        }
     }
 
     @Override

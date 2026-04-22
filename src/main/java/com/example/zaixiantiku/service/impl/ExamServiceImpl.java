@@ -1,14 +1,18 @@
 package com.example.zaixiantiku.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.example.zaixiantiku.entity.CourseStudent;
 import com.example.zaixiantiku.entity.CourseTeacher;
 import com.example.zaixiantiku.entity.Exam;
 import com.example.zaixiantiku.entity.ExamClass;
 import com.example.zaixiantiku.entity.ExamStudent;
+import com.example.zaixiantiku.entity.StudentClass;
+import com.example.zaixiantiku.mapper.CourseStudentMapper;
 import com.example.zaixiantiku.mapper.CourseTeacherMapper;
 import com.example.zaixiantiku.mapper.ExamClassMapper;
 import com.example.zaixiantiku.mapper.ExamMapper;
 import com.example.zaixiantiku.mapper.ExamStudentMapper;
+import com.example.zaixiantiku.mapper.StudentClassMapper;
 import com.example.zaixiantiku.pojo.dto.ExamSaveDTO;
 import com.example.zaixiantiku.pojo.vo.ExamVO;
 import com.example.zaixiantiku.security.LoginUser;
@@ -25,6 +29,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -40,6 +45,8 @@ public class ExamServiceImpl implements ExamService {
     private final CourseTeacherMapper courseTeacherMapper;
     private final com.example.zaixiantiku.mapper.PaperMapper paperMapper;
     private final com.example.zaixiantiku.mapper.ClassMapper classMapper;
+    private final CourseStudentMapper courseStudentMapper;
+    private final StudentClassMapper studentClassMapper;
 
     @Override
     public PageResult<ExamVO> getExamPage(Integer page, Integer size, String keyword, Long courseId, Long classId,
@@ -168,6 +175,9 @@ public class ExamServiceImpl implements ExamService {
         Long creatorId = loginUser.getUser().getId();
         requireTeacherOfCourseOrAdmin(loginUser, saveDTO.getCourseId());
 
+        // 校验所选班级是否确实选修了该课程
+        validateExamClasses(saveDTO.getCourseId(), saveDTO.getClassIds());
+
         Exam exam = Exam.builder()
                 .examName(saveDTO.getExamName())
                 .paperId(saveDTO.getPaperId())
@@ -200,6 +210,9 @@ public class ExamServiceImpl implements ExamService {
 
         LoginUser loginUser = requireLoginUser();
         requireTeacherOfCourseOrAdmin(loginUser, exam.getCourseId());
+
+        // 校验所选班级是否确实选修了该课程
+        validateExamClasses(exam.getCourseId(), saveDTO.getClassIds());
 
         if (saveDTO.getStartTime() != null && saveDTO.getEndTime() != null) {
             if (saveDTO.getEndTime().isBefore(saveDTO.getStartTime())) {
@@ -273,6 +286,39 @@ public class ExamServiceImpl implements ExamService {
                         .studentId(studentId)
                         .build();
                 examStudentMapper.insert(es);
+            }
+        }
+    }
+
+    private void validateExamClasses(Long courseId, List<Long> classIds) {
+        if (classIds == null || classIds.isEmpty()) {
+            return;
+        }
+
+        // 1. 获取选修了该课程的所有学生 ID
+        List<CourseStudent> courseStudents = courseStudentMapper
+                .selectList(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CourseStudent>()
+                        .eq(CourseStudent::getCourseId, courseId));
+        if (courseStudents.isEmpty()) {
+            throw new RuntimeException("该课程暂无学生选课，无法关联班级");
+        }
+        Set<Long> enrolledStudentIds = courseStudents.stream()
+                .map(CourseStudent::getStudentId)
+                .collect(Collectors.toSet());
+
+        // 2. 检查每个班级是否至少包含一名选修该课程的学生
+        for (Long classId : classIds) {
+            List<StudentClass> classStudents = studentClassMapper
+                    .selectList(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<StudentClass>()
+                            .eq(StudentClass::getClassId, classId));
+
+            boolean hasEnrolledStudent = classStudents.stream()
+                    .anyMatch(sc -> enrolledStudentIds.contains(sc.getStudentId()));
+
+            if (!hasEnrolledStudent) {
+                com.example.zaixiantiku.entity.Class clazz = classMapper.selectById(classId);
+                String className = clazz != null ? clazz.getClassName() : String.valueOf(classId);
+                throw new RuntimeException("班级 [" + className + "] 中没有学生选修此课程，请检查");
             }
         }
     }

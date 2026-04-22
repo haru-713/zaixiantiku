@@ -12,4 +12,5 @@ public interface ClassService extends IService<Class> {
     void removeStudentFromClass(Long classId, Long studentId);
     List<StudentSimpleVO> getClassStudents(Long classId);
     void deleteClass(Long classId);
+    List<Class> getClassesByCourse(Long courseId);
 }

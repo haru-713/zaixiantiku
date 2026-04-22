@@ -16,12 +16,14 @@
           @visible-change="handleCourseDropdown" @change="handleCourseChangeQuery">
           <el-option v-for="c in courseOptions" :key="c.id" :label="c.courseName" :value="c.id" />
         </el-select>
-        <el-select v-model="query.classId" placeholder="按班级筛选" clearable style="width: 180px; margin-right: 10px" @change="handleQuery">
+        <el-select v-model="query.classId" placeholder="按班级筛选" clearable style="width: 180px; margin-right: 10px"
+          @change="handleQuery">
           <el-option v-for="c in allClassOptions" :key="c.id" :label="c.className" :value="c.id" />
         </el-select>
         <el-input v-model="query.keyword" placeholder="考试名称关键字" clearable style="width: 200px; margin-right: 10px"
           @keyup.enter="handleQuery" />
-        <el-select v-model="query.status" placeholder="状态" clearable style="width: 100px; margin-right: 10px" @change="handleQuery">
+        <el-select v-model="query.status" placeholder="状态" clearable style="width: 100px; margin-right: 10px"
+          @change="handleQuery">
           <el-option label="未开始" :value="0" />
           <el-option label="进行中" :value="1" />
           <el-option label="已结束" :value="2" />
@@ -41,7 +43,7 @@
         <el-table-column label="起止时间" width="300">
           <template #default="scope">
             <div style="font-size: 12px">
-              {{ formatDateTime(scope.row.startTime) }}<br/>
+              {{ formatDateTime(scope.row.startTime) }}<br />
               {{ formatDateTime(scope.row.endTime) }}
             </div>
           </template>
@@ -126,12 +128,15 @@
             <el-radio :value="1">是</el-radio>
           </el-radio-group>
         </el-form-item>
-        <!-- 这里简化处理，班级和学生ID通过输入或后续补充，暂时留空或支持多选 -->
         <el-form-item label="参与班级">
-          <el-select v-model="form.classIds" multiple placeholder="请选择班级" style="width: 100%">
-            <!-- 这里需要班级列表接口，暂无，可留空或手动输入ID -->
-            <el-option v-for="i in 5" :key="i" :label="'班级 ' + i" :value="i" />
+          <el-select v-model="form.classIds" multiple placeholder="请选择班级" style="width: 100%"
+            :disabled="!form.courseId">
+            <el-option v-for="c in formClassOptions" :key="c.id" :label="c.className" :value="c.id" />
           </el-select>
+          <div v-if="form.courseId && formClassOptions.length === 0"
+            style="color: #909399; font-size: 12px; margin-top: 4px;">
+            该课程暂无学生选课，请先添加学生。
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -163,6 +168,7 @@ const query = reactive({
 
 const courseOptions = ref([])
 const allClassOptions = ref([])
+const formClassOptions = ref([])
 const courseLoading = ref(false)
 const paperOptions = ref([])
 
@@ -260,12 +266,19 @@ const handleCourseDropdown = (visible) => {
 const handleCourseChange = async (val, keepPaperId = false) => {
   if (!keepPaperId) {
     form.paperId = null
+    form.classIds = []
   }
   paperOptions.value = []
+  formClassOptions.value = []
   if (val) {
     try {
-      const res = await request.get('/papers', { params: { courseId: val, status: 1, page: 1, size: 100 } })
-      paperOptions.value = res.data.list
+      // 1. 获取试卷列表
+      const paperRes = await request.get('/papers', { params: { courseId: val, status: 1, page: 1, size: 100 } })
+      paperOptions.value = paperRes.data.list
+
+      // 2. 获取该课程关联的班级列表
+      const classRes = await request.get('/classes/by-course', { params: { courseId: val } })
+      formClassOptions.value = classRes.data || []
     } catch (e) {
       console.error(e)
     }
@@ -309,7 +322,7 @@ const handleCopy = (row) => {
     classIds: [], // 复制时班级和学生通常需要重新确认，或者根据需求决定是否复制
     studentIds: []
   })
-  
+
   // 填充时间显示
   if (row.startTime) {
     const splitChar = row.startTime.includes('T') ? 'T' : ' '
@@ -323,7 +336,7 @@ const handleCopy = (row) => {
     temp.endDate = d
     temp.endTime = t
   }
-  
+
   handleCourseChange(row.courseId, true)
   dialogVisible.value = true
 }
