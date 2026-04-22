@@ -581,97 +581,47 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
             throw new BusinessException("课程不存在");
         }
 
-        if (!SecurityUtils.isAdmin(SecurityUtils.getLoginUser())) {
-            requireCourseOwnerOrAdmin(courseId);
-
-            // 1. 检查教师关联
-            Long teacherCount = courseTeacherMapper
-                    .selectCount(new LambdaQueryWrapper<CourseTeacher>().eq(CourseTeacher::getCourseId, courseId));
-            if (teacherCount != null && teacherCount > 0) {
-                throw new BusinessException("该课程下有关联的任课教师，请先移除所有教师后再删除课程");
-            }
-
-            // 2. 检查学生关联
-            Long studentCount = courseStudentMapper
-                    .selectCount(new LambdaQueryWrapper<CourseStudent>().eq(CourseStudent::getCourseId, courseId));
-            if (studentCount != null && studentCount > 0) {
-                throw new BusinessException("该课程下有关联的选课学生，请先清退学生后再删除课程");
-            }
-
-            // 3. 检查知识点
-            Integer kpCount = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM knowledge_point WHERE course_id = ?",
-                    Integer.class, courseId);
-            if (kpCount != null && kpCount > 0) {
-                throw new BusinessException("该课程下有关联的知识点，请先删除知识点后再删除课程");
-            }
-
-            // 4. 检查题目
-            Integer questionCount = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM question WHERE course_id = ?",
-                    Integer.class, courseId);
-            if (questionCount != null && questionCount > 0) {
-                throw new BusinessException("该课程下有关联的题目，请先清空题目后再删除课程");
-            }
-
-            // 5. 检查试卷
-            if (existsTable("exam_paper")) {
-                Integer paperCount = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM exam_paper WHERE course_id = ?",
-                        Integer.class, courseId);
-                if (paperCount != null && paperCount > 0) {
-                    throw new BusinessException("该课程下有关联的试卷，请先删除试卷后再删除课程");
-                }
-            }
-        } else {
-            // 管理员强制删除：清理所有关联数据
-
-            // A. 清理考试相关 (从叶子到根)
-            // 1. 答题详情
-            jdbcTemplate.update(
-                    "DELETE FROM answer_detail WHERE exam_record_id IN (SELECT id FROM exam_record WHERE exam_id IN (SELECT id FROM exam WHERE course_id = ?))",
-                    courseId);
-            // 2. 考试记录
-            jdbcTemplate.update("DELETE FROM exam_record WHERE exam_id IN (SELECT id FROM exam WHERE course_id = ?)",
-                    courseId);
-            // 3. 考试范围关联
-            jdbcTemplate.update("DELETE FROM exam_class WHERE exam_id IN (SELECT id FROM exam WHERE course_id = ?)",
-                    courseId);
-            jdbcTemplate.update("DELETE FROM exam_student WHERE exam_id IN (SELECT id FROM exam WHERE course_id = ?)",
-                    courseId);
-            // 4. 考试本身
-            jdbcTemplate.update("DELETE FROM exam WHERE course_id = ?", courseId);
-
-            // B. 清理试卷相关
-            // 1. 试卷题目关联
-            jdbcTemplate.update(
-                    "DELETE FROM paper_question WHERE paper_id IN (SELECT id FROM paper WHERE course_id = ?)",
-                    courseId);
-            // 2. 试卷本身
-            jdbcTemplate.update("DELETE FROM paper WHERE course_id = ?", courseId);
-
-            // C. 清理题目相关
-            // 1. 错题本/收藏夹/知识点关联
-            jdbcTemplate.update(
-                    "DELETE FROM mistake_book WHERE question_id IN (SELECT id FROM question WHERE course_id = ?)",
-                    courseId);
-            jdbcTemplate.update(
-                    "DELETE FROM favorite WHERE question_id IN (SELECT id FROM question WHERE course_id = ?)",
-                    courseId);
-            jdbcTemplate.update(
-                    "DELETE FROM question_knowledge WHERE question_id IN (SELECT id FROM question WHERE course_id = ?)",
-                    courseId);
-            // 2. 题目本身
-            jdbcTemplate.update("DELETE FROM question WHERE course_id = ?", courseId);
-
-            // D. 清理课程基础数据
-            // 1. 练习记录
-            jdbcTemplate.update("DELETE FROM practice_record WHERE course_id = ?", courseId);
-            // 2. 知识点
-            jdbcTemplate.update("DELETE FROM knowledge_point WHERE course_id = ?", courseId);
-            // 3. 师生关联
-            jdbcTemplate.update("DELETE FROM course_teacher WHERE course_id = ?", courseId);
-            jdbcTemplate.update("DELETE FROM course_student WHERE course_id = ?", courseId);
+        // 核心资源校验：无论管理员还是普通教师，若存在核心教学资源，均禁止删除
+        // 1. 检查学生关联
+        Long studentCount = courseStudentMapper
+                .selectCount(new LambdaQueryWrapper<CourseStudent>().eq(CourseStudent::getCourseId, courseId));
+        if (studentCount != null && studentCount > 0) {
+            throw new BusinessException("该课程下已有选课学生，禁止删除课程。请先清退学生或由管理员处理。");
         }
 
-        // 6. 删除课程
+        // 2. 检查知识点
+        Integer kpCount = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM knowledge_point WHERE course_id = ?",
+                Integer.class, courseId);
+        if (kpCount != null && kpCount > 0) {
+            throw new BusinessException("该课程下有关联的知识点，请先删除知识点后再删除课程");
+        }
+
+        // 3. 检查题目
+        Integer questionCount = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM question WHERE course_id = ?",
+                Integer.class, courseId);
+        if (questionCount != null && questionCount > 0) {
+            throw new BusinessException("该课程下有关联的题目，请先清空题目后再删除课程");
+        }
+
+        // 4. 检查试卷 (包含 paper_question 级联检查)
+        Integer paperCount = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM paper WHERE course_id = ?",
+                Integer.class, courseId);
+        if (paperCount != null && paperCount > 0) {
+            throw new BusinessException("该课程下有关联的试卷，请先删除试卷后再删除课程");
+        }
+
+        // 权限检查
+        if (!SecurityUtils.isAdmin(SecurityUtils.getLoginUser())) {
+            requireCourseOwnerOrAdmin(courseId);
+        }
+
+        // 清理基础关联数据
+        // 1. 练习记录
+        jdbcTemplate.update("DELETE FROM practice_record WHERE course_id = ?", courseId);
+        // 2. 师生关联 (不再作为阻碍，直接清理)
+        jdbcTemplate.update("DELETE FROM course_teacher WHERE course_id = ?", courseId);
+
+        // 5. 删除课程
         int rows = courseMapper.deleteById(courseId);
         if (rows != 1) {
             throw new RuntimeException("删除课程失败");
@@ -739,40 +689,33 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     @Transactional(rollbackFor = Exception.class)
     public void removeTeacher(Long courseId, Long teacherId) {
         if (courseId == null) {
-            throw new RuntimeException("courseId 不能为空");
+            throw new BusinessException("courseId 不能为空");
         }
         if (teacherId == null) {
-            throw new RuntimeException("teacherId 不能为空");
+            throw new BusinessException("teacherId 不能为空");
         }
 
         Course course = courseMapper.selectById(courseId);
         if (course == null) {
-            throw new RuntimeException("课程不存在");
+            throw new BusinessException("课程不存在");
         }
 
-        LoginUser loginUser = SecurityUtils.requireLoginUser();
+        SecurityUtils.requireLoginUser();
 
-        // 1. 如果是管理员，允许移除任何教师（包括最后一名）
-        if (SecurityUtils.isAdmin(SecurityUtils.getLoginUser())) {
-            courseTeacherMapper.delete(new LambdaQueryWrapper<CourseTeacher>()
-                    .eq(CourseTeacher::getCourseId, courseId)
-                    .eq(CourseTeacher::getTeacherId, teacherId));
-            return;
-        }
-
-        // 2. 如果是普通教师
-        requireCourseOwnerOrAdmin(courseId);
-
-        // 校验：普通教师只能移除自己（即退出课程）
-        if (!teacherId.equals(SecurityUtils.getUserId())) {
-            throw new BusinessException("普通教师仅能退出自己教授的课程，无法移除其他教师");
-        }
-
-        // 校验：唯一教师限制
+        // 校验：课程至少保留一名教师
         Long teacherCount = courseTeacherMapper.selectCount(new LambdaQueryWrapper<CourseTeacher>()
                 .eq(CourseTeacher::getCourseId, courseId));
         if (teacherCount != null && teacherCount <= 1) {
-            throw new BusinessException("您是该课程的唯一任课教师。若要不再教授该课程，请联系管理员，或在清空所有关联数据后由管理员删除该课程。");
+            throw new BusinessException("课程至少需要一名任课教师，无法移除最后一位。若需删除课程，请直接点击“删除课程”按钮。");
+        }
+
+        // 权限校验：仅管理员或课程创建者可移除教师，且教师可退出自己教授的课程
+        boolean isAdmin = SecurityUtils.isAdmin(SecurityUtils.getLoginUser());
+        boolean isCreator = isCourseCreator(courseId);
+        boolean isSelf = Objects.equals(teacherId, SecurityUtils.getUserId());
+
+        if (!isAdmin && !isCreator && !isSelf) {
+            throw new BusinessException("无权移除该教师");
         }
 
         courseTeacherMapper.delete(new LambdaQueryWrapper<CourseTeacher>()

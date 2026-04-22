@@ -46,13 +46,21 @@
       <el-table :data="detail.teachers || []" style="width: 100%">
         <el-table-column type="index" label="序号" width="80" />
         <el-table-column prop="name" label="姓名" />
+        <el-table-column label="操作" width="120">
+          <template #default="scope">
+            <el-button v-if="canRemoveTeacherUI(scope.row)" link type="danger"
+              @click="handleRemoveTeacher(scope.row)">移除</el-button>
+          </template>
+        </el-table-column>
       </el-table>
 
       <template v-if="localCanManageStudents">
         <el-divider />
         <div class="student-manage-entry">
           <el-button type="success" size="large" @click="goToStudentManage">
-            <el-icon style="margin-right: 8px"><User /></el-icon>
+            <el-icon style="margin-right: 8px">
+              <User />
+            </el-icon>
             管理课程学生
           </el-button>
           <p class="hint">点击进入专用的学生管理页面，进行按班级批量导入、筛选及移除操作。</p>
@@ -152,6 +160,15 @@ const canAddTeacherUI = computed(() => {
   return false
 })
 
+const canRemoveTeacherUI = (row) => {
+  // 管理员和课程创建者有权移除教师
+  if (localIsAdmin.value || detail.value.canRemoveTeacher === true) {
+    return true
+  }
+  // 教师可以退出自己教授的课程
+  return row.id === currentUserId.value
+}
+
 const formatDateTime = (value) => {
   if (!value) {
     return '-'
@@ -249,7 +266,6 @@ const confirmAddTeachers = async () => {
     return
   }
 
-  teacherSaving.value = true
   try {
     await request.post(`/courses/${courseId}/teachers`, { teacherIds: selectedTeacherIds.value })
     ElMessage.success('添加成功')
@@ -259,6 +275,32 @@ const confirmAddTeachers = async () => {
     console.error('添加教师失败:', e)
   } finally {
     teacherSaving.value = false
+  }
+}
+
+const handleRemoveTeacher = async (row) => {
+  const courseId = route.params.courseId
+  if (!courseId || !row.id) return
+
+  const isSelf = row.id === currentUserId.value
+  const confirmMsg = isSelf
+    ? '确定要退出该课程的授课吗？'
+    : `确定将教师 [${row.name}] 从本课程中移除吗？`
+
+  try {
+    await ElMessageBox.confirm(confirmMsg, '操作确认', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+
+    await request.delete(`/courses/${courseId}/teachers`, { params: { teacherId: row.id } })
+    ElMessage.success(isSelf ? '已成功退出课程' : '移除成功')
+    fetchDetail()
+  } catch (e) {
+    if (e !== 'cancel') {
+      console.error('移除教师失败:', e)
+    }
   }
 }
 
