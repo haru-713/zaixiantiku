@@ -38,6 +38,11 @@ public class AnnouncementServiceImpl implements AnnouncementService {
             throw new RuntimeException("该公告已过期，如需重新显示请修改结束时间");
         }
 
+        // 唯一置顶逻辑：如果当前公告设为置顶，则取消其他所有置顶
+        if (announcement.getIsTop() != null && announcement.getIsTop() == 1) {
+            unpinAllAnnouncements();
+        }
+
         announcementMapper.insert(announcement);
         return announcement;
     }
@@ -57,9 +62,21 @@ public class AnnouncementServiceImpl implements AnnouncementService {
             }
         }
 
+        // 唯一置顶逻辑：如果当前公告被修改为置顶，则取消其他所有置顶
+        if (announcement.getIsTop() != null && announcement.getIsTop() == 1) {
+            unpinAllAnnouncements();
+        }
+
         announcement.setId(id);
         announcementMapper.updateById(announcement);
         return announcement;
+    }
+
+    private void unpinAllAnnouncements() {
+        Announcement update = new Announcement();
+        update.setIsTop(0);
+        announcementMapper.update(update, new LambdaQueryWrapper<Announcement>()
+                .eq(Announcement::getIsTop, 1));
     }
 
     @Override
@@ -80,20 +97,17 @@ public class AnnouncementServiceImpl implements AnnouncementService {
     @Override
     public PageResult<Announcement> getAnnouncements(Integer isTop, Integer page, Integer size, boolean filterExpired) {
         PageHelper.startPage(page, size);
-        LocalDateTime now = LocalDateTime.now();
 
         LambdaQueryWrapper<Announcement> qw = new LambdaQueryWrapper<Announcement>();
 
         if (filterExpired) {
-            qw.eq(Announcement::getStatus, 1); // 仅查询显示状态
+            // 面向普通用户时：
+            // 1. 必须是“显示”状态
+            qw.eq(Announcement::getStatus, 1);
 
-            // 过滤未开始的
-            qw.and(wrapper -> wrapper
-                    .le(Announcement::getStartTime, now)
-                    .or()
-                    .isNull(Announcement::getStartTime));
-
-            // 过滤已过期的
+            // 2. 必须未过期（或未设置结束时间）
+            // 不再过滤“未开始”的公告，只要管理员设为“显示”，用户即可看到（如提前发布的通知）
+            LocalDateTime now = LocalDateTime.now();
             qw.and(wrapper -> wrapper
                     .ge(Announcement::getEndTime, now)
                     .or()
@@ -109,6 +123,22 @@ public class AnnouncementServiceImpl implements AnnouncementService {
                 .orderByDesc(Announcement::getCreateTime);
 
         List<Announcement> list = announcementMapper.selectList(qw);
+
+        // 业务逻辑优化：如果是面向普通用户的视图，且数据库中存在多条置顶（历史遗留数据），
+        // 则强制只将最新的一条保留置顶标识，其余在展示层临时改为非置顶，确保 UI 的“唯一置顶”感。
+        if (filterExpired && !list.isEmpty()) {
+            boolean foundTop = false;
+            for (Announcement a : list) {
+                if (a.getIsTop() != null && a.getIsTop() == 1) {
+                    if (foundTop) {
+                        a.setIsTop(0); // 后续的置顶在展示时降级为普通公告
+                    } else {
+                        foundTop = true;
+                    }
+                }
+            }
+        }
+
         PageInfo<Announcement> pageInfo = new PageInfo<>(list);
         return PageResult.of(pageInfo.getTotal(), list);
     }

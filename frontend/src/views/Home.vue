@@ -62,22 +62,28 @@
       <template #header>
         <div class="card-header-v4">
           <div class="header-left">
-            <el-icon class="header-icon"><Notification /></el-icon>
+            <el-icon class="header-icon">
+              <Notification />
+            </el-icon>
             <span class="header-title">系统公告</span>
           </div>
           <el-button link type="primary" @click="handleViewMoreAnnouncements">
-            更多 <el-icon><ArrowRight /></el-icon>
+            更多 <el-icon>
+              <ArrowRight />
+            </el-icon>
           </el-button>
         </div>
       </template>
-      
+
       <div class="announcement-container-v4" v-if="announcementList.length > 0">
         <!-- 左侧焦点区域 (40%) -->
-        <div class="focus-side" :class="{ 'full-width': announcementList.length === 1 }" @click="showAnnouncementDetail(focusAnnouncement)">
+        <div class="focus-side" :class="{ 'full-width': announcementList.length === 1 }"
+          @click="showAnnouncementDetail(focusAnnouncement)">
           <div class="focus-inner">
             <div class="focus-header">
               <div class="title-row">
-                <el-tag v-if="focusAnnouncement.isTop == 1" type="warning" size="small" effect="dark" class="top-tag">置顶</el-tag>
+                <el-tag v-if="focusAnnouncement.isTop == 1" type="warning" size="small" effect="dark"
+                  class="top-tag">置顶</el-tag>
                 <h3 class="focus-title">{{ focusAnnouncement.title }}</h3>
               </div>
               <span class="focus-time">{{ formatDateTime(focusAnnouncement.createTime) }}</span>
@@ -103,7 +109,12 @@
             </el-carousel-item>
           </el-carousel>
           <div class="carousel-footer">
-            <span class="footer-count">共 {{ carouselList.length }} 条其他动态</span>
+            <span class="footer-count">共 {{ announcementTotal - 1 }} 条其他动态</span>
+            <el-button link type="primary" @click="router.push('/announcements')">
+              查看全部 <el-icon>
+                <ArrowRight />
+              </el-icon>
+            </el-button>
           </div>
         </div>
 
@@ -111,7 +122,8 @@
         <div class="empty-side" v-else-if="announcementList.length === 1">
           <div class="empty-placeholder">
             <p>暂无其他公告</p>
-            <el-button v-if="isAdmin" type="primary" link size="small" icon="Plus" @click="handlePublish">发布公告</el-button>
+            <el-button v-if="isAdmin" type="primary" link size="small" icon="Plus"
+              @click="handlePublish">发布公告</el-button>
           </div>
         </div>
       </div>
@@ -119,7 +131,8 @@
       <!-- 全局无公告状态 -->
       <div v-else class="no-announcement-v4">
         <el-empty description="暂无系统公告" :image-size="64">
-          <el-button v-if="isAdmin" type="primary" plain size="small" icon="Plus" @click="handlePublish">发布新公告</el-button>
+          <el-button v-if="isAdmin" type="primary" plain size="small" icon="Plus"
+            @click="handlePublish">发布新公告</el-button>
         </el-empty>
       </div>
     </el-card>
@@ -128,7 +141,9 @@
     <el-dialog v-model="detailVisible" :title="currentAnnouncement.title" width="600px" center class="custom-dialog">
       <div class="announcement-detail">
         <div class="meta">
-          <span><el-icon><Calendar /></el-icon> 发布时间：{{ formatDateTime(currentAnnouncement.createTime) }}</span>
+          <span><el-icon>
+              <Calendar />
+            </el-icon> 发布时间：{{ formatDateTime(currentAnnouncement.createTime) }}</span>
           <el-tag v-if="currentAnnouncement.isTop" type="danger" size="small" style="margin-left: 10px">置顶</el-tag>
         </div>
         <div class="content">{{ currentAnnouncement.content }}</div>
@@ -155,6 +170,7 @@ const isStudent = computed(() => roles.value.includes('STUDENT'))
 
 const loading = ref(true)
 const announcementList = ref([])
+const announcementTotal = ref(0)
 const detailVisible = ref(false)
 const currentAnnouncement = ref({})
 
@@ -303,6 +319,7 @@ const fetchAnnouncements = async () => {
     const res = await request.get('/announcements', { params: { size: 10, publicView: true } })
     if (res.code === 1) {
       announcementList.value = res.data.list
+      announcementTotal.value = res.data.total
     }
   } catch (error) {
     console.error('获取公告失败:', error)
@@ -531,7 +548,8 @@ onMounted(() => {
   transition: background 0.2s;
   display: flex;
   flex-direction: column;
-  min-width: 0; /* 防止内容撑开容器 */
+  min-width: 0;
+  /* 防止内容撑开容器 */
 }
 
 .focus-side.full-width {
@@ -579,7 +597,8 @@ onMounted(() => {
   line-height: 1.6;
   color: #64748b;
   display: -webkit-box;
-  -webkit-line-clamp: 4; /* 增加展示行数 */
+  -webkit-line-clamp: 4;
+  /* 增加展示行数 */
   -webkit-box-orient: vertical;
   overflow: hidden;
   white-space: pre-wrap;
@@ -588,11 +607,13 @@ onMounted(() => {
 .vertical-divider {
   width: 1px;
   background-color: #f1f5f9;
-  flex-shrink: 0; /* 防止分隔线被压缩 */
+  flex-shrink: 0;
+  /* 防止分隔线被压缩 */
 }
 
 .carousel-side {
-  flex: 1; /* 使用 flex: 1 自动填充剩余空间，解决 1px 溢出问题 */
+  flex: 1;
+  /* 使用 flex: 1 自动填充剩余空间，解决 1px 溢出问题 */
   padding: 0;
   position: relative;
   display: flex;
@@ -699,11 +720,11 @@ onMounted(() => {
   .home-container {
     gap: 16px;
   }
-  
+
   .welcome-card {
     padding: 16px 20px;
   }
-  
+
   .welcome-meta .divider,
   .welcome-meta .quote {
     display: none;
@@ -712,15 +733,17 @@ onMounted(() => {
   .stat-value {
     font-size: 24px;
   }
-  
+
   .announcement-container-v4 {
     flex-direction: column;
   }
-  
-  .focus-side, .carousel-side, .empty-side {
+
+  .focus-side,
+  .carousel-side,
+  .empty-side {
     flex: 0 0 auto;
   }
-  
+
   .vertical-divider {
     display: none;
   }
