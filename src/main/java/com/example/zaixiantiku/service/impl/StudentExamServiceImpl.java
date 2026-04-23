@@ -79,8 +79,9 @@ public class StudentExamServiceImpl implements StudentExamService {
         }
 
         // 2. 查询学生选修课程下的所有考试
+        // 状态说明：0-未开始，1-进行中，2-已结束。学生应能看到未开始和进行中的。
         LambdaQueryWrapper<Exam> examQw = new LambdaQueryWrapper<Exam>()
-                .eq(Exam::getStatus, 1) // 仅显示已发布的考试
+                .ne(Exam::getStatus, 2) // 不显示已结束的考试（已结束的在考试记录中查看）
                 .in(Exam::getCourseId, enrolledCourseIds);
 
         if (courseId != null) {
@@ -90,12 +91,31 @@ public class StudentExamServiceImpl implements StudentExamService {
             examQw.eq(Exam::getCourseId, courseId);
         }
 
-        List<Exam> exams = examMapper.selectList(examQw);
+        List<Exam> allExamsInCourses = examMapper.selectList(examQw);
+        if (allExamsInCourses.isEmpty()) {
+            return PageResult.of(0L, new ArrayList<>());
+        }
+
+        // 3. 过滤出该学生有权参加的考试（班级关联或个人关联）
+        // 获取该学生所属的所有班级ID
+        List<Long> classIds = studentClassMapper.selectList(new LambdaQueryWrapper<StudentClass>()
+                .eq(StudentClass::getStudentId, userId))
+                .stream().map(StudentClass::getClassId).collect(Collectors.toList());
+
+        List<Exam> exams = allExamsInCourses.stream().filter(exam -> {
+            try {
+                // 复用权限校验逻辑进行过滤，但不抛出异常
+                return hasStudentExamPermission(exam, userId, classIds);
+            } catch (Exception e) {
+                return false;
+            }
+        }).collect(Collectors.toList());
+
         if (exams.isEmpty()) {
             return PageResult.of(0L, new ArrayList<>());
         }
 
-        // 3. 获取学生已提交的考试记录，用于过滤
+        // 4. 获取学生已提交的考试记录，用于过滤
         List<Long> allExamIds = exams.stream().map(Exam::getId).collect(Collectors.toList());
         List<ExamRecord> submittedRecords = examRecordMapper.selectList(new LambdaQueryWrapper<ExamRecord>()
                 .eq(ExamRecord::getUserId, userId)
@@ -113,7 +133,7 @@ public class StudentExamServiceImpl implements StudentExamService {
             return PageResult.of(0L, new ArrayList<>());
         }
 
-        // 4. 获取试卷名映射
+        // 5. 获取试卷名映射
         List<Long> paperIds = unsubmittedExams.stream().map(Exam::getPaperId).distinct().collect(Collectors.toList());
         Map<Long, String> paperNameMap = new HashMap<>();
         if (!paperIds.isEmpty()) {
@@ -380,12 +400,18 @@ public class StudentExamServiceImpl implements StudentExamService {
     }
 
     private void checkStudentExamPermission(Exam exam, Long userId, List<Long> classIds) {
+        if (!hasStudentExamPermission(exam, userId, classIds)) {
+            throw new RuntimeException("您没有权限参加该考试");
+        }
+    }
+
+    private boolean hasStudentExamPermission(Exam exam, Long userId, List<Long> classIds) {
         // 1. 基础校验：学生必须参加了该考试所属的课程
         Long enrolled = courseStudentMapper.selectCount(new LambdaQueryWrapper<CourseStudent>()
                 .eq(CourseStudent::getCourseId, exam.getCourseId())
                 .eq(CourseStudent::getStudentId, userId));
         if (enrolled == null || enrolled == 0) {
-            throw new RuntimeException("您没有参加该课程，无权参加考试");
+            return false;
         }
 
         // 2. 检查分配情况
@@ -396,7 +422,7 @@ public class StudentExamServiceImpl implements StudentExamService {
 
         // 如果既没分配班级也没分配个人，则全员开放
         if ((classCount == null || classCount == 0) && (studentCount == null || studentCount == 0)) {
-            return;
+            return true;
         }
 
         // 检查班级关联
@@ -405,7 +431,7 @@ public class StudentExamServiceImpl implements StudentExamService {
                     .eq(ExamClass::getExamId, exam.getId())
                     .in(ExamClass::getClassId, classIds));
             if (inClass != null && inClass > 0)
-                return;
+                return true;
         }
 
         // 检查学生直接指定
@@ -414,10 +440,10 @@ public class StudentExamServiceImpl implements StudentExamService {
                     .eq(ExamStudent::getExamId, exam.getId())
                     .eq(ExamStudent::getStudentId, userId));
             if (isSpecified != null && isSpecified > 0)
-                return;
+                return true;
         }
 
-        throw new RuntimeException("您没有权限参加该考试");
+        return false;
     }
 
     private List<String> parseOptions(String optionsJson) {
