@@ -51,6 +51,15 @@ public class StudentExamController {
         return Result.success(vo);
     }
 
+    @PostMapping("/exams/{examId}/answers/{questionId}")
+    @PreAuthorize("hasRole('STUDENT')")
+    @Operation(summary = "自动保存单题答案")
+    public Result<Void> saveAnswer(@PathVariable Long examId, @PathVariable Long questionId,
+            @RequestBody Map<String, String> body) {
+        studentExamService.saveAnswer(examId, questionId, body.get("answer"));
+        return Result.success();
+    }
+
     @PostMapping("/exams/{examId}/submit")
     @PreAuthorize("hasRole('STUDENT')")
     @Operation(summary = "提交试卷")

@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 进入考试 VO
@@ -19,6 +20,8 @@ public class ExamEnterVO {
     private String examName;
     private PaperInfo paper;
     private Long remainingSeconds;
+    private Map<Long, String> answers; // 已保存的答案：questionId -> answer
+    private Integer cheatCount; // 已记录的切屏次数
 
     @Data
     @Builder

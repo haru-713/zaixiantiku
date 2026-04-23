@@ -27,6 +27,11 @@ public interface StudentExamService {
     ExamEnterVO enterExam(Long examId);
 
     /**
+     * 自动保存答案
+     */
+    void saveAnswer(Long examId, Long questionId, String answer);
+
+    /**
      * 提交试卷
      */
     Map<String, Object> submitExam(Long examId, ExamSubmitDTO submitDTO);

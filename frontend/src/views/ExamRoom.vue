@@ -15,6 +15,7 @@
           </span>
         </div>
         <div class="exam-actions">
+          <el-button type="danger" plain @click="handleManualExit">退出考试</el-button>
           <el-button type="success" @click="confirmSubmit">提交试卷</el-button>
         </div>
       </el-header>
@@ -41,27 +42,37 @@
             </div>
             <div class="q-options">
               <!-- 单选题 -->
-              <el-radio-group v-if="q.typeId === 1" v-model="answers[q.id]">
+              <el-radio-group v-if="q.typeId === 1" v-model="answers[q.id]" @change="handleAnswerChange(q.id)">
                 <el-radio v-for="opt in q.options" :key="opt" :value="opt.substring(0, 1)" class="opt-item">
                   {{ opt }}
                 </el-radio>
               </el-radio-group>
 
               <!-- 多选题 -->
-              <el-checkbox-group v-else-if="q.typeId === 2" v-model="answers[q.id]">
+              <el-checkbox-group v-else-if="q.typeId === 2" v-model="answers[q.id]" @change="handleAnswerChange(q.id)">
                 <el-checkbox v-for="opt in q.options" :key="opt" :value="opt.substring(0, 1)" class="opt-item">
                   {{ opt }}
                 </el-checkbox>
               </el-checkbox-group>
 
-              <!-- 填空题 -->
-              <div v-else-if="q.typeId === 3" class="fill-blank-options">
-                <el-input v-model="answers[q.id]" type="textarea" :rows="3" placeholder="请输入答案" />
+              <!-- 判断题 -->
+              <div v-else-if="q.typeId === 3" class="judge-options">
+                <el-radio-group v-model="answers[q.id]" @change="handleAnswerChange(q.id)">
+                  <el-radio value="对" border>正确</el-radio>
+                  <el-radio value="错" border>错误</el-radio>
+                </el-radio-group>
               </div>
 
-              <!-- 主观题 -->
-              <div v-else-if="q.typeId === 4" class="subjective-options">
-                <el-input v-model="answers[q.id]" type="textarea" :rows="5" placeholder="请输入答案" />
+              <!-- 填空题 -->
+              <div v-else-if="q.typeId === 4" class="fill-blank-options">
+                <el-input v-model="answers[q.id]" type="textarea" :rows="3" placeholder="请输入答案"
+                  @blur="handleAnswerChange(q.id)" />
+              </div>
+
+              <!-- 主观题/简答题 -->
+              <div v-else-if="q.typeId === 5" class="subjective-options">
+                <el-input v-model="answers[q.id]" type="textarea" :rows="5" placeholder="请输入答案"
+                  @blur="handleAnswerChange(q.id)" />
               </div>
             </div>
           </div>
@@ -84,18 +95,36 @@ const examId = route.params.examId
 const loading = ref(true)
 const examData = ref(null)
 const remainingSeconds = ref(0)
-const answers = ref({})
+const answers = reactive({})
 const cheatCount = ref(0)
 const maxCheatCount = 3
 let timer = null
 
-const handleVisibilityChange = () => {
-  if (document.visibilityState === 'hidden') {
+const handleManualExit = () => {
+  ElMessageBox.confirm(
+    '确定要退出考试吗？您的答题记录将被保存，但考试时间将继续计时。如果切屏或退出次数过多将被强制交卷。',
+    '退出确认',
+    {
+      confirmButtonText: '确定退出',
+      cancelButtonText: '继续答题',
+      type: 'warning'
+    }
+  ).then(() => {
+    // 手动退出也触发一次切屏/离开计数逻辑
+    handleVisibilityChange({ manual: true })
+    if (cheatCount.value < maxCheatCount) {
+      router.push('/my-exams')
+    }
+  }).catch(() => { })
+}
+
+const handleVisibilityChange = (options = {}) => {
+  if (document.visibilityState === 'hidden' || options.manual) {
     cheatCount.value++
     recordCheat()
 
     if (cheatCount.value >= maxCheatCount) {
-      ElMessageBox.alert('您已切屏超过 3 次，考试被强制提交！', '作弊警告', {
+      ElMessageBox.alert('您已累计离开考试 3 次，系统已自动为您交卷！', '考试终止', {
         confirmButtonText: '确定',
         type: 'error',
         callback: () => {
@@ -103,8 +132,36 @@ const handleVisibilityChange = () => {
         }
       })
     } else {
-      ElMessage.warning(`警告：切屏记录一次！切屏超过 3 次将自动交卷。当前切屏次数：${cheatCount.value}`)
+      // 如果不是手动点击退出按钮（即是真正的切屏），则显示警告
+      if (!options.manual) {
+        ElMessageBox.confirm(
+          `警告：检测到您离开考试界面！累计切屏 ${cheatCount.value} 次，达到 ${maxCheatCount} 次将自动交卷。`,
+          '防作弊警告',
+          {
+            confirmButtonText: '继续答题',
+            cancelButtonText: '退出考试',
+            type: 'warning',
+            distinguishCancelAndClose: true
+          }
+        ).catch(action => {
+          if (action === 'cancel') {
+            submit(true) // 用户在警告框点击退出，也强制交卷
+          }
+        })
+      }
     }
+  }
+}
+
+const handleAnswerChange = async (questionId) => {
+  let userAnswer = answers[questionId]
+  if (Array.isArray(userAnswer)) {
+    userAnswer = userAnswer.sort().join(',')
+  }
+  try {
+    await request.post(`/exams/${examId}/answers/${questionId}`, { answer: userAnswer || '' })
+  } catch (e) {
+    console.error('自动保存失败', e)
   }
 }
 
@@ -151,15 +208,16 @@ const fetchExam = async () => {
     remainingSeconds.value = res.data.remainingSeconds
 
     // 初始化答案
-    const initialAnswers = {}
+    Object.keys(answers).forEach(key => delete answers[key])
     examData.value.paper.questions.forEach(q => {
-      if (q.typeId === 2) { // 多选题
-        initialAnswers[q.id] = []
-      } else { // 单选、填空、主观题
-        initialAnswers[q.id] = ''
+      const savedAnswer = res.data.answers ? res.data.answers[q.id] : null
+      if (q.typeId === 2) {
+        answers[q.id] = savedAnswer ? savedAnswer.split('') : []
+      } else {
+        answers[q.id] = savedAnswer || ''
       }
     })
-    answers.value = initialAnswers
+    cheatCount.value = res.data.cheatCount || 0
     startTimer()
   } catch (e) {
     console.error(e)
@@ -193,7 +251,7 @@ const scrollTo = (id) => {
 }
 
 const isQuestionDone = (q) => {
-  const ans = answers.value[q.id]
+  const ans = answers[q.id]
   if (q.typeId === 2) {
     return Array.isArray(ans) && ans.length > 0
   }
@@ -222,9 +280,9 @@ const submit = async (isForce = false) => {
   try {
     const submitData = {
       answers: examData.value.paper.questions.map(q => {
-        let userAnswer = answers.value[q.id]
+        let userAnswer = answers[q.id]
         if (q.typeId === 2) { // 多选题答案需要转换为字符串
-          userAnswer = Array.isArray(userAnswer) ? userAnswer.sort().join('') : ''
+          userAnswer = Array.isArray(userAnswer) ? userAnswer.sort().join(',') : ''
         }
         return {
           questionId: q.id,

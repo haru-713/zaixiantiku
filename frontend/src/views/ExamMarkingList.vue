@@ -69,10 +69,15 @@
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="防作弊异常" width="200">
+              <el-table-column label="防作弊异常" width="220">
                 <template #default="scope">
-                  <div v-if="scope.row.cheatCount > 0" class="cheat-info">
-                    <el-tag type="warning" size="small" class="cheat-tag">
+                  <div v-if="scope.row.cheatCount > 0 || scope.row.forceSubmit" class="cheat-info">
+                    <el-tooltip v-if="scope.row.cheatCount >= 3" content="该生切屏次数过多，已被强制交卷" placement="top">
+                      <el-tag type="danger" size="small" class="cheat-tag" effect="dark">
+                        ⚠️ 可疑：切屏 {{ scope.row.cheatCount }} 次
+                      </el-tag>
+                    </el-tooltip>
+                    <el-tag v-else type="warning" size="small" class="cheat-tag">
                       切屏: {{ scope.row.cheatCount }} 次
                     </el-tag>
                     <el-tag v-if="scope.row.forceSubmit" type="danger" size="small" class="cheat-tag">
@@ -134,7 +139,7 @@
             <div class="q-header">
               <span class="q-index">{{ index + 1 }}.</span>
               <el-tag size="small" type="info">{{ item.typeName }}</el-tag>
-              <span class="q-score-limit">(分值：{{ item.score }}分)</span>
+              <span class="q-score-limit">(分值：{{ item.maxScore }}分)</span>
             </div>
 
             <div class="q-content" v-html="item.content"></div>
@@ -158,9 +163,7 @@
 
             <div class="marking-action" v-if="currentRecord.status === 1">
               <span class="mark-label">评分：</span>
-              <el-input-number v-model="markScores[item.questionId]" :min="0" :max="item.score" size="small" />
-              <el-input v-model="markComments[item.questionId]" placeholder="评语" size="small"
-                style="width: 300px; margin-left: 10px" />
+              <el-input-number v-model="markScores[item.questionId]" :min="0" :max="item.maxScore" size="small" />
             </div>
             <div class="marked-info" v-else>
               <span class="mark-label">得分：</span>
@@ -241,9 +244,8 @@ const currentNavIndex = computed(() => {
   return pendingRecordIds.value.indexOf(currentRecord.value.id)
 })
 
-// 存储评分和评语
+// 存储评分
 const markScores = reactive({})
-const markComments = reactive({})
 
 const fetchList = async () => {
   loading.value = true
@@ -302,9 +304,13 @@ const loadMarkingData = async (recordId) => {
     const res = await request.get(`/student/exam-records/${recordId}`)
     markingData.value = res.data
 
+    // 如果 currentRecord 信息不全，补全它
+    if (res.data.studentName) {
+      currentRecord.value = { ...currentRecord.value, studentName: res.data.studentName }
+    }
+
     // 清空旧数据
     Object.keys(markScores).forEach(key => delete markScores[key])
-    Object.keys(markComments).forEach(key => delete markComments[key])
 
     // 仅初始化主观题的评分数据（客观题由系统自动评分，无需教师操作）
     const objectiveKeywords = ['单选', '多选', '判断']
@@ -313,7 +319,6 @@ const loadMarkingData = async (recordId) => {
       const isSubjective = !objectiveKeywords.some(kw => typeName.includes(kw))
       if (isSubjective) {
         markScores[ans.questionId] = ans.score || 0
-        markComments[ans.questionId] = ans.comment || ''
       }
     })
   } finally {
@@ -324,23 +329,20 @@ const loadMarkingData = async (recordId) => {
 const handlePrevMarking = async () => {
   if (currentNavIndex.value > 0) {
     const prevId = pendingRecordIds.value[currentNavIndex.value - 1]
-    // 找到对应的记录对象用于更新当前显示的学生姓名等信息
-    const prevRecord = list.value.find(r => r.id === prevId)
-    if (prevRecord) {
-      currentRecord.value = prevRecord
-      await loadMarkingData(prevId)
-    }
+    await loadMarkingData(prevId)
+    // 尝试更新基本信息
+    const record = list.value.find(r => r.id === prevId)
+    if (record) currentRecord.value = record
   }
 }
 
 const handleNextMarking = async () => {
   if (currentNavIndex.value < pendingRecordIds.value.length - 1) {
     const nextId = pendingRecordIds.value[currentNavIndex.value + 1]
-    const nextRecord = list.value.find(r => r.id === nextId)
-    if (nextRecord) {
-      currentRecord.value = nextRecord
-      await loadMarkingData(nextId)
-    }
+    await loadMarkingData(nextId)
+    // 尝试更新基本信息
+    const record = list.value.find(r => r.id === nextId)
+    if (record) currentRecord.value = record
   }
 }
 
@@ -356,18 +358,36 @@ const submitMark = async () => {
       })
       .map(ans => ({
         questionId: Number(ans.questionId),
-        score: markScores[ans.questionId] || 0,
-        comment: markComments[ans.questionId] || ''
+        score: markScores[ans.questionId] || 0
       }))
 
     await request.put(`/teacher/exam-records/${currentRecord.value.id}/mark`, { scores })
     ElMessage.success('批阅保存成功')
 
-    // 判断是否有下一份
-    if (currentNavIndex.value < pendingRecordIds.value.length - 1) {
-      await handleNextMarking()
+    // 重新获取该考试的待阅 ID 列表，以获取最新状态
+    const idsRes = await request.get(`/teacher/exams/${currentRecord.value.examId}/pending-ids`)
+    pendingRecordIds.value = idsRes.data
+
+    if (pendingRecordIds.value.length > 0) {
+      // 还有待阅试卷，自动跳转到下一个（即当前列表的第一个）
+      const nextId = pendingRecordIds.value[0]
+      // 尝试在背景列表中寻找该记录对象，以便获取学生姓名等基本信息
+      const nextRecord = list.value.find(r => r.id === nextId)
+      if (nextRecord) {
+        currentRecord.value = nextRecord
+        await loadMarkingData(nextId)
+      } else {
+        // 如果背景列表（当前页）没找到，说明可能在其他页，
+        // 这里为了简单，先关闭对话框并提示用户刷新列表，或者我们可以直接根据 ID 加载
+        // 但由于 currentRecord 需要 VO 对象，最稳妥的是刷新列表后让用户点
+        // 不过通常 50 条够用了。为了体验，我们尝试直接加载详情。
+        await loadMarkingData(nextId)
+        // 注意：此时 currentRecord 还是旧的，姓名等信息可能不对。
+        // 我们在 loadMarkingData 里尝试补全一些信息
+        currentRecord.value = { ...currentRecord.value, id: nextId, studentName: '下一位考生' }
+      }
     } else {
-      ElMessage.info('所有试卷已批阅完成')
+      ElMessage.info('该考试所有试卷已批阅完成')
       markingVisible.value = false
     }
     fetchList()
@@ -473,8 +493,14 @@ onMounted(() => {
   gap: 4px;
 }
 
+.cheat-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .cheat-tag {
-  margin-right: 2px;
+  width: fit-content;
 }
 
 .normal-status {

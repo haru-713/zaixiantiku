@@ -10,7 +10,7 @@
       <div class="search-bar">
         <el-select v-model="query.courseId" clearable placeholder="筛选课程（默认全部）" style="width: 240px; margin-right: 10px"
           @change="fetchList">
-          <el-option label="全部参与课程" :value="null" />
+          <el-option label="全部参与课程" value="" />
           <el-option v-for="c in courseOptions" :key="c.id" :label="c.courseName" :value="c.id" />
         </el-select>
         <el-button type="primary" @click="fetchList">刷新</el-button>
@@ -54,7 +54,7 @@ const router = useRouter()
 const loading = ref(false)
 const list = ref([])
 const query = reactive({
-  courseId: null
+  courseId: ''
 })
 
 const courseOptions = ref([])
@@ -126,9 +126,11 @@ onMounted(() => {
 .my-exams-page {
   padding: 20px;
 }
+
 .card-header {
   font-weight: bold;
 }
+
 .search-bar {
   margin-bottom: 20px;
 }

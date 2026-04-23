@@ -80,7 +80,7 @@ const fetchReport = async () => {
 }
 
 const getTypeName = (typeId) => {
-  const types = { 1: '单选题', 2: '多选题', 3: '填空题', 4: '判断题', 5: '简答题' }
+  const types = { 1: '单选题', 2: '多选题', 3: '判断题', 4: '填空题', 5: '简答题' }
   return types[typeId] || '未知题型'
 }
 

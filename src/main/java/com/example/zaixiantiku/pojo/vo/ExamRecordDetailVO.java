@@ -15,6 +15,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ExamRecordDetailVO {
+    private String studentName;
     private String examName;
     private Integer totalScore;
     private Integer maxScore;
@@ -42,6 +43,7 @@ public class ExamRecordDetailVO {
         private String userAnswer;
         private String correctAnswer;
         private Integer score;
+        private Integer maxScore;
         private Boolean isCorrect;
         private String analysis;
         private List<String> options;

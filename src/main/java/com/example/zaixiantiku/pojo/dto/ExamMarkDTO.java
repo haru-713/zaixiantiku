@@ -15,6 +15,5 @@ public class ExamMarkDTO {
     public static class MarkItem {
         private Long questionId;
         private Integer score;
-        private String comment;
     }
 }

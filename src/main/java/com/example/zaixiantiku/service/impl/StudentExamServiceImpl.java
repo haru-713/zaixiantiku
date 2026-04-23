@@ -42,6 +42,7 @@ public class StudentExamServiceImpl implements StudentExamService {
     private final StudentClassMapper studentClassMapper;
     private final QuestionKnowledgeMapper questionKnowledgeMapper;
     private final KnowledgePointMapper knowledgePointMapper;
+    private final UserMapper userMapper;
     private final LogMapper logMapper;
     private final ObjectMapper objectMapper;
 
@@ -224,6 +225,24 @@ public class StudentExamServiceImpl implements StudentExamService {
         long secondsUntilEnd = Duration.between(now, exam.getEndTime()).getSeconds();
         remainingSeconds = Math.min(remainingSeconds, secondsUntilEnd);
 
+        // 加载已保存的答案
+        List<AnswerDetail> savedDetails = answerDetailMapper.selectList(new LambdaQueryWrapper<AnswerDetail>()
+                .eq(AnswerDetail::getExamRecordId, record.getId()));
+        Map<Long, String> savedAnswers = savedDetails.stream()
+                .collect(Collectors.toMap(AnswerDetail::getQuestionId, AnswerDetail::getUserAnswer, (v1, v2) -> v1));
+
+        // 从日志统计切屏次数
+        Long cheatCount = 0L;
+        try {
+            String examIdStr = "\"examId\":" + examId;
+            cheatCount = logMapper.selectCount(new LambdaQueryWrapper<Log>()
+                    .eq(Log::getUserId, userId)
+                    .eq(Log::getOperation, "切屏")
+                    .like(Log::getParams, examIdStr));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
         return ExamEnterVO.builder()
                 .examId(examId)
                 .examName(exam.getExamName())
@@ -233,7 +252,43 @@ public class StudentExamServiceImpl implements StudentExamService {
                         .questions(questions)
                         .build())
                 .remainingSeconds(remainingSeconds)
+                .answers(savedAnswers)
+                .cheatCount(cheatCount.intValue())
                 .build();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void saveAnswer(Long examId, Long questionId, String answer) {
+        LoginUser loginUser = requireLoginUser();
+        Long userId = loginUser.getUser().getId();
+
+        // 获取当前正在进行中的考试记录
+        ExamRecord record = examRecordMapper.selectOne(new LambdaQueryWrapper<ExamRecord>()
+                .eq(ExamRecord::getExamId, examId)
+                .eq(ExamRecord::getUserId, userId)
+                .eq(ExamRecord::getStatus, 0));
+
+        if (record == null) {
+            throw new RuntimeException("考试已结束或记录不存在");
+        }
+
+        // 更新或插入答案详情
+        AnswerDetail detail = answerDetailMapper.selectOne(new LambdaQueryWrapper<AnswerDetail>()
+                .eq(AnswerDetail::getExamRecordId, record.getId())
+                .eq(AnswerDetail::getQuestionId, questionId));
+
+        if (detail == null) {
+            detail = AnswerDetail.builder()
+                    .examRecordId(record.getId())
+                    .questionId(questionId)
+                    .userAnswer(answer)
+                    .build();
+            answerDetailMapper.insert(detail);
+        } else {
+            detail.setUserAnswer(answer);
+            answerDetailMapper.updateById(detail);
+        }
     }
 
     @Override
@@ -276,6 +331,16 @@ public class StudentExamServiceImpl implements StudentExamService {
         Map<Long, Question> qMap = questionMapper.selectBatchIds(qIds).stream()
                 .collect(Collectors.toMap(Question::getId, q -> q));
 
+        // 识别多选题类型 ID
+        Set<Integer> multiChoiceTypeIds = typeList.stream()
+                .filter(t -> {
+                    String code = (t.getTypeCode() != null ? t.getTypeCode() : "").toUpperCase();
+                    String name = (t.getTypeName() != null ? t.getTypeName() : "");
+                    return code.contains("MULTI") || name.contains("多选");
+                })
+                .map(QuestionType::getId)
+                .collect(Collectors.toSet());
+
         int objectiveScore = 0;
         boolean hasSubjective = false;
 
@@ -291,7 +356,28 @@ public class StudentExamServiceImpl implements StudentExamService {
 
             if (isObjective) {
                 // 客观题自动阅卷
-                boolean correct = q.getAnswer().trim().equalsIgnoreCase(item.getAnswer().trim());
+                String standardAnswer = q.getAnswer() != null ? q.getAnswer().trim() : "";
+                String studentAnswer = item.getAnswer() != null ? item.getAnswer().trim() : "";
+
+                boolean correct;
+                // 对于多选题，进行特殊处理：去除逗号等分隔符后排序比较
+                if (q.getTypeId() != null && multiChoiceTypeIds.contains(q.getTypeId())) {
+                    standardAnswer = standardAnswer.replaceAll("[^A-Z0-9]", "");
+                    studentAnswer = studentAnswer.replaceAll("[^A-Z0-9]", "");
+
+                    char[] sArr = standardAnswer.toCharArray();
+                    Arrays.sort(sArr);
+                    standardAnswer = new String(sArr);
+
+                    char[] uArr = studentAnswer.toCharArray();
+                    Arrays.sort(uArr);
+                    studentAnswer = new String(uArr);
+
+                    correct = !standardAnswer.isEmpty() && standardAnswer.equalsIgnoreCase(studentAnswer);
+                } else {
+                    correct = standardAnswer.equalsIgnoreCase(studentAnswer);
+                }
+
                 score = correct ? pq.getScore() : 0;
                 objectiveScore += score;
                 isCorrect = correct ? 1 : 0;
@@ -302,15 +388,28 @@ public class StudentExamServiceImpl implements StudentExamService {
                 isCorrect = 0; // 初始为0，由老师批阅后修正
             }
 
-            AnswerDetail detail = AnswerDetail.builder()
-                    .examRecordId(record.getId())
-                    .questionId(item.getQuestionId())
-                    .userAnswer(item.getAnswer())
-                    .isCorrect(isCorrect)
-                    .score(score)
-                    .timeSpent(item.getTimeSpent())
-                    .build();
-            answerDetailMapper.insert(detail);
+            // 更新或插入答案详情
+            AnswerDetail detail = answerDetailMapper.selectOne(new LambdaQueryWrapper<AnswerDetail>()
+                    .eq(AnswerDetail::getExamRecordId, record.getId())
+                    .eq(AnswerDetail::getQuestionId, item.getQuestionId()));
+
+            if (detail == null) {
+                detail = AnswerDetail.builder()
+                        .examRecordId(record.getId())
+                        .questionId(item.getQuestionId())
+                        .userAnswer(item.getAnswer())
+                        .isCorrect(isCorrect)
+                        .score(score)
+                        .timeSpent(item.getTimeSpent())
+                        .build();
+                answerDetailMapper.insert(detail);
+            } else {
+                detail.setUserAnswer(item.getAnswer());
+                detail.setIsCorrect(isCorrect);
+                detail.setScore(score);
+                detail.setTimeSpent(item.getTimeSpent());
+                answerDetailMapper.updateById(detail);
+            }
         }
 
         record.setSubmitTime(LocalDateTime.now());
@@ -519,12 +618,92 @@ public class StudentExamServiceImpl implements StudentExamService {
                     .collect(Collectors.toMap(Question::getId, q -> q));
         }
 
-        // 查询题型信息用于显示
+        // 查询试卷题目分值信息
+        List<PaperQuestion> pqList = paperQuestionMapper.selectList(new LambdaQueryWrapper<PaperQuestion>()
+                .eq(PaperQuestion::getPaperId, exam.getPaperId()));
+        Map<Long, Integer> questionScoreMap = pqList.stream()
+                .collect(Collectors.toMap(PaperQuestion::getQuestionId, PaperQuestion::getScore));
+
+        // 查询题型信息
         List<QuestionType> types = questionTypeMapper.selectList(null);
         Map<Integer, String> typeNameMap = types.stream()
                 .collect(Collectors.toMap(QuestionType::getId, QuestionType::getTypeName));
 
-        // 计算排名
+        Set<Integer> objectiveTypeIds = types.stream()
+                .filter(t -> {
+                    String code = (t.getTypeCode() != null ? t.getTypeCode() : "").toUpperCase();
+                    String name = (t.getTypeName() != null ? t.getTypeName() : "");
+                    return code.contains("SINGLE") || name.contains("单选") ||
+                            code.contains("MULTI") || name.contains("多选") ||
+                            code.contains("JUDGE") || name.contains("判断");
+                })
+                .map(QuestionType::getId)
+                .collect(Collectors.toSet());
+
+        Set<Integer> multiChoiceTypeIds = types.stream()
+                .filter(t -> {
+                    String code = (t.getTypeCode() != null ? t.getTypeCode() : "").toUpperCase();
+                    String name = (t.getTypeName() != null ? t.getTypeName() : "");
+                    return code.contains("MULTI") || name.contains("多选");
+                })
+                .map(QuestionType::getId)
+                .collect(Collectors.toSet());
+
+        // 重新判定客观题并更新分数（用于修复旧记录判分错误的问题）
+        boolean scoreChanged = false;
+        int totalObjectiveScore = 0;
+        int totalSubjectiveScore = 0;
+
+        for (AnswerDetail detail : details) {
+            Question q = questionMap.get(detail.getQuestionId());
+            if (q == null)
+                continue;
+
+            boolean isObjective = objectiveTypeIds.contains(q.getTypeId());
+            if (isObjective) {
+                String standardAnswer = q.getAnswer() != null ? q.getAnswer().trim() : "";
+                String studentAnswer = detail.getUserAnswer() != null ? detail.getUserAnswer().trim() : "";
+                Integer pqScore = questionScoreMap.get(q.getId());
+                if (pqScore == null)
+                    pqScore = 0;
+
+                boolean correct;
+                if (q.getTypeId() != null && multiChoiceTypeIds.contains(q.getTypeId())) {
+                    String sAns = standardAnswer.replaceAll("[^A-Z0-9]", "");
+                    String uAns = studentAnswer.replaceAll("[^A-Z0-9]", "");
+                    char[] sArr = sAns.toCharArray();
+                    Arrays.sort(sArr);
+                    sAns = new String(sArr);
+                    char[] uArr = uAns.toCharArray();
+                    Arrays.sort(uArr);
+                    uAns = new String(uArr);
+                    correct = !sAns.isEmpty() && sAns.equalsIgnoreCase(uAns);
+                } else {
+                    correct = standardAnswer.equalsIgnoreCase(studentAnswer);
+                }
+
+                int newScore = correct ? pqScore : 0;
+                int newIsCorrect = correct ? 1 : 0;
+
+                if (!Objects.equals(detail.getScore(), newScore)
+                        || !Objects.equals(detail.getIsCorrect(), newIsCorrect)) {
+                    detail.setScore(newScore);
+                    detail.setIsCorrect(newIsCorrect);
+                    answerDetailMapper.updateById(detail);
+                    scoreChanged = true;
+                }
+                totalObjectiveScore += newScore;
+            } else {
+                totalSubjectiveScore += (detail.getScore() != null ? detail.getScore() : 0);
+            }
+        }
+
+        if (scoreChanged) {
+            record.setTotalScore(totalObjectiveScore + totalSubjectiveScore);
+            examRecordMapper.updateById(record);
+        }
+
+        // 重新计算排名和总分显示
         int rank = examRecordMapper.selectCount(new LambdaQueryWrapper<ExamRecord>()
                 .eq(ExamRecord::getExamId, record.getExamId())
                 .ge(ExamRecord::getStatus, 1)
@@ -571,6 +750,7 @@ public class StudentExamServiceImpl implements StudentExamService {
                     .userAnswer(d.getUserAnswer())
                     .correctAnswer(q != null ? q.getAnswer() : "-")
                     .score(d.getScore())
+                    .maxScore(q != null ? questionScoreMap.get(q.getId()) : 0)
                     .isCorrect(d.getIsCorrect() == 1)
                     .analysis(q != null ? q.getAnalysis() : "-")
                     .options(q != null ? parseOptions(q.getOptions()) : new ArrayList<>())
@@ -583,7 +763,13 @@ public class StudentExamServiceImpl implements StudentExamService {
         boolean canSeeFull = isMarked || loginUser.getRoleCodes().contains("ADMIN")
                 || loginUser.getRoleCodes().contains("TEACHER");
 
+        // 查询学生姓名
+        User student = userMapper.selectById(record.getUserId());
+        String studentName = student != null ? (student.getName() != null ? student.getName() : student.getUsername())
+                : "未知学生";
+
         return ExamRecordDetailVO.builder()
+                .studentName(studentName)
                 .examName(exam.getExamName())
                 .totalScore(canSeeFull ? record.getTotalScore() : null)
                 .maxScore(maxScore)
