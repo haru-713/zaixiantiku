@@ -22,6 +22,7 @@ public class ExamRecordDetailVO {
     private Integer totalStudents;  // 总人数
     private List<KnowledgeMasteryVO> knowledgeMastery; // 知识点掌握情况
     private List<AnswerItemVO> answers;
+    private Integer status; // 考试记录状态：0-进行中，1-待批阅，2-已批阅
 
     @Data
     @AllArgsConstructor

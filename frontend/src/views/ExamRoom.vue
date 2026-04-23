@@ -25,7 +25,7 @@
             <template #header>答题卡</template>
             <div class="answer-card">
               <div v-for="(q, index) in examData.paper.questions" :key="q.id" class="q-dot"
-                :class="{ 'q-done': answers[q.id] }" @click="scrollTo(q.id)">
+                :class="{ 'q-done': isQuestionDone(q) }" @click="scrollTo(q.id)">
                 {{ index + 1 }}
               </div>
             </div>
@@ -49,7 +49,7 @@
 
               <!-- 多选题 -->
               <el-checkbox-group v-else-if="q.typeId === 2" v-model="answers[q.id]">
-                <el-checkbox v-for="opt in q.options" :key="opt" :label="opt.substring(0, 1)" class="opt-item">
+                <el-checkbox v-for="opt in q.options" :key="opt" :value="opt.substring(0, 1)" class="opt-item">
                   {{ opt }}
                 </el-checkbox>
               </el-checkbox-group>
@@ -84,7 +84,7 @@ const examId = route.params.examId
 const loading = ref(true)
 const examData = ref(null)
 const remainingSeconds = ref(0)
-const answers = reactive({})
+const answers = ref({})
 const cheatCount = ref(0)
 const maxCheatCount = 3
 let timer = null
@@ -151,13 +151,15 @@ const fetchExam = async () => {
     remainingSeconds.value = res.data.remainingSeconds
 
     // 初始化答案
+    const initialAnswers = {}
     examData.value.paper.questions.forEach(q => {
       if (q.typeId === 2) { // 多选题
-        answers[q.id] = []
+        initialAnswers[q.id] = []
       } else { // 单选、填空、主观题
-        answers[q.id] = ''
+        initialAnswers[q.id] = ''
       }
     })
+    answers.value = initialAnswers
     startTimer()
   } catch (e) {
     console.error(e)
@@ -190,8 +192,16 @@ const scrollTo = (id) => {
   if (el) el.scrollIntoView({ behavior: 'smooth' })
 }
 
+const isQuestionDone = (q) => {
+  const ans = answers.value[q.id]
+  if (q.typeId === 2) {
+    return Array.isArray(ans) && ans.length > 0
+  }
+  return ans !== null && ans !== undefined && ans !== ''
+}
+
 const confirmSubmit = () => {
-  const doneCount = Object.keys(answers).length
+  const doneCount = examData.value.paper.questions.filter(isQuestionDone).length
   const totalCount = examData.value.paper.questions.length
 
   ElMessageBox.confirm(
@@ -212,9 +222,9 @@ const submit = async (isForce = false) => {
   try {
     const submitData = {
       answers: examData.value.paper.questions.map(q => {
-        let userAnswer = answers[q.id]
+        let userAnswer = answers.value[q.id]
         if (q.typeId === 2) { // 多选题答案需要转换为字符串
-          userAnswer = userAnswer ? userAnswer.sort().join('') : ''
+          userAnswer = Array.isArray(userAnswer) ? userAnswer.sort().join('') : ''
         }
         return {
           questionId: q.id,
@@ -225,7 +235,7 @@ const submit = async (isForce = false) => {
       cheatCount: cheatCount.value,
       forceSubmit: isForce
     }
-    await request.post(`/student/exam/submit`, submitData)
+    await request.post(`/exams/${examId}/submit`, submitData)
     ElMessage.success('提交成功！')
 
     // 退出全屏

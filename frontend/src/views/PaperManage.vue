@@ -30,8 +30,8 @@
       <el-table v-loading="loading" :data="list" style="width: 100%; margin-top: 16px">
         <el-table-column type="index" label="序号" width="60" />
         <el-table-column prop="paperName" label="试卷名称" min-width="200" show-overflow-tooltip />
-        <el-table-column v-if="isAdmin" prop="courseName" label="所属课程" width="150" />
-        <el-table-column v-if="isAdmin" prop="creatorName" label="创建教师" width="120" />
+        <el-table-column prop="courseName" label="所属课程" width="150" />
+        <el-table-column prop="creatorName" label="创建教师" width="120" />
         <el-table-column prop="totalScore" label="总分" width="80" align="center" />
         <el-table-column label="状态" width="100" align="center">
           <template #default="scope">

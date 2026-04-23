@@ -253,7 +253,20 @@ public class StudentExamServiceImpl implements StudentExamService {
 
         Exam exam = examMapper.selectById(examId);
 
-        // 自动阅卷（仅限客观题，这里简化处理：假设所有题目对比标准答案）
+        // 获取题目类型信息，区分客观题与主观题
+        List<QuestionType> typeList = questionTypeMapper.selectList(null);
+        Set<Integer> objectiveTypeIds = typeList.stream()
+                .filter(t -> {
+                    String code = (t.getTypeCode() != null ? t.getTypeCode() : "").toUpperCase();
+                    String name = (t.getTypeName() != null ? t.getTypeName() : "");
+                    // 客观题：单选、多选、判断
+                    return code.contains("SINGLE") || name.contains("单选") ||
+                            code.contains("MULTI") || name.contains("多选") ||
+                            code.contains("JUDGE") || name.contains("判断");
+                })
+                .map(QuestionType::getId)
+                .collect(Collectors.toSet());
+
         List<PaperQuestion> pqList = paperQuestionMapper.selectList(new LambdaQueryWrapper<PaperQuestion>()
                 .eq(PaperQuestion::getPaperId, exam.getPaperId()));
         Map<Long, PaperQuestion> pqMap = pqList.stream()
@@ -263,22 +276,37 @@ public class StudentExamServiceImpl implements StudentExamService {
         Map<Long, Question> qMap = questionMapper.selectBatchIds(qIds).stream()
                 .collect(Collectors.toMap(Question::getId, q -> q));
 
-        int totalScore = 0;
+        int objectiveScore = 0;
+        boolean hasSubjective = false;
+
         for (ExamSubmitDTO.AnswerItem item : submitDTO.getAnswers()) {
             Question q = qMap.get(item.getQuestionId());
             PaperQuestion pq = pqMap.get(item.getQuestionId());
             if (q == null || pq == null)
                 continue;
 
-            boolean correct = q.getAnswer().trim().equalsIgnoreCase(item.getAnswer().trim());
-            int score = correct ? pq.getScore() : 0;
-            totalScore += score;
+            boolean isObjective = objectiveTypeIds.contains(q.getTypeId());
+            int score = 0;
+            Integer isCorrect = null;
+
+            if (isObjective) {
+                // 客观题自动阅卷
+                boolean correct = q.getAnswer().trim().equalsIgnoreCase(item.getAnswer().trim());
+                score = correct ? pq.getScore() : 0;
+                objectiveScore += score;
+                isCorrect = correct ? 1 : 0;
+            } else {
+                // 主观题暂不计分，等待人工批阅
+                hasSubjective = true;
+                score = 0;
+                isCorrect = 0; // 初始为0，由老师批阅后修正
+            }
 
             AnswerDetail detail = AnswerDetail.builder()
                     .examRecordId(record.getId())
                     .questionId(item.getQuestionId())
                     .userAnswer(item.getAnswer())
-                    .isCorrect(correct ? 1 : 0)
+                    .isCorrect(isCorrect)
                     .score(score)
                     .timeSpent(item.getTimeSpent())
                     .build();
@@ -286,8 +314,9 @@ public class StudentExamServiceImpl implements StudentExamService {
         }
 
         record.setSubmitTime(LocalDateTime.now());
-        record.setTotalScore(totalScore);
-        record.setStatus(1); // 已交卷
+        record.setTotalScore(objectiveScore);
+        // 如果没有主观题，直接标记为已批阅(2)；否则标记为待批阅(1)
+        record.setStatus(hasSubjective ? 1 : 2);
 
         // 记录交卷日志（包含防作弊元数据，替代缺失的 exam_record.answers 字段）
         try {
@@ -295,7 +324,7 @@ public class StudentExamServiceImpl implements StudentExamService {
             meta.put("examId", examId);
             meta.put("cheatCount", submitDTO.getCheatCount());
             meta.put("forceSubmit", submitDTO.getForceSubmit());
-            
+
             Log submitLog = Log.builder()
                     .userId(userId)
                     .operation(submitDTO.getForceSubmit() ? "强制交卷" : "正常交卷")
@@ -312,8 +341,8 @@ public class StudentExamServiceImpl implements StudentExamService {
 
         Map<String, Object> result = new HashMap<>();
         result.put("recordId", record.getId());
-        result.put("totalScore", totalScore);
-        result.put("status", 1);
+        result.put("totalScore", objectiveScore);
+        result.put("status", hasSubjective ? 1 : 2);
         return result;
     }
 
@@ -387,14 +416,17 @@ public class StudentExamServiceImpl implements StudentExamService {
         Map<Long, Integer> examMaxScoreMap = exams.stream()
                 .collect(Collectors.toMap(Exam::getId, e -> paperMaxScoreMap.getOrDefault(e.getPaperId(), 100)));
 
-        List<StudentExamRecordVO> voList = records.stream().map(r -> StudentExamRecordVO.builder()
-                .id(r.getId())
-                .examName(examNameMap.get(r.getExamId()))
-                .totalScore(r.getTotalScore())
-                .maxScore(examMaxScoreMap.get(r.getExamId()))
-                .submitTime(r.getSubmitTime())
-                .status(r.getStatus())
-                .build()).collect(Collectors.toList());
+        List<StudentExamRecordVO> voList = records.stream().map(r -> {
+            boolean isMarked = r.getStatus() == 2;
+            return StudentExamRecordVO.builder()
+                    .id(r.getId())
+                    .examName(examNameMap.get(r.getExamId()))
+                    .totalScore(isMarked ? r.getTotalScore() : null) // 待批阅时不显示总分
+                    .maxScore(examMaxScoreMap.get(r.getExamId()))
+                    .submitTime(r.getSubmitTime())
+                    .status(r.getStatus())
+                    .build();
+        }).collect(Collectors.toList());
 
         return PageResult.of(pageInfo.getTotal(), voList);
     }
@@ -546,14 +578,20 @@ public class StudentExamServiceImpl implements StudentExamService {
                     .build();
         }).collect(Collectors.toList());
 
+        // 如果未批阅且不是老师/管理员，隐藏总分和部分详情
+        boolean isMarked = record.getStatus() == 2;
+        boolean canSeeFull = isMarked || loginUser.getRoleCodes().contains("ADMIN")
+                || loginUser.getRoleCodes().contains("TEACHER");
+
         return ExamRecordDetailVO.builder()
                 .examName(exam.getExamName())
-                .totalScore(record.getTotalScore())
+                .totalScore(canSeeFull ? record.getTotalScore() : null)
                 .maxScore(maxScore)
-                .rank(rank)
+                .rank(canSeeFull ? rank : null)
                 .totalStudents(totalStudents)
-                .knowledgeMastery(knowledgeMasteryList)
-                .answers(answers)
+                .knowledgeMastery(canSeeFull ? knowledgeMasteryList : new ArrayList<>())
+                .answers(canSeeFull ? answers : new ArrayList<>())
+                .status(record.getStatus())
                 .build();
     }
 
