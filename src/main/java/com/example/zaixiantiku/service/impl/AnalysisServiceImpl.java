@@ -15,6 +15,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -179,8 +180,7 @@ public class AnalysisServiceImpl implements AnalysisService {
             Exam exam = examMap.get(er.getExamId());
             int maxScore = 100;
             if (exam != null) {
-                Paper paper = paperMap.get(exam.getPaperId());
-                maxScore = (paper != null && paper.getTotalScore() != null) ? paper.getTotalScore() : 100;
+                maxScore = getPaperTotalScore(exam.getPaperId());
                 totalMaxScoreSum += maxScore;
 
                 if (score > maxExamScore || (maxExamScore == 0 && maxExamTotalScore == 0)) {
@@ -389,10 +389,9 @@ public class AnalysisServiceImpl implements AnalysisService {
             // 单场考试模式：统计学生分数分布
             Exam exam = examMapper.selectById(examId);
             if (exam != null) {
-                Paper paper = paperMapper.selectById(exam.getPaperId());
-                singleExamMaxScore = (paper != null && paper.getTotalScore() != null) ? paper.getTotalScore() : 100;
+                singleExamMaxScore = getPaperTotalScore(exam.getPaperId());
             }
-            int maxScore = (singleExamMaxScore != null) ? singleExamMaxScore : 100;
+            int maxScore = (singleExamMaxScore != null && singleExamMaxScore > 0) ? singleExamMaxScore : 100;
 
             for (ExamRecord er : examRecords) {
                 int score = (er.getTotalScore() != null ? er.getTotalScore() : 0);
@@ -410,77 +409,47 @@ public class AnalysisServiceImpl implements AnalysisService {
                     distribution[4]++;
             }
         } else {
-            // 全部考试模式：统计题目得分率分布
-            List<Long> recordIds = examRecords.stream().map(ExamRecord::getId).collect(Collectors.toList());
-            List<AnswerDetail> details = answerDetailMapper.selectList(
-                    new LambdaQueryWrapper<AnswerDetail>().in(AnswerDetail::getExamRecordId, recordIds));
-
+            // 全部考试模式：统计学生综合得分率分布（按得分率分组学生人数，与单场考试保持一致视角）
             // 计算班级平均分（基于所有考试记录）
             totalScoreSum = examRecords.stream().mapToInt(er -> er.getTotalScore() != null ? er.getTotalScore() : 0)
                     .sum();
 
-            // 按题目 ID 分组答题详情
-            Map<Long, List<AnswerDetail>> qMap = details.stream()
-                    .filter(d -> d.getQuestionId() != null)
-                    .collect(Collectors.groupingBy(AnswerDetail::getQuestionId));
-
-            // 获取所有题目的满分
-            Set<Long> qIds = qMap.keySet();
-            if (!qIds.isEmpty()) {
-                // 找到这些题目所属的所有试卷
-                List<Long> examIds = examRecords.stream().map(ExamRecord::getExamId).distinct()
-                        .collect(Collectors.toList());
-                List<Exam> exams = examMapper.selectBatchIds(examIds);
-                List<Long> paperIds = exams.stream().map(Exam::getPaperId).collect(Collectors.toList());
-
-                List<PaperQuestion> pqs = paperQuestionMapper.selectList(new LambdaQueryWrapper<PaperQuestion>()
-                        .in(PaperQuestion::getPaperId, paperIds)
-                        .in(PaperQuestion::getQuestionId, qIds));
-
-                // 一个题目在不同试卷可能分值不同，这里取平均或者按答题记录对应的试卷找
-                // 为了简化且符合大多数场景，我们按答题记录关联
-                Map<Long, Map<Long, Integer>> paperQuestionScoreMap = new HashMap<>(); // paperId -> questionId -> score
-                for (PaperQuestion pq : pqs) {
-                    paperQuestionScoreMap.computeIfAbsent(pq.getPaperId(), k -> new HashMap<>()).put(pq.getQuestionId(),
-                            pq.getScore());
+            // 1. 先计算这些考试各自的满分，以便后续计算得分率
+            List<Long> involvedExamIds = examRecords.stream().map(ExamRecord::getExamId).distinct()
+                    .collect(Collectors.toList());
+            Map<Long, Integer> examTotalScoreMap = new HashMap<>();
+            if (!involvedExamIds.isEmpty()) {
+                List<Exam> exams = examMapper.selectBatchIds(involvedExamIds);
+                for (Exam e : exams) {
+                    examTotalScoreMap.put(e.getId(), getPaperTotalScore(e.getPaperId()));
                 }
+                double avgMax = examTotalScoreMap.values().stream().mapToInt(v -> v).average().orElse(100.0);
+                singleExamMaxScore = (int) Math.round(avgMax);
+            }
 
-                // 重新统计得分率
-                Map<Long, Long> examPaperMap = exams.stream().collect(Collectors.toMap(Exam::getId, Exam::getPaperId));
-                Map<Long, Long> recordExamMap = examRecords.stream()
-                        .collect(Collectors.toMap(ExamRecord::getId, ExamRecord::getExamId));
+            // 2. 按学生分组计算每个学生的平均得分率
+            Map<Long, List<ExamRecord>> studentRecords = examRecords.stream()
+                    .collect(Collectors.groupingBy(ExamRecord::getUserId));
 
-                for (Map.Entry<Long, List<AnswerDetail>> entry : qMap.entrySet()) {
-                    Long qId = entry.getKey();
-                    List<AnswerDetail> qDetails = entry.getValue();
-
-                    double totalQScore = 0;
-                    double totalQMaxScore = 0;
-
-                    for (AnswerDetail d : qDetails) {
-                        Long examIdOfRecord = recordExamMap.get(d.getExamRecordId());
-                        if (examIdOfRecord == null)
-                            continue;
-
-                        Long paperId = examPaperMap.get(examIdOfRecord);
-                        if (paperId == null)
-                            continue;
-
-                        Integer maxScore = paperQuestionScoreMap.getOrDefault(paperId, Collections.emptyMap())
-                                .getOrDefault(qId, 5);
-
-                        totalQScore += (d.getScore() != null ? d.getScore() : 0);
-                        totalQMaxScore += maxScore;
+            for (List<ExamRecord> sRecords : studentRecords.values()) {
+                double totalRatio = 0;
+                int count = 0;
+                for (ExamRecord er : sRecords) {
+                    Integer maxScore = examTotalScoreMap.get(er.getExamId());
+                    if (maxScore != null && maxScore > 0) {
+                        totalRatio += (double) (er.getTotalScore() != null ? er.getTotalScore() : 0) / maxScore;
+                        count++;
                     }
-
-                    double qAccuracy = totalQMaxScore == 0 ? 0 : totalQScore / totalQMaxScore;
-                    if (qAccuracy >= 0.9)
+                }
+                if (count > 0) {
+                    double avgRatio = totalRatio / count;
+                    if (avgRatio >= 0.9)
                         distribution[0]++;
-                    else if (qAccuracy >= 0.8)
+                    else if (avgRatio >= 0.8)
                         distribution[1]++;
-                    else if (qAccuracy >= 0.7)
+                    else if (avgRatio >= 0.7)
                         distribution[2]++;
-                    else if (qAccuracy >= 0.6)
+                    else if (avgRatio >= 0.6)
                         distribution[3]++;
                     else
                         distribution[4]++;
@@ -530,12 +499,106 @@ public class AnalysisServiceImpl implements AnalysisService {
             }
         }
 
+        // 5. 学生分数明细
+        List<ClassAnalysisVO.StudentScoreVO> studentScores = new ArrayList<>();
+        List<User> students = userMapper.selectBatchIds(studentIds);
+        Map<Long, User> studentMap = students.stream().collect(Collectors.toMap(User::getId, s -> s));
+        com.example.zaixiantiku.entity.Class currentClass = classMapper.selectById(classId);
+        String className = currentClass != null ? currentClass.getClassName() : "未知班级";
+
+        if (examId != null) {
+            // 单场考试模式：每个学生在该考试的得分
+            Map<Long, ExamRecord> recordMap = examRecords.stream()
+                    .collect(Collectors.toMap(ExamRecord::getUserId, r -> r, (r1, r2) -> r1)); // 理论上每个学生在该场考试只有一个记录
+            for (Long sId : studentIds) {
+                User s = studentMap.get(sId);
+                if (s == null)
+                    continue;
+                ExamRecord er = recordMap.get(sId);
+                studentScores.add(ClassAnalysisVO.StudentScoreVO.builder()
+                        .username(s.getUsername())
+                        .name(s.getName() != null ? s.getName() : s.getUsername())
+                        .className(className)
+                        .score(er != null ? er.getTotalScore() : 0)
+                        .totalScore(singleExamMaxScore != null ? singleExamMaxScore : 100)
+                        .build());
+            }
+        } else {
+            // 全部考试模式：学生在这些考试中的平均得分
+            Map<Long, List<ExamRecord>> studentRecordMap = examRecords.stream()
+                    .collect(Collectors.groupingBy(ExamRecord::getUserId));
+            for (Long sId : studentIds) {
+                User s = studentMap.get(sId);
+                if (s == null)
+                    continue;
+                List<ExamRecord> sRecords = studentRecordMap.getOrDefault(sId, Collections.emptyList());
+                double avg = sRecords.stream().mapToInt(er -> er.getTotalScore() != null ? er.getTotalScore() : 0)
+                        .average().orElse(0.0);
+                studentScores.add(ClassAnalysisVO.StudentScoreVO.builder()
+                        .username(s.getUsername())
+                        .name(s.getName() != null ? s.getName() : s.getUsername())
+                        .className(className)
+                        .score((int) Math.round(avg))
+                        .totalScore(singleExamMaxScore) // 综合成绩显示平均满分作为参考
+                        .build());
+            }
+        }
+        studentScores.sort(Comparator.comparing(ClassAnalysisVO.StudentScoreVO::getScore).reversed());
+
+        // 5. 班级历史趋势 (针对该班级在该课程下的历次考试)
+        List<ClassAnalysisVO.TrendVO> classTrend = new ArrayList<>();
+        if (courseId != null) {
+            List<Exam> courseExams = examMapper.selectList(new LambdaQueryWrapper<Exam>()
+                    .eq(Exam::getCourseId, courseId));
+
+            // 排序逻辑：按考试开始时间升序排列（最早的在左侧），如果开始时间相同或为空，则按创建时间排序
+            courseExams.sort(Comparator.comparing(Exam::getStartTime, Comparator.nullsLast(Comparator.naturalOrder()))
+                    .thenComparing(Exam::getCreateTime, Comparator.nullsLast(Comparator.naturalOrder())));
+
+            for (Exam e : courseExams) {
+                // 仅统计该班级学生参加过的考试记录（状态 >= 1 表示已提交或已批阅）
+                List<ExamRecord> eRecords = examRecordMapper.selectList(new LambdaQueryWrapper<ExamRecord>()
+                        .eq(ExamRecord::getExamId, e.getId())
+                        .in(ExamRecord::getUserId, studentIds)
+                        .ge(ExamRecord::getStatus, 1));
+
+                // 如果无人参加（或该班级学生无人参加），则不计入趋势图
+                if (eRecords.isEmpty())
+                    continue;
+
+                double avg = eRecords.stream().mapToInt(er -> er.getTotalScore() != null ? er.getTotalScore() : 0)
+                        .average().orElse(0.0);
+                int pScore = getPaperTotalScore(e.getPaperId());
+                long passCount = eRecords.stream().filter(er -> er.getTotalScore() >= pScore * 0.6).count();
+
+                classTrend.add(ClassAnalysisVO.TrendVO.builder()
+                        .examName(e.getExamName())
+                        .averageScore(avg)
+                        .passRate(eRecords.isEmpty() ? 0.0 : (double) passCount / eRecords.size() * 100)
+                        .build());
+            }
+        }
+
         return ClassAnalysisVO.builder()
                 .scoreDistribution(distVOs)
-                .averageScore(totalScoreSum / examRecords.size())
+                .averageScore(examRecords.isEmpty() ? 0.0 : totalScoreSum / examRecords.size())
                 .maxScore(singleExamMaxScore)
                 .questionAccuracies(accuracyVOs)
+                .studentScores(studentScores)
+                .classTrend(classTrend)
                 .build();
+    }
+
+    private Integer getPaperTotalScore(Long paperId) {
+        if (paperId == null)
+            return 100;
+        List<PaperQuestion> pqs = paperQuestionMapper.selectList(
+                new LambdaQueryWrapper<PaperQuestion>().eq(PaperQuestion::getPaperId, paperId));
+        if (pqs.isEmpty()) {
+            Paper paper = paperMapper.selectById(paperId);
+            return (paper != null && paper.getTotalScore() != null) ? paper.getTotalScore() : 100;
+        }
+        return pqs.stream().mapToInt(PaperQuestion::getScore).sum();
     }
 
     @Override
@@ -598,25 +661,47 @@ public class AnalysisServiceImpl implements AnalysisService {
         }
 
         if (classId != null) {
+            // 1. 获取明确指定了该班级的考试
             List<ExamClass> examClasses = examClassMapper.selectList(
                     new LambdaQueryWrapper<ExamClass>().eq(ExamClass::getClassId, classId));
             Set<Long> examIds = examClasses.stream().map(ExamClass::getExamId).collect(Collectors.toSet());
 
-            // 补充有成绩记录的考试
+            // 2. 补充该班级学生参加过的所有该课程考试（即便考试设置里没选这个班）
             List<StudentClass> studentsInClass = studentClassMapper.selectList(
                     new LambdaQueryWrapper<StudentClass>().eq(StudentClass::getClassId, classId));
             if (!studentsInClass.isEmpty()) {
                 List<Long> studentIds = studentsInClass.stream().map(StudentClass::getStudentId)
                         .collect(Collectors.toList());
-                List<ExamRecord> records = examRecordMapper.selectList(new LambdaQueryWrapper<ExamRecord>()
+
+                LambdaQueryWrapper<ExamRecord> recordQw = new LambdaQueryWrapper<ExamRecord>()
                         .in(ExamRecord::getUserId, studentIds)
-                        .select(ExamRecord::getExamId));
+                        .select(ExamRecord::getExamId);
+
+                // 如果指定了课程，只搜该课程下的记录
+                if (courseId != null) {
+                    List<Long> courseExamIds = examMapper.selectList(new LambdaQueryWrapper<Exam>()
+                            .eq(Exam::getCourseId, courseId))
+                            .stream().map(Exam::getId).collect(Collectors.toList());
+                    if (!courseExamIds.isEmpty()) {
+                        recordQw.in(ExamRecord::getExamId, courseExamIds);
+                    }
+                }
+
+                List<ExamRecord> records = examRecordMapper.selectList(recordQw);
                 examIds.addAll(records.stream().map(ExamRecord::getExamId).collect(Collectors.toSet()));
             }
 
-            if (examIds.isEmpty())
-                return Collections.emptyList();
-            examQw.in(Exam::getId, examIds);
+            if (examIds.isEmpty()) {
+                // 如果既没有指定班级，学生也没考过，但我们切换到了该课程，
+                // 我们应该展示该课程下所有可见的考试，以便教师知道有这些考试存在
+                if (courseId != null) {
+                    examQw.eq(Exam::getCourseId, courseId);
+                } else {
+                    return Collections.emptyList();
+                }
+            } else {
+                examQw.in(Exam::getId, examIds);
+            }
         }
 
         if (!isAdmin) {
@@ -641,7 +726,7 @@ public class AnalysisServiceImpl implements AnalysisService {
     }
 
     @Override
-    public GlobalAnalysisVO getGlobalAnalysis(Long courseId) {
+    public GlobalAnalysisVO getGlobalAnalysis(Long courseId, Long examId) {
         LoginUser loginUser = (LoginUser) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         boolean isAdmin = loginUser.getAuthorities().stream()
                 .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
@@ -726,14 +811,21 @@ public class AnalysisServiceImpl implements AnalysisService {
             Integer maxScore = examMaxScoreMap.computeIfAbsent(er.getExamId(), id -> {
                 Exam exam = examMapper.selectById(id);
                 if (exam != null) {
-                    Paper paper = paperMapper.selectById(exam.getPaperId());
-                    return (paper != null && paper.getTotalScore() != null) ? paper.getTotalScore() : 100;
+                    return getPaperTotalScore(exam.getPaperId());
                 }
                 return 100;
             });
             return er.getTotalScore() >= maxScore * 0.6;
         }).count();
         double passRate = allRecords.isEmpty() ? 0.0 : (double) passCount / allRecords.size();
+
+        // 班级对比数据过滤
+        List<ExamRecord> targetRecordsForClassPerf = allRecords;
+        if (examId != null) {
+            targetRecordsForClassPerf = allRecords.stream()
+                    .filter(er -> er.getExamId().equals(examId))
+                    .collect(Collectors.toList());
+        }
 
         List<GlobalAnalysisVO.ClassPerformanceVO> classPerf = new ArrayList<>();
         for (com.example.zaixiantiku.entity.Class c : allClasses) {
@@ -743,7 +835,7 @@ public class AnalysisServiceImpl implements AnalysisService {
                     .collect(Collectors.toList());
             if (classStudentIds.isEmpty())
                 continue;
-            List<ExamRecord> classRecords = allRecords.stream()
+            List<ExamRecord> classRecords = targetRecordsForClassPerf.stream()
                     .filter(er -> classStudentIds.contains(er.getUserId()))
                     .collect(Collectors.toList());
             if (classRecords.isEmpty())
@@ -752,7 +844,16 @@ public class AnalysisServiceImpl implements AnalysisService {
             int classMax = classRecords.stream().mapToInt(ExamRecord::getTotalScore).max().orElse(0);
             long classPassCount = classRecords.stream().filter(er -> {
                 Integer maxScore = examMaxScoreMap.get(er.getExamId());
-                return er.getTotalScore() >= (maxScore != null ? maxScore : 100) * 0.6;
+                if (maxScore == null) {
+                    Exam exam = examMapper.selectById(er.getExamId());
+                    if (exam != null) {
+                        maxScore = getPaperTotalScore(exam.getPaperId());
+                        examMaxScoreMap.put(er.getExamId(), maxScore);
+                    } else {
+                        maxScore = 100;
+                    }
+                }
+                return er.getTotalScore() >= maxScore * 0.6;
             }).count();
             classPerf.add(GlobalAnalysisVO.ClassPerformanceVO.builder()
                     .classId(c.getId()).className(c.getClassName()).averageScore(classAvg).maxScore(classMax)
@@ -760,37 +861,69 @@ public class AnalysisServiceImpl implements AnalysisService {
                     .build());
         }
 
-        List<GlobalAnalysisVO.ExamBriefVO> recentExams = allExamsInDb.stream()
-                .sorted(Comparator.comparing(Exam::getStartTime).reversed())
-                .limit(10)
+        // 趋势数据：确保按考试顺序排列（最早的在左侧），优先按 startTime，其次按 createTime
+        List<GlobalAnalysisVO.ExamBriefVO> sortedForTrend = allExamsInDb.stream()
+                .sorted(Comparator.comparing(Exam::getStartTime, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(Exam::getCreateTime, Comparator.nullsLast(Comparator.naturalOrder())))
                 .map(exam -> {
                     List<ExamRecord> examRecords = allRecords.stream()
                             .filter(er -> er.getExamId().equals(exam.getId()))
                             .collect(Collectors.toList());
                     int participantCount = examRecords.size();
+                    int paperTotalScore = getPaperTotalScore(exam.getPaperId());
+
                     if (participantCount == 0) {
-                        Paper paper = paperMapper.selectById(exam.getPaperId());
-                        int maxScore = (paper != null && paper.getTotalScore() != null) ? paper.getTotalScore() : 100;
                         return GlobalAnalysisVO.ExamBriefVO.builder()
-                                .id(exam.getId()).examName(exam.getExamName()).averageScore(0.0).maxScore(maxScore)
-                                .passRate(0.0).participantCount(0).status("empty")
+                                .id(exam.getId()).examName(exam.getExamName())
+                                .averageScore(0.0)
+                                .paperTotalScore(paperTotalScore)
+                                .maxScore(0)
+                                .minScore(0)
+                                .passRate(0.0)
+                                .excellentRate(0.0)
+                                .participantCount(0)
+                                .status("empty")
                                 .build();
                     }
                     double examAvg = examRecords.stream().mapToInt(ExamRecord::getTotalScore).average().orElse(0.0);
-                    Paper paper = paperMapper.selectById(exam.getPaperId());
-                    int maxScore = (paper != null && paper.getTotalScore() != null) ? paper.getTotalScore() : 100;
-                    long examPassCount = examRecords.stream().filter(er -> er.getTotalScore() >= maxScore * 0.6)
+                    int examMax = examRecords.stream().mapToInt(ExamRecord::getTotalScore).max().orElse(0);
+                    int examMin = examRecords.stream().mapToInt(ExamRecord::getTotalScore).min().orElse(0);
+                    long examPassCount = examRecords.stream().filter(er -> er.getTotalScore() >= paperTotalScore * 0.6)
                             .count();
+                    long examExcellentCount = examRecords.stream()
+                            .filter(er -> er.getTotalScore() >= paperTotalScore * 0.9)
+                            .count();
+
                     return GlobalAnalysisVO.ExamBriefVO.builder()
-                            .id(exam.getId()).examName(exam.getExamName()).averageScore(examAvg).maxScore(maxScore)
-                            .passRate((double) examPassCount / participantCount).participantCount(participantCount)
+                            .id(exam.getId()).examName(exam.getExamName())
+                            .averageScore(examAvg)
+                            .paperTotalScore(paperTotalScore)
+                            .maxScore(examMax)
+                            .minScore(examMin)
+                            .passRate((double) examPassCount / participantCount)
+                            .excellentRate((double) examExcellentCount / participantCount)
+                            .participantCount(participantCount)
                             .status("normal")
                             .build();
                 }).collect(Collectors.toList());
 
+        List<GlobalAnalysisVO.TrendDataVO> scoreTrend = sortedForTrend.stream()
+                .filter(e -> !"empty".equals(e.getStatus()))
+                .map(e -> new GlobalAnalysisVO.TrendDataVO(e.getExamName(), e.getAverageScore()))
+                .collect(Collectors.toList());
+        List<GlobalAnalysisVO.TrendDataVO> passRateTrend = sortedForTrend.stream()
+                .filter(e -> !"empty".equals(e.getStatus()))
+                .map(e -> new GlobalAnalysisVO.TrendDataVO(e.getExamName(), e.getPassRate() * 100))
+                .collect(Collectors.toList());
+
+        // 返回给前端展示表格的数据（倒序，最新的在前）
+        List<GlobalAnalysisVO.ExamBriefVO> sortedRecentExams = new ArrayList<>(sortedForTrend);
+        Collections.reverse(sortedRecentExams);
+
         return GlobalAnalysisVO.builder()
                 .totalExams(totalExams).totalStudents(studentIds.size()).averageScore(avgScore).passRate(passRate)
-                .classPerformance(classPerf).recentExams(recentExams)
+                .classPerformance(classPerf).recentExams(sortedRecentExams)
+                .scoreTrend(scoreTrend).passRateTrend(passRateTrend)
                 .build();
     }
 
@@ -910,8 +1043,7 @@ public class AnalysisServiceImpl implements AnalysisService {
             Exam exam = examMap.get(er.getExamId());
             int maxScore = 100;
             if (exam != null) {
-                Paper paper = paperMap.get(exam.getPaperId());
-                maxScore = (paper != null && paper.getTotalScore() != null) ? paper.getTotalScore() : 100;
+                maxScore = getPaperTotalScore(exam.getPaperId());
                 totalMaxScoreSum += maxScore;
 
                 if (score > maxExamScore || (maxExamScore == 0 && maxExamTotalScore == 0)) {
@@ -988,10 +1120,8 @@ public class AnalysisServiceImpl implements AnalysisService {
 
         List<StudentExamRecordVO> voList = records.stream().map(er -> {
             Exam exam = examMap.get(er.getExamId());
-            Paper paper = (exam != null) ? paperMap.get(exam.getPaperId()) : null;
-            int totalScore = (paper != null && paper.getTotalScore() != null) ? paper.getTotalScore() : 100;
+            int totalScore = (exam != null) ? getPaperTotalScore(exam.getPaperId()) : 100;
             double scoreRate = (double) er.getTotalScore() / totalScore;
-
             return StudentExamRecordVO.builder()
                     .id(er.getId())
                     .examId(er.getExamId())
@@ -1028,6 +1158,7 @@ public class AnalysisServiceImpl implements AnalysisService {
         }
 
         // 1. 考试基本信息
+        int totalScore = getPaperTotalScore(exam.getPaperId());
         StudentExamRecordDetailVO detailVO = StudentExamRecordDetailVO.builder()
                 .recordId(examRecord.getId())
                 .examId(exam.getId())
@@ -1036,8 +1167,8 @@ public class AnalysisServiceImpl implements AnalysisService {
                 .courseName(courseMapper.selectById(exam.getCourseId()).getCourseName())
                 .submitTime(examRecord.getSubmitTime())
                 .totalScore(examRecord.getTotalScore())
-                .maxScore(paper.getTotalScore())
-                .scoreRate((double) examRecord.getTotalScore() / paper.getTotalScore())
+                .maxScore(totalScore)
+                .scoreRate((double) examRecord.getTotalScore() / totalScore)
                 .status(examRecord.getStatus())
                 .build();
 
@@ -1180,14 +1311,23 @@ public class AnalysisServiceImpl implements AnalysisService {
             paperMap = new HashMap<>();
         }
 
-        List<StudentAnalysisVO.TrendVO> trendList = courseExamRecords.stream().map(er -> {
-            Exam exam = examMap.get(er.getExamId());
-            Paper paper = (exam != null) ? paperMap.get(exam.getPaperId()) : null;
-            int totalScore = (paper != null && paper.getTotalScore() != null) ? paper.getTotalScore() : 100;
-            double scoreRate = (double) er.getTotalScore() / totalScore;
-            String examName = (exam != null) ? exam.getExamName() : "未知考试";
-            return new StudentAnalysisVO.TrendVO(examName, scoreRate);
-        }).collect(Collectors.toList());
+        List<StudentAnalysisVO.TrendVO> trendList = courseExamRecords.stream()
+                .map(er -> {
+                    Exam exam = examMap.get(er.getExamId());
+                    int totalScore = (exam != null) ? getPaperTotalScore(exam.getPaperId()) : 100;
+                    double scoreRate = (double) er.getTotalScore() / totalScore;
+                    String examName = (exam != null) ? exam.getExamName() : "未知考试";
+                    LocalDateTime sortTime = (exam != null && exam.getStartTime() != null) ? exam.getStartTime()
+                            : er.getSubmitTime();
+                    return new Object() {
+                        String name = examName;
+                        double rate = scoreRate;
+                        LocalDateTime time = sortTime;
+                    };
+                })
+                .sorted(Comparator.comparing(o -> o.time, Comparator.nullsLast(Comparator.naturalOrder())))
+                .map(o -> new StudentAnalysisVO.TrendVO(o.name, o.rate))
+                .collect(Collectors.toList());
 
         return trendList;
     }

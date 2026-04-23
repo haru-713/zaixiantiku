@@ -127,8 +127,10 @@ public class AnalysisController {
      */
     @GetMapping("/admin/analysis/global")
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
-    public Result<GlobalAnalysisVO> getGlobalAnalysis(@RequestParam(required = false) Long courseId) {
-        return Result.success(analysisService.getGlobalAnalysis(courseId));
+    public Result<GlobalAnalysisVO> getGlobalAnalysis(
+            @RequestParam(required = false) Long courseId,
+            @RequestParam(required = false) Long examId) {
+        return Result.success(analysisService.getGlobalAnalysis(courseId, examId));
     }
 
     /**

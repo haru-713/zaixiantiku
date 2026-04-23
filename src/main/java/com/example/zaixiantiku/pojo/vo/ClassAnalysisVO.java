@@ -16,6 +16,18 @@ public class ClassAnalysisVO {
     private Double averageScore;
     private Integer maxScore;
     private List<QuestionAccuracyVO> questionAccuracies;
+    private List<StudentScoreVO> studentScores;
+    private List<TrendVO> classTrend; // 班级历史成绩趋势
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TrendVO {
+        private String examName;
+        private Double averageScore;
+        private Double passRate;
+    }
 
     @Data
     @Builder
@@ -24,6 +36,18 @@ public class ClassAnalysisVO {
     public static class ScoreDistributionVO {
         private String range;
         private Integer count;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class StudentScoreVO {
+        private String username;
+        private String name;
+        private String className;
+        private Integer score;
+        private Integer totalScore;
     }
 
     @Data

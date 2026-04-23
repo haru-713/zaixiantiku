@@ -507,10 +507,20 @@ public class StudentExamServiceImpl implements StudentExamService {
 
         // 批量加载试卷信息
         Set<Long> paperIds = exams.stream().map(Exam::getPaperId).collect(Collectors.toSet());
-        Map<Long, Integer> paperMaxScoreMap = paperIds.isEmpty() ? new HashMap<>()
-                : paperMapper.selectBatchIds(paperIds).stream()
-                        .collect(Collectors.toMap(Paper::getId,
-                                p -> p.getTotalScore() != null ? p.getTotalScore() : 100));
+        Map<Long, Integer> paperMaxScoreMap = new HashMap<>();
+        if (!paperIds.isEmpty()) {
+            for (Long pId : paperIds) {
+                List<PaperQuestion> pqs = paperQuestionMapper.selectList(
+                        new LambdaQueryWrapper<PaperQuestion>().eq(PaperQuestion::getPaperId, pId));
+                if (pqs.isEmpty()) {
+                    Paper paper = paperMapper.selectById(pId);
+                    paperMaxScoreMap.put(pId,
+                            (paper != null && paper.getTotalScore() != null) ? paper.getTotalScore() : 100);
+                } else {
+                    paperMaxScoreMap.put(pId, pqs.stream().mapToInt(PaperQuestion::getScore).sum());
+                }
+            }
+        }
 
         Map<Long, Integer> examMaxScoreMap = exams.stream()
                 .collect(Collectors.toMap(Exam::getId, e -> paperMaxScoreMap.getOrDefault(e.getPaperId(), 100)));
@@ -603,8 +613,19 @@ public class StudentExamServiceImpl implements StudentExamService {
         }
 
         Exam exam = examMapper.selectById(record.getExamId());
-        Paper paper = paperMapper.selectById(exam.getPaperId());
-        Integer maxScore = (paper != null && paper.getTotalScore() != null) ? paper.getTotalScore() : 100;
+        // 查询试卷题目分值信息
+        List<PaperQuestion> pqList = paperQuestionMapper.selectList(new LambdaQueryWrapper<PaperQuestion>()
+                .eq(PaperQuestion::getPaperId, exam.getPaperId()));
+
+        Integer maxScore;
+        if (pqList.isEmpty()) {
+            Paper paper = paperMapper.selectById(exam.getPaperId());
+            maxScore = (paper != null && paper.getTotalScore() != null) ? paper.getTotalScore() : 100;
+        } else {
+            maxScore = pqList.stream().mapToInt(PaperQuestion::getScore).sum();
+        }
+        Map<Long, Integer> questionScoreMap = pqList.stream()
+                .collect(Collectors.toMap(PaperQuestion::getQuestionId, PaperQuestion::getScore));
 
         // 查询答题详情
         List<AnswerDetail> details = answerDetailMapper.selectList(new LambdaQueryWrapper<AnswerDetail>()
@@ -617,12 +638,6 @@ public class StudentExamServiceImpl implements StudentExamService {
             questionMap = questionMapper.selectBatchIds(questionIds).stream()
                     .collect(Collectors.toMap(Question::getId, q -> q));
         }
-
-        // 查询试卷题目分值信息
-        List<PaperQuestion> pqList = paperQuestionMapper.selectList(new LambdaQueryWrapper<PaperQuestion>()
-                .eq(PaperQuestion::getPaperId, exam.getPaperId()));
-        Map<Long, Integer> questionScoreMap = pqList.stream()
-                .collect(Collectors.toMap(PaperQuestion::getQuestionId, PaperQuestion::getScore));
 
         // 查询题型信息
         List<QuestionType> types = questionTypeMapper.selectList(null);
