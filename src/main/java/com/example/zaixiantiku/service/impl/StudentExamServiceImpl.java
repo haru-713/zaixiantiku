@@ -7,6 +7,7 @@ import com.example.zaixiantiku.pojo.dto.CheatRecordDTO;
 import com.example.zaixiantiku.pojo.dto.ExamSubmitDTO;
 import com.example.zaixiantiku.pojo.vo.*;
 import com.example.zaixiantiku.security.LoginUser;
+import com.example.zaixiantiku.utils.RedisUtils;
 import com.example.zaixiantiku.service.StudentExamService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -45,6 +46,7 @@ public class StudentExamServiceImpl implements StudentExamService {
     private final UserMapper userMapper;
     private final LogMapper logMapper;
     private final ObjectMapper objectMapper;
+    private final RedisUtils redisUtils;
 
     @Override
     public void recordCheat(CheatRecordDTO cheatDTO) {
@@ -231,6 +233,15 @@ public class StudentExamServiceImpl implements StudentExamService {
         Map<Long, String> savedAnswers = savedDetails.stream()
                 .collect(Collectors.toMap(AnswerDetail::getQuestionId, AnswerDetail::getUserAnswer, (v1, v2) -> v1));
 
+        // 场景3：从 Redis 恢复最新的临时进度
+        String redisKey = "exam:answer:" + examId + ":" + userId;
+        Map<Object, Object> redisAnswers = redisUtils.hGetAll(redisKey);
+        if (redisAnswers != null && !redisAnswers.isEmpty()) {
+            redisAnswers.forEach((k, v) -> {
+                savedAnswers.put(Long.valueOf(k.toString()), v.toString());
+            });
+        }
+
         // 从日志统计切屏次数
         Long cheatCount = 0L;
         try {
@@ -263,6 +274,14 @@ public class StudentExamServiceImpl implements StudentExamService {
         LoginUser loginUser = requireLoginUser();
         Long userId = loginUser.getUser().getId();
 
+        // 场景3：考试期间临时保存答题进度
+        // 1. 优先存入 Redis（高性能，防断电丢失）
+        String redisKey = "exam:answer:" + examId + ":" + userId;
+        redisUtils.hSet(redisKey, questionId.toString(), answer);
+        // 设置过期时间（例如 2 小时，足够完成一场考试）
+        redisUtils.expire(redisKey, 2, java.util.concurrent.TimeUnit.HOURS);
+
+        // 2. 异步或同步存入数据库（持久化）
         // 获取当前正在进行中的考试记录
         ExamRecord record = examRecordMapper.selectOne(new LambdaQueryWrapper<ExamRecord>()
                 .eq(ExamRecord::getExamId, examId)
@@ -437,6 +456,10 @@ public class StudentExamServiceImpl implements StudentExamService {
         }
 
         examRecordMapper.updateById(record);
+
+        // 场景3：交卷后清除 Redis 中的临时进度
+        String redisKey = "exam:answer:" + examId + ":" + userId;
+        redisUtils.delete(redisKey);
 
         Map<String, Object> result = new HashMap<>();
         result.put("recordId", record.getId());

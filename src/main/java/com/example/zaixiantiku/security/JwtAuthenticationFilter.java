@@ -1,6 +1,7 @@
 package com.example.zaixiantiku.security;
 
 import com.example.zaixiantiku.utils.JwtUtils;
+import com.example.zaixiantiku.utils.RedisUtils;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -28,6 +29,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtils jwtUtils;
     private final UserDetailsService userDetailsService;
+    private final RedisUtils redisUtils;
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response,
@@ -40,6 +42,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             token = token.substring(7);
 
             try {
+                // 场景2：JWT 黑名单校验
+                // 如果 Token 在 Redis 黑名单中，则视为无效
+                String blacklistKey = "jwt:blacklist:" + token;
+                if (Boolean.TRUE.equals(redisUtils.hasKey(blacklistKey))) {
+                    logger.warn("Token is in blacklist: " + token);
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+
                 // 2. 解析并校验 Token
                 Claims claims = jwtUtils.parseToken(token);
                 String username = claims.getSubject();

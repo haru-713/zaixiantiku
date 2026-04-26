@@ -33,8 +33,6 @@ import com.github.pagehelper.PageInfo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -615,22 +613,35 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
             }
         } else {
             // 管理员：执行“级联删除”，自动清理所有关联数据（与前端“强制删除”提示保持一致）
-            
+
             // A. 清理考试相关
-            jdbcTemplate.update("DELETE FROM answer_detail WHERE exam_record_id IN (SELECT id FROM exam_record WHERE exam_id IN (SELECT id FROM exam WHERE course_id = ?))", courseId);
-            jdbcTemplate.update("DELETE FROM exam_record WHERE exam_id IN (SELECT id FROM exam WHERE course_id = ?)", courseId);
-            jdbcTemplate.update("DELETE FROM exam_class WHERE exam_id IN (SELECT id FROM exam WHERE course_id = ?)", courseId);
-            jdbcTemplate.update("DELETE FROM exam_student WHERE exam_id IN (SELECT id FROM exam WHERE course_id = ?)", courseId);
+            jdbcTemplate.update(
+                    "DELETE FROM answer_detail WHERE exam_record_id IN (SELECT id FROM exam_record WHERE exam_id IN (SELECT id FROM exam WHERE course_id = ?))",
+                    courseId);
+            jdbcTemplate.update("DELETE FROM exam_record WHERE exam_id IN (SELECT id FROM exam WHERE course_id = ?)",
+                    courseId);
+            jdbcTemplate.update("DELETE FROM exam_class WHERE exam_id IN (SELECT id FROM exam WHERE course_id = ?)",
+                    courseId);
+            jdbcTemplate.update("DELETE FROM exam_student WHERE exam_id IN (SELECT id FROM exam WHERE course_id = ?)",
+                    courseId);
             jdbcTemplate.update("DELETE FROM exam WHERE course_id = ?", courseId);
 
             // B. 清理试卷相关
-            jdbcTemplate.update("DELETE FROM paper_question WHERE paper_id IN (SELECT id FROM paper WHERE course_id = ?)", courseId);
+            jdbcTemplate.update(
+                    "DELETE FROM paper_question WHERE paper_id IN (SELECT id FROM paper WHERE course_id = ?)",
+                    courseId);
             jdbcTemplate.update("DELETE FROM paper WHERE course_id = ?", courseId);
 
             // C. 清理题目相关
-            jdbcTemplate.update("DELETE FROM mistake_book WHERE question_id IN (SELECT id FROM question WHERE course_id = ?)", courseId);
-            jdbcTemplate.update("DELETE FROM favorite WHERE question_id IN (SELECT id FROM question WHERE course_id = ?)", courseId);
-            jdbcTemplate.update("DELETE FROM question_knowledge WHERE question_id IN (SELECT id FROM question WHERE course_id = ?)", courseId);
+            jdbcTemplate.update(
+                    "DELETE FROM mistake_book WHERE question_id IN (SELECT id FROM question WHERE course_id = ?)",
+                    courseId);
+            jdbcTemplate.update(
+                    "DELETE FROM favorite WHERE question_id IN (SELECT id FROM question WHERE course_id = ?)",
+                    courseId);
+            jdbcTemplate.update(
+                    "DELETE FROM question_knowledge WHERE question_id IN (SELECT id FROM question WHERE course_id = ?)",
+                    courseId);
             jdbcTemplate.update("DELETE FROM question WHERE course_id = ?", courseId);
 
             // D. 清理课程基础关联
@@ -645,14 +656,6 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         if (rows != 1) {
             throw new RuntimeException("删除课程失败");
         }
-    }
-
-    private boolean existsTable(String tableName) {
-        Integer c = jdbcTemplate.queryForObject(
-                "SELECT COUNT(1) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?",
-                Integer.class,
-                tableName);
-        return c != null && c > 0;
     }
 
     @Override

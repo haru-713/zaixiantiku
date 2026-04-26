@@ -370,6 +370,7 @@ public class KnowledgePointServiceImpl implements KnowledgePointService {
     }
 
     @Override
+    @SuppressWarnings("all")
     public PageResult<KnowledgePointPageVO> page(Integer page, Integer size, Long courseId, String keyword) {
         int p = page == null || page < 1 ? 1 : page;
         int s = size == null || size < 1 ? 10 : size;

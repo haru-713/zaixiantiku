@@ -25,6 +25,7 @@ import com.example.zaixiantiku.pojo.vo.QuestionListVO;
 import com.example.zaixiantiku.security.LoginUser;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.example.zaixiantiku.utils.RedisUtils;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import jakarta.servlet.http.HttpServletResponse;
@@ -59,6 +60,7 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
     private final KnowledgePointMapper knowledgePointMapper;
     private final ObjectMapper objectMapper;
     private final JdbcTemplate jdbcTemplate;
+    private final RedisUtils redisUtils;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -87,6 +89,8 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
         }
 
         saveKnowledgeMappings(question.getId(), saveDTO.getKnowledgeIds(), saveDTO.getCourseId());
+        // 清除缓存
+        clearQuestionCache();
         return getQuestionDetail(question.getId());
     }
 
@@ -125,6 +129,8 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
         questionKnowledgeMapper
                 .delete(new LambdaQueryWrapper<QuestionKnowledge>().eq(QuestionKnowledge::getQuestionId, questionId));
         saveKnowledgeMappings(questionId, saveDTO.getKnowledgeIds(), saveDTO.getCourseId());
+        // 清除缓存
+        clearQuestionCache();
         return getQuestionDetail(questionId);
     }
 
@@ -148,10 +154,26 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
         if (rows != 1) {
             throw new RuntimeException("删除失败");
         }
+        // 清除缓存
+        clearQuestionCache();
     }
 
     @Override
     public PageResult<QuestionListVO> getQuestionPage(QuestionQueryDTO queryDTO) {
+        // 场景1：缓存热门试题列表
+        // 1. 生成缓存 Key（根据查询参数 DTO 序列化）
+        String cacheKey = "question:page:" + (queryDTO == null ? "default"
+                : queryDTO.getPage() + ":" + queryDTO.getSize() + ":" + queryDTO.getCourseId() + ":"
+                        + queryDTO.getTypeId() + ":" + queryDTO.getDifficulty() + ":"
+                        + queryDTO.getKnowledgeId() + ":" + queryDTO.getStatus() + ":"
+                        + queryDTO.getKeyword());
+
+        // 2. 尝试从缓存获取
+        PageResult<QuestionListVO> cachedResult = redisUtils.get(cacheKey);
+        if (cachedResult != null) {
+            return cachedResult;
+        }
+
         Integer page = queryDTO == null || queryDTO.getPage() == null || queryDTO.getPage() < 1 ? 1
                 : queryDTO.getPage();
         Integer size = queryDTO == null || queryDTO.getSize() == null || queryDTO.getSize() < 1 ? 10
@@ -219,7 +241,12 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
                     .build();
         }).collect(Collectors.toList());
 
-        return PageResult.of(pageInfo.getTotal(), voList);
+        PageResult<QuestionListVO> result = PageResult.of(pageInfo.getTotal(), voList);
+
+        // 3. 存入缓存，设置 10 分钟过期（如果是热门数据可以设置更长）
+        redisUtils.set(cacheKey, result, 10, java.util.concurrent.TimeUnit.MINUTES);
+
+        return result;
     }
 
     @Override
@@ -463,6 +490,8 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
             }
         }
 
+        // 清除缓存
+        clearQuestionCache();
         return ImportResultVO.builder()
                 .successCount(success)
                 .failCount(fail > 0 || (success == 0 && list.size() > 0) ? Math.max(fail, 1) : 0)
@@ -653,6 +682,8 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
         if (rows != 1) {
             throw new RuntimeException("审核失败");
         }
+        // 清除缓存
+        clearQuestionCache();
     }
 
     @Override
@@ -664,6 +695,8 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
         for (Long id : ids) {
             deleteQuestion(id);
         }
+        // 清除缓存
+        clearQuestionCache();
     }
 
     @Override
@@ -675,6 +708,8 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
         for (Long id : ids) {
             auditQuestion(id, auditDTO);
         }
+        // 清除缓存
+        clearQuestionCache();
     }
 
     @Override
@@ -699,6 +734,8 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
             // 保存新的
             saveKnowledgeMappings(id, knowledgeIds, q.getCourseId());
         }
+        // 清除缓存
+        clearQuestionCache();
     }
 
     private void validateSaveDTO(QuestionSaveDTO saveDTO) {
@@ -874,5 +911,15 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
                 Integer.class,
                 tableName);
         return c != null && c > 0;
+    }
+
+    /**
+     * 清除试题分页列表缓存
+     */
+    private void clearQuestionCache() {
+        Set<String> keys = redisUtils.keys("question:page:*");
+        if (keys != null && !keys.isEmpty()) {
+            redisUtils.delete(keys);
+        }
     }
 }

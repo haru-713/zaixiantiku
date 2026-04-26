@@ -13,6 +13,7 @@ public class BeanCopyUtils {
     /**
      * 拷贝单个对象
      */
+    @SuppressWarnings("all")
     public static <V> V copyBean(Object source, Class<V> clazz) {
         if (source == null) {
             return null;

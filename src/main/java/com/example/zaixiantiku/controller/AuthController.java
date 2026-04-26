@@ -5,6 +5,7 @@ import com.example.zaixiantiku.common.Result;
 import com.example.zaixiantiku.pojo.dto.LoginDTO;
 import com.example.zaixiantiku.pojo.dto.RegisterDTO;
 import com.example.zaixiantiku.service.UserService;
+import com.example.zaixiantiku.utils.RedisUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,23 @@ import java.util.Map;
 public class AuthController {
 
     private final UserService userService;
+    private final RedisUtils redisUtils;
+
+    /**
+     * 用户退出登录
+     */
+    @PostMapping("/logout")
+    @Operation(summary = "退出登录", description = "将当前 Token 加入黑名单")
+    public Result<Void> logout(@RequestHeader("Authorization") String token) {
+        if (org.springframework.util.StringUtils.hasText(token) && token.startsWith("Bearer ")) {
+            token = token.substring(7);
+            // 场景2：JWT 黑名单实现
+            // 将 Token 存入 Redis，设置过期时间为 24 小时（或根据 JWT 的剩余有效期设置）
+            String blacklistKey = "jwt:blacklist:" + token;
+            redisUtils.set(blacklistKey, "logout", 24, java.util.concurrent.TimeUnit.HOURS);
+        }
+        return Result.success();
+    }
 
     /**
      * 检查 Token 是否有效

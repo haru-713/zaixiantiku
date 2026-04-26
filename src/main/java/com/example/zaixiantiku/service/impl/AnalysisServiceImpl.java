@@ -159,18 +159,12 @@ public class AnalysisServiceImpl implements AnalysisService {
         double totalMaxScoreSum = 0;
         Map<Integer, List<Boolean>> typeResults = new HashMap<>();
 
-        // 批量获取所有相关考试和试卷信息，避免循环查询
+        // 批量获取所有相关考试信息，避免循环查询
         Map<Long, Exam> examMap = new HashMap<>();
-        Map<Long, Paper> paperMap = new HashMap<>();
         if (!courseExamRecords.isEmpty()) {
             Set<Long> recordExamIds = courseExamRecords.stream().map(ExamRecord::getExamId).collect(Collectors.toSet());
             examMap = examMapper.selectBatchIds(recordExamIds).stream()
                     .collect(Collectors.toMap(Exam::getId, e -> e));
-            Set<Long> paperIds = examMap.values().stream().map(Exam::getPaperId).collect(Collectors.toSet());
-            if (!paperIds.isEmpty()) {
-                paperMap = paperMapper.selectBatchIds(paperIds).stream()
-                        .collect(Collectors.toMap(Paper::getId, p -> p));
-            }
         }
 
         for (ExamRecord er : courseExamRecords) {
@@ -1022,18 +1016,12 @@ public class AnalysisServiceImpl implements AnalysisService {
         double totalExamScoreSum = 0;
         double totalMaxScoreSum = 0;
 
-        // 批量获取所有相关考试和试卷信息，避免循环查询
+        // 批量获取所有相关考试信息，避免循环查询
         Map<Long, Exam> examMap = new HashMap<>();
-        Map<Long, Paper> paperMap = new HashMap<>();
         if (!courseExamRecords.isEmpty()) {
             Set<Long> recordExamIds = courseExamRecords.stream().map(ExamRecord::getExamId).collect(Collectors.toSet());
             examMap = examMapper.selectBatchIds(recordExamIds).stream()
                     .collect(Collectors.toMap(Exam::getId, e -> e));
-            Set<Long> paperIds = examMap.values().stream().map(Exam::getPaperId).collect(Collectors.toSet());
-            if (!paperIds.isEmpty()) {
-                paperMap = paperMapper.selectBatchIds(paperIds).stream()
-                        .collect(Collectors.toMap(Paper::getId, p -> p));
-            }
         }
 
         for (ExamRecord er : courseExamRecords) {
@@ -1099,23 +1087,14 @@ public class AnalysisServiceImpl implements AnalysisService {
             return PageResult.of(0L, new ArrayList<>());
         }
 
-        // 批量获取所有相关考试和试卷信息，避免循环查询
+        // 批量获取所有相关考试信息，避免循环查询
         final Map<Long, Exam> examMap;
-        final Map<Long, Paper> paperMap;
         if (!records.isEmpty()) {
             Set<Long> examIds = records.stream().map(ExamRecord::getExamId).collect(Collectors.toSet());
             examMap = examMapper.selectBatchIds(examIds).stream()
                     .collect(Collectors.toMap(Exam::getId, e -> e));
-            Set<Long> paperIds = examMap.values().stream().map(Exam::getPaperId).collect(Collectors.toSet());
-            if (!paperIds.isEmpty()) {
-                paperMap = paperMapper.selectBatchIds(paperIds).stream()
-                        .collect(Collectors.toMap(Paper::getId, p -> p));
-            } else {
-                paperMap = new HashMap<>();
-            }
         } else {
             examMap = new HashMap<>();
-            paperMap = new HashMap<>();
         }
 
         List<StudentExamRecordVO> voList = records.stream().map(er -> {
@@ -1294,21 +1273,12 @@ public class AnalysisServiceImpl implements AnalysisService {
 
         // 知识点趋势
         final Map<Long, Exam> examMap;
-        final Map<Long, Paper> paperMap;
         if (!courseExamRecords.isEmpty()) {
             Set<Long> recordExamIds = courseExamRecords.stream().map(ExamRecord::getExamId).collect(Collectors.toSet());
             examMap = examMapper.selectBatchIds(recordExamIds).stream()
                     .collect(Collectors.toMap(Exam::getId, e -> e));
-            Set<Long> paperIds = examMap.values().stream().map(Exam::getPaperId).collect(Collectors.toSet());
-            if (!paperIds.isEmpty()) {
-                paperMap = paperMapper.selectBatchIds(paperIds).stream()
-                        .collect(Collectors.toMap(Paper::getId, p -> p));
-            } else {
-                paperMap = new HashMap<>();
-            }
         } else {
             examMap = new HashMap<>();
-            paperMap = new HashMap<>();
         }
 
         List<StudentAnalysisVO.TrendVO> trendList = courseExamRecords.stream()
