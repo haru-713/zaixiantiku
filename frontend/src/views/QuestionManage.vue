@@ -144,20 +144,20 @@
         <el-form-item label="答案">
           <div class="answer-box">
             <el-radio-group v-if="mode === 'single'" v-model="answerSingle">
-              <el-radio v-for="(opt, idx) in optionTexts" :key="idx" :value="optionLabel(idx)">
+              <el-radio v-for="(opt, idx) in optionTexts" :key="idx" :label="optionLabel(idx)">
                 {{ optionLabel(idx) }}
               </el-radio>
             </el-radio-group>
 
             <el-checkbox-group v-else-if="mode === 'multi'" v-model="answerMulti">
-              <el-checkbox v-for="(opt, idx) in optionTexts" :key="idx" :value="optionLabel(idx)">
+              <el-checkbox v-for="(opt, idx) in optionTexts" :key="idx" :label="optionLabel(idx)">
                 {{ optionLabel(idx) }}
               </el-checkbox>
             </el-checkbox-group>
 
             <el-radio-group v-else-if="mode === 'judge'" v-model="answerJudge">
-              <el-radio value="对">对</el-radio>
-              <el-radio value="错">错</el-radio>
+              <el-radio label="对">对</el-radio>
+              <el-radio label="错">错</el-radio>
             </el-radio-group>
 
             <el-input v-else v-model="answerBlank" placeholder="请输入答案" style="width: 420px" />
@@ -247,8 +247,8 @@
         </el-form-item>
         <el-form-item label="审核结果">
           <el-radio-group v-model="auditForm.status">
-            <el-radio :value="2">通过并发布</el-radio>
-            <el-radio :value="3">拒绝/禁用</el-radio>
+            <el-radio :label="2">通过并发布</el-radio>
+            <el-radio :label="3">拒绝/禁用</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="审核原因">
@@ -286,8 +286,8 @@
         </el-form-item>
         <el-form-item label="审核结果">
           <el-radio-group v-model="batchAuditForm.status">
-            <el-radio :value="2">通过并发布</el-radio>
-            <el-radio :value="3">拒绝/禁用</el-radio>
+            <el-radio :label="2">通过并发布</el-radio>
+            <el-radio :label="3">拒绝/禁用</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="审核原因">
