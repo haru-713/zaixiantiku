@@ -102,6 +102,9 @@
                 </el-checkbox>
               </el-checkbox-group>
               
+              <!-- 简答题 -->
+              <el-input v-else-if="currentMode === 'short'" v-model="answers[currentQuestion.id]" type="textarea" :rows="5" placeholder="请输入您的答案" />
+              
               <!-- 填空题 -->
               <el-input v-else v-model="answers[currentQuestion.id]" placeholder="请输入您的答案" />
             </div>
@@ -288,6 +291,7 @@ const currentMode = computed(() => {
   const name = String(t?.typeName || '')
   if (name.includes('填空')) return 'blank'
   if (name.includes('多选')) return 'multiple'
+  if (name.includes('简答') || name.includes('论述') || name.includes('主观')) return 'short'
   return 'single'
 })
 
