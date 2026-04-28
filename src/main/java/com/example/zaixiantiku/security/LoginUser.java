@@ -58,6 +58,6 @@ public class LoginUser implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return user.getStatus() == 1;
+        return true; // 将状态校验交给 Service 层处理，以便返回自定义提示语
     }
 }

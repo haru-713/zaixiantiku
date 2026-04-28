@@ -20,6 +20,10 @@ public class QuestionListVO {
 
     private String content;
 
+    private String courseName;
+
+    private String creatorName;
+
     private Integer typeId;
 
     private Integer difficulty;

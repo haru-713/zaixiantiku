@@ -57,6 +57,8 @@
         <el-table-column type="selection" width="55" />
         <el-table-column type="index" label="序号" width="60" :index="indexMethod" />
         <el-table-column prop="content" label="试题内容" min-width="280" show-overflow-tooltip />
+        <el-table-column prop="courseName" label="所属课程" width="150" show-overflow-tooltip />
+        <el-table-column prop="creatorName" label="创建人" width="100" show-overflow-tooltip />
         <el-table-column label="知识点" min-width="180">
           <template #default="scope">
             <el-tag v-for="name in scope.row.knowledgeNames" :key="name" size="small" style="margin-right: 4px; margin-bottom: 4px">
@@ -187,11 +189,11 @@
     <el-drawer v-model="detailVisible" title="试题详情" size="50%">
       <el-descriptions :column="2" border v-if="detail">
         <el-descriptions-item label="ID">{{ detail.id }}</el-descriptions-item>
-        <el-descriptions-item label="课程ID">{{ detail.courseId }}</el-descriptions-item>
+        <el-descriptions-item label="所属课程">{{ detail.courseName }}</el-descriptions-item>
         <el-descriptions-item label="题型">{{ typeName(detail.typeId) }}</el-descriptions-item>
         <el-descriptions-item label="难度">{{ difficultyLabel(detail.difficulty) }}</el-descriptions-item>
         <el-descriptions-item label="状态">{{ statusLabel(detail.status) }}</el-descriptions-item>
-        <el-descriptions-item label="创建人">{{ detail.createBy }}</el-descriptions-item>
+        <el-descriptions-item label="创建人">{{ detail.creatorName }}</el-descriptions-item>
         <el-descriptions-item label="创建时间">{{ formatDateTime(detail.createTime) }}</el-descriptions-item>
         <el-descriptions-item label="更新时间">{{ formatDateTime(detail.updateTime) }}</el-descriptions-item>
         <el-descriptions-item label="试题内容" :span="2">{{ detail.content }}</el-descriptions-item>
@@ -203,8 +205,8 @@
         </el-descriptions-item>
         <el-descriptions-item label="答案" :span="2">{{ detail.answer }}</el-descriptions-item>
         <el-descriptions-item label="解析" :span="2">{{ detail.analysis || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="知识点ID" :span="2">
-          {{ (detail.knowledgeIds || []).join(', ') || '-' }}
+        <el-descriptions-item label="知识点" :span="2">
+          {{ (detail.knowledgeNames || []).join(', ') || '-' }}
         </el-descriptions-item>
       </el-descriptions>
     </el-drawer>

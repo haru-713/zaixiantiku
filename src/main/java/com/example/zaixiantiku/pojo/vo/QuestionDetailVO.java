@@ -21,6 +21,8 @@ public class QuestionDetailVO {
 
     private Long courseId;
 
+    private String courseName;
+
     private Integer typeId;
 
     private String content;
@@ -37,7 +39,11 @@ public class QuestionDetailVO {
 
     private Long createBy;
 
+    private String creatorName;
+
     private List<Long> knowledgeIds;
+
+    private List<String> knowledgeNames;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createTime;

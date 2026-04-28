@@ -8,12 +8,14 @@ import com.example.zaixiantiku.entity.KnowledgePoint;
 import com.example.zaixiantiku.entity.Question;
 import com.example.zaixiantiku.entity.QuestionKnowledge;
 import com.example.zaixiantiku.entity.QuestionType;
+import com.example.zaixiantiku.entity.User;
 import com.example.zaixiantiku.mapper.CourseMapper;
 import com.example.zaixiantiku.mapper.CourseTeacherMapper;
 import com.example.zaixiantiku.mapper.KnowledgePointMapper;
 import com.example.zaixiantiku.mapper.QuestionKnowledgeMapper;
 import com.example.zaixiantiku.mapper.QuestionMapper;
 import com.example.zaixiantiku.mapper.QuestionTypeMapper;
+import com.example.zaixiantiku.mapper.UserMapper;
 import com.example.zaixiantiku.pojo.dto.QuestionAuditDTO;
 import com.example.zaixiantiku.pojo.dto.QuestionImportDTO;
 import com.example.zaixiantiku.pojo.dto.QuestionQueryDTO;
@@ -42,8 +44,10 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -55,6 +59,7 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
     private final QuestionMapper questionMapper;
     private final QuestionKnowledgeMapper questionKnowledgeMapper;
     private final QuestionTypeMapper questionTypeMapper;
+    private final UserMapper userMapper;
     private final CourseMapper courseMapper;
     private final CourseTeacherMapper courseTeacherMapper;
     private final KnowledgePointMapper knowledgePointMapper;
@@ -160,9 +165,10 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
 
     @Override
     public PageResult<QuestionListVO> getQuestionPage(QuestionQueryDTO queryDTO) {
-        // 场景1：缓存热门试题列表
-        // 1. 生成缓存 Key（根据查询参数 DTO 序列化）
-        String cacheKey = "question:page:" + (queryDTO == null ? "default"
+        // 1. 生成缓存 Key（根据角色和查询参数 DTO 序列化）
+        LoginUser loginUser = requireLoginUser();
+        String rolePrefix = isAdmin(loginUser) ? "admin" : "teacher:" + loginUser.getUser().getId();
+        String cacheKey = "question:page:" + rolePrefix + ":" + (queryDTO == null ? "default"
                 : queryDTO.getPage() + ":" + queryDTO.getSize() + ":" + queryDTO.getCourseId() + ":"
                         + queryDTO.getTypeId() + ":" + queryDTO.getDifficulty() + ":"
                         + queryDTO.getKnowledgeId() + ":" + queryDTO.getStatus() + ":"
@@ -178,7 +184,6 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
                 : queryDTO.getPage();
         Integer size = queryDTO == null || queryDTO.getSize() == null || queryDTO.getSize() < 1 ? 10
                 : queryDTO.getSize();
-        PageHelper.startPage(page, size);
 
         LambdaQueryWrapper<Question> qw = new LambdaQueryWrapper<>();
         if (queryDTO != null) {
@@ -199,9 +204,16 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
             }
         }
 
-        LoginUser loginUser = requireLoginUser();
         if (!isAdmin(loginUser)) {
-            qw.eq(Question::getCreateBy, loginUser.getUser().getId());
+            List<Long> courseIds = courseTeacherMapper.selectList(new LambdaQueryWrapper<CourseTeacher>()
+                    .eq(CourseTeacher::getTeacherId, loginUser.getUser().getId()))
+                    .stream()
+                    .map(CourseTeacher::getCourseId)
+                    .toList();
+            if (courseIds.isEmpty()) {
+                return PageResult.of(0L, Collections.emptyList());
+            }
+            qw.in(Question::getCourseId, courseIds);
         }
 
         if (queryDTO != null && queryDTO.getKnowledgeId() != null) {
@@ -217,26 +229,66 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
             qw.in(Question::getId, ids);
         }
 
+        // PageHelper 必须在紧邻的查询之前启动，否则会被中间的查询（如权限查询或知识点查询）截断
+        PageHelper.startPage(page, size);
         qw.orderByDesc(Question::getId);
         List<Question> list = questionMapper.selectList(qw);
         PageInfo<Question> pageInfo = new PageInfo<>(list);
 
-        List<QuestionListVO> voList = list.stream().map(q -> {
-            List<Long> kIds = questionKnowledgeMapper.selectList(new LambdaQueryWrapper<QuestionKnowledge>()
-                    .eq(QuestionKnowledge::getQuestionId, q.getId()))
-                    .stream()
-                    .map(QuestionKnowledge::getKnowledgePointId)
-                    .toList();
-            List<String> kNames = kIds.isEmpty() ? Collections.emptyList()
-                    : knowledgePointMapper.selectBatchIds(kIds).stream().map(KnowledgePoint::getName).toList();
+        if (list.isEmpty()) {
+            return PageResult.of(pageInfo.getTotal(), Collections.emptyList());
+        }
 
+        // 批量查询课程和用户信息
+        Set<Long> courseIds = list.stream().map(Question::getCourseId).filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Set<Long> userIds = list.stream().map(Question::getCreateBy).filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        Map<Long, String> courseNameMap = courseIds.isEmpty() ? Collections.emptyMap()
+                : courseMapper.selectBatchIds(courseIds).stream()
+                        .collect(Collectors.toMap(Course::getId, Course::getCourseName));
+        Map<Long, String> userNameMap = userIds.isEmpty() ? Collections.emptyMap()
+                : userMapper.selectBatchIds(userIds).stream()
+                        .collect(Collectors.toMap(User::getId,
+                                u -> StringUtils.hasText(u.getName()) ? u.getName() : u.getUsername()));
+
+        // 批量查询知识点关联
+        Set<Long> questionIds = list.stream().map(Question::getId).collect(Collectors.toSet());
+        Map<Long, List<String>> questionKnowledgeMap = new HashMap<>();
+        if (!questionIds.isEmpty()) {
+            // 1. 获取所有关联
+            List<QuestionKnowledge> allRelations = questionKnowledgeMapper
+                    .selectList(new LambdaQueryWrapper<QuestionKnowledge>()
+                            .in(QuestionKnowledge::getQuestionId, questionIds));
+
+            if (!allRelations.isEmpty()) {
+                // 2. 获取所有知识点名称
+                Set<Long> kPointIds = allRelations.stream().map(QuestionKnowledge::getKnowledgePointId)
+                        .collect(Collectors.toSet());
+                Map<Long, String> kPointNameMap = knowledgePointMapper.selectBatchIds(kPointIds).stream()
+                        .collect(Collectors.toMap(KnowledgePoint::getId, KnowledgePoint::getName));
+
+                // 3. 按照试题 ID 分组并填充名称
+                allRelations.forEach(rel -> {
+                    String name = kPointNameMap.get(rel.getKnowledgePointId());
+                    if (name != null) {
+                        questionKnowledgeMap.computeIfAbsent(rel.getQuestionId(), k -> new ArrayList<>()).add(name);
+                    }
+                });
+            }
+        }
+
+        List<QuestionListVO> voList = list.stream().map(q -> {
             return QuestionListVO.builder()
                     .id(q.getId())
                     .content(q.getContent())
+                    .courseName(courseNameMap.getOrDefault(q.getCourseId(), "未知课程"))
+                    .creatorName(userNameMap.getOrDefault(q.getCreateBy(), "未知用户"))
                     .typeId(q.getTypeId())
                     .difficulty(q.getDifficulty())
                     .status(q.getStatus())
-                    .knowledgeNames(kNames)
+                    .knowledgeNames(questionKnowledgeMap.getOrDefault(q.getId(), Collections.emptyList()))
                     .createTime(q.getCreateTime())
                     .build();
         }).collect(Collectors.toList());
@@ -272,9 +324,16 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
                 .distinct()
                 .collect(Collectors.toList());
 
+        List<String> knowledgeNames = knowledgeIds.isEmpty() ? Collections.emptyList()
+                : knowledgePointMapper.selectBatchIds(knowledgeIds).stream().map(KnowledgePoint::getName).toList();
+
+        Course course = courseMapper.selectById(question.getCourseId());
+        User creator = userMapper.selectById(question.getCreateBy());
+
         return QuestionDetailVO.builder()
                 .id(question.getId())
                 .courseId(question.getCourseId())
+                .courseName(course != null ? course.getCourseName() : "未知课程")
                 .typeId(question.getTypeId())
                 .content(question.getContent())
                 .difficulty(question.getDifficulty())
@@ -283,7 +342,11 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
                 .analysis(question.getAnalysis())
                 .status(question.getStatus())
                 .createBy(question.getCreateBy())
+                .creatorName(creator != null
+                        ? (StringUtils.hasText(creator.getName()) ? creator.getName() : creator.getUsername())
+                        : "未知用户")
                 .knowledgeIds(knowledgeIds)
+                .knowledgeNames(knowledgeNames)
                 .createTime(question.getCreateTime())
                 .updateTime(question.getUpdateTime())
                 .build();
