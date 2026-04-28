@@ -340,6 +340,10 @@ public class PracticeServiceImpl implements PracticeService {
         if (courseId != null)
             qw.eq(MistakeBook::getCourseId, courseId);
 
+        // 优先按错误次数倒序，其次按最近错误时间倒序
+        qw.orderByDesc(MistakeBook::getWrongCount);
+        qw.orderByDesc(MistakeBook::getLastWrongTime);
+
         List<MistakeBook> mistakes = mistakeBookMapper.selectList(qw);
         if (mistakes.isEmpty())
             return new ArrayList<>();
