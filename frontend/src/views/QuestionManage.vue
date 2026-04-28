@@ -600,6 +600,7 @@ const resetForm = () => {
 const openCreate = async () => {
   editingId.value = null
   resetForm()
+  fetchCourseOptions('') // 打开创建弹窗时刷新课程选项
   formVisible.value = true
 }
 
@@ -627,6 +628,7 @@ const openEdit = async (row) => {
   editingId.value = row.id
   saving.value = true
   try {
+    fetchCourseOptions('') // 刷新课程选项，确保当前课程在列表中
     const res = await request.get(`/questions/${row.id}`)
     const d = res.data
     form.courseId = d.courseId
@@ -932,6 +934,7 @@ const handleKnowledgeDropdownForForm = (visible) => {
 }
 
 onMounted(() => {
+  fetchCourseOptions('') // 初始加载课程选项
   fetchQuestionTypes().then(() => {
     if (!form.typeId && questionTypeOptions.value.length) {
       form.typeId = questionTypeOptions.value[0].id

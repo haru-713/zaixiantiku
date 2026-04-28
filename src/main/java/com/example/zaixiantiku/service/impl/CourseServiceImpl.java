@@ -78,7 +78,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
                 .description(createDTO.getDescription())
                 .cover(createDTO.getCover())
                 .status(1) // 直接设置为启用
-                .auditStatus(2) // 2-审核通过
+                .auditStatus(1) // 1-审核通过
                 .auditReason(null)
                 .build();
 
@@ -134,7 +134,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         if (studentId != null) {
             qw.apply("id IN (SELECT course_id FROM course_student WHERE student_id = {0})", studentId);
         }
-        qw.orderByAsc(Course::getId);
+        qw.orderByDesc(Course::getId);
 
         List<Course> courses = courseMapper.selectList(qw);
         PageInfo<Course> pageInfo = new PageInfo<>(courses);
