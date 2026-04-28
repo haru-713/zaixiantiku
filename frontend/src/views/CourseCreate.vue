@@ -16,12 +16,6 @@
             @keyup.enter="handleQuery" />
         </el-form-item>
         <el-form-item>
-          <el-select v-model="query.status" placeholder="状态" clearable style="width: 120px">
-            <el-option label="启用" :value="1" />
-            <el-option label="禁用" :value="0" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
           <el-button type="primary" @click="handleQuery">查询</el-button>
           <el-button @click="resetQuery">重置</el-button>
         </el-form-item>
@@ -50,13 +44,6 @@
         <el-table-column label="教师" min-width="150" show-overflow-tooltip>
           <template #default="scope">
             {{ formatTeachers(scope.row.teachers) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="status" label="状态" width="90" align="center">
-          <template #default="scope">
-            <el-tag :type="scope.row.status === 1 ? 'success' : 'danger'" size="small">
-              {{ scope.row.status === 1 ? '启用' : '禁用' }}
-            </el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="createTime" label="创建时间" width="160">
@@ -354,7 +341,7 @@ const handleDelete = async (row) => {
 
 const handleExit = async (row) => {
   try {
-    await ElMessageBox.confirm(`确定要不再教授课程【${row.courseName}】并退出吗？`, '提示', {
+    await ElMessageBox.confirm(`确定要退出课程【${row.courseName}】的任课教师团队吗？`, '退出提示', {
       confirmButtonText: '确定退出',
       cancelButtonText: '取消',
       type: 'warning'

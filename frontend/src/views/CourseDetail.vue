@@ -12,11 +12,6 @@
 
       <el-descriptions :column="2" border>
         <el-descriptions-item label="课程名称">{{ detail.courseName }}</el-descriptions-item>
-        <el-descriptions-item label="状态">
-          <el-tag :type="detail.status === 1 ? 'success' : 'danger'">
-            {{ detail.status === 1 ? '启用' : '禁用' }}
-          </el-tag>
-        </el-descriptions-item>
         <el-descriptions-item label="创建时间">{{ formatDateTime(detail.createTime) }}</el-descriptions-item>
         <el-descriptions-item label="更新时间">{{ formatDateTime(detail.updateTime) }}</el-descriptions-item>
         <el-descriptions-item label="封面" :span="2">

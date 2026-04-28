@@ -77,8 +77,8 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
                 .courseName(courseName)
                 .description(createDTO.getDescription())
                 .cover(createDTO.getCover())
-                .status(0) // 修改：初始状态设为 0 (下架)，审核通过后方可改为 1 (发布)
-                .auditStatus(1) // 1-待审核
+                .status(1) // 直接设置为启用
+                .auditStatus(2) // 2-审核通过
                 .auditReason(null)
                 .build();
 
@@ -728,7 +728,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         Long teacherCount = courseTeacherMapper.selectCount(new LambdaQueryWrapper<CourseTeacher>()
                 .eq(CourseTeacher::getCourseId, courseId));
         if (teacherCount != null && teacherCount <= 1) {
-            throw new BusinessException("课程至少需要一名任课教师，无法移除最后一位。若需删除课程，请直接点击“删除课程”按钮。");
+            throw new BusinessException("您是该课程的唯一任课教师，无法退出。如需移除此课程，请联系管理员或使用删除功能。");
         }
 
         // 权限校验：仅管理员或课程创建者可移除教师，且教师可退出自己教授的课程
