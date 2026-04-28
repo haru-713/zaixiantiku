@@ -84,7 +84,7 @@ public class QuestionServiceImpl implements com.example.zaixiantiku.service.Ques
                 .options(toOptionsJson(saveDTO.getOptions()))
                 .answer(saveDTO.getAnswer())
                 .analysis(saveDTO.getAnalysis())
-                .status(2)
+                .status(1) // 修改：初始状态设为 1 (待审核)，需管理员审核后方可发布 (status=2)
                 .createBy(creatorId)
                 .build();
 

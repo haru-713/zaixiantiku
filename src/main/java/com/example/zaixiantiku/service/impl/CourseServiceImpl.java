@@ -77,8 +77,8 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
                 .courseName(courseName)
                 .description(createDTO.getDescription())
                 .cover(createDTO.getCover())
-                .status(1)
-                .auditStatus(1)
+                .status(0) // 修改：初始状态设为 0 (下架)，审核通过后方可改为 1 (发布)
+                .auditStatus(1) // 1-待审核
                 .auditReason(null)
                 .build();
 
