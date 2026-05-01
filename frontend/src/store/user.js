@@ -3,7 +3,20 @@ import { ref } from 'vue'
 
 export const useUserStore = defineStore('user', () => {
   const token = ref(localStorage.getItem('token') || '')
-  const userInfo = ref(JSON.parse(localStorage.getItem('userInfo') || '{}'))
+  
+  // 安全地解析用户信息，防止 JSON.parse 报错导致页面空白
+  let initialUserInfo = {}
+  try {
+    const storedUserInfo = localStorage.getItem('userInfo')
+    if (storedUserInfo && storedUserInfo !== 'undefined') {
+      initialUserInfo = JSON.parse(storedUserInfo)
+    }
+  } catch (e) {
+    console.error('解析用户信息失败:', e)
+    localStorage.removeItem('userInfo')
+  }
+  
+  const userInfo = ref(initialUserInfo)
 
   const setToken = (newToken) => {
     token.value = newToken
